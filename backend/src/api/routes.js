@@ -39,11 +39,17 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
 // ── AUTH ROUTES ───────────────────────────────────────────────
 
 router.post('/auth/login', async (req, res) => {
-  const { id, password } = req.body;
+  const { id: rawId, password: rawPassword } = req.body;
+  const id = String(rawId || '').trim();
+  const password = String(rawPassword || '').trim();
+  
   const tenants = await listTenants();
   console.log(`🔑 Tentativa de login: ID=${id} | Senha=${password ? '***' : 'vazia'}`);
   
-  const tenant = tenants.find(t => String(t.id).toLowerCase() === String(id).toLowerCase() && String(t.password) === String(password));
+  const tenant = tenants.find(t => 
+    String(t.id).toLowerCase() === id.toLowerCase() && 
+    String(t.password) === password
+  );
   
   if (!tenant) {
     console.log(`❌ Login falhou para ID=${id}. Empresas disponíveis:`, tenants.map(t => t.id));

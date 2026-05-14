@@ -310,11 +310,14 @@ async function listLearnings(tenantId = 'default') {
  * Lista Empresas/Tenants (Prioriza Supabase, fallback JSON)
  */
 async function listTenants() {
-  const supabase = getSupabase();
-  const { data, error } = await supabase.from('tenants').select('*');
-  
-  if (!error && data && data.length > 0) {
-    return data;
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('tenants').select('*');
+    if (!error && data && data.length > 0) {
+      return data;
+    }
+  } catch (err) {
+    console.warn('⚠️ Supabase não disponível para listTenants, usando fallback local:', err.message);
   }
 
   // Fallback para arquivo local se banco estiver vazio ou der erro
@@ -329,22 +332,26 @@ async function listTenants() {
  * Lista Agentes (Prioriza Supabase, fallback JSON)
  */
 async function listAgents(tenantId = null) {
-  const supabase = getSupabase();
-  let query = supabase.from('agents').select('*');
-  if (tenantId) query = query.eq('tenant_id', tenantId);
-  
-  const { data, error } = await query;
-  
-  if (!error && data && data.length > 0) {
-    // Mapeia snake_case do banco para camelCase do app
-    return data.map(a => ({
-      id: a.id,
-      name: a.name,
-      tenantId: a.tenant_id,
-      status: a.status,
-      settings: a.settings,
-      qr: a.qr_code
-    }));
+  try {
+    const supabase = getSupabase();
+    let query = supabase.from('agents').select('*');
+    if (tenantId) query = query.eq('tenant_id', tenantId);
+    
+    const { data, error } = await query;
+    
+    if (!error && data && data.length > 0) {
+      // Mapeia snake_case do banco para camelCase do app
+      return data.map(a => ({
+        id: a.id,
+        name: a.name,
+        tenantId: a.tenant_id,
+        status: a.status,
+        settings: a.settings,
+        qr: a.qr_code
+      }));
+    }
+  } catch (err) {
+    console.warn('⚠️ Supabase não disponível para listAgents, usando fallback local:', err.message);
   }
 
   // Fallback para arquivo local
