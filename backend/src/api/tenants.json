@@ -1,0 +1,25 @@
+[
+  {
+    "id": "admin",
+    "name": "Super Admin",
+    "password": "admin",
+    "role": "superadmin",
+    "status": "active"
+  },
+  {
+    "id": "default",
+    "name": "Minha Empresa",
+    "password": "123",
+    "role": "company",
+    "status": "active",
+    "logo": null
+  },
+  {
+    "id": "Lucas",
+    "name": "Evoluir",
+    "password": "198236",
+    "role": "company",
+    "status": "active",
+    "logo": null
+  }
+]

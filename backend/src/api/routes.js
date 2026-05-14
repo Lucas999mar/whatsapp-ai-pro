@@ -1,0 +1,258 @@
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const config = require('../config/config');
+const { getSupabase } = require('../db/supabase');
+const { 
+  listKnowledgeItems, addKnowledgeItem, deleteKnowledgeItem, 
+  listConversations, getStats 
+} = require('../db/repository');
+const { generateToken, authMiddleware } = require('./auth');
+
+const router = express.Router();
+const upload = multer({ dest: config.uploadsDir });
+
+const TENANTS_FILE = path.resolve(__dirname, 'tenants.json');
+const AGENTS_FILE = path.resolve(__dirname, '../../agents.json');
+
+// MIGRATION: Ensure all agents have a tenantId
+if (fs.existsSync(AGENTS_FILE)) {
+  try {
+    let agents = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8'));
+    let changed = false;
+    agents = agents.map(a => {
+      if (!a.tenantId) {
+        a.tenantId = 'default';
+        changed = true;
+      }
+      return a;
+    });
+    if (changed) fs.writeFileSync(AGENTS_FILE, JSON.stringify(agents, null, 2));
+  } catch (e) {}
+}
+
+function getTenants() {
+  if (!fs.existsSync(TENANTS_FILE)) return [];
+  return JSON.parse(fs.readFileSync(TENANTS_FILE, 'utf8'));
+}
+
+function saveTenants(tenants) {
+  fs.writeFileSync(TENANTS_FILE, JSON.stringify(tenants, null, 2));
+}
+
+// ── LOGO UPLOAD ROUTE ─────────────────────────────────────────
+
+router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const fileName = `logo_${req.user.id}_${Date.now()}${path.extname(req.file.originalname)}`;
+    const supabase = getSupabase();
+    const filePath = `logos/${fileName}`;
+    const { error } = await supabase.storage.from('knowledge-files').upload(filePath, fileBuffer, { contentType: req.file.mimetype, upsert: true });
+    if (error) throw error;
+    const logoUrl = supabase.storage.from('knowledge-files').getPublicUrl(filePath).data.publicUrl;
+    const tenants = getTenants();
+    const index = tenants.findIndex(t => t.id === req.user.id);
+    if (index !== -1) {
+      tenants[index].logo = logoUrl;
+      saveTenants(tenants);
+    }
+    fs.unlinkSync(req.file.path);
+    res.json({ logoUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AUTH ROUTES ───────────────────────────────────────────────
+
+router.post('/auth/login', (req, res) => {
+  const { id, password } = req.body;
+  const tenants = getTenants();
+  const tenant = tenants.find(t => t.id === id && t.password === password);
+  if (!tenant) return res.status(401).json({ error: 'Credenciais inválidas' });
+  if (tenant.status !== 'active') return res.status(403).json({ error: 'Conta desativada' });
+  const token = generateToken({ id: tenant.id, name: tenant.name, role: tenant.role });
+  res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role, logo: tenant.logo } });
+});
+
+// ── SUPER ADMIN ROUTES ────────────────────────────────────────
+
+router.get('/admin/tenants', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
+  const tenants = getTenants();
+  const agentsList = fs.existsSync(AGENTS_FILE) ? JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')) : [];
+  const enrichedTenants = await Promise.all(tenants.map(async t => {
+    const stats = await getStats(t.id);
+    return {
+      ...t,
+      agentCount: agentsList.filter(a => (a.tenantId || 'default') === t.id).length,
+      knowledgeCount: stats.knowledge.total,
+      obsidianCount: stats.knowledge.byType.obsidian
+    };
+  }));
+  res.json(enrichedTenants);
+});
+
+router.post('/admin/tenants', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
+  const { id, name, password } = req.body;
+  const tenants = getTenants();
+  if (tenants.find(t => t.id === id)) return res.status(400).json({ error: 'ID já existe' });
+  const newTenant = { id, name, password, role: 'company', status: 'active', logo: null };
+  tenants.push(newTenant);
+  saveTenants(tenants);
+  res.json(newTenant);
+});
+
+router.put('/admin/tenants/:id', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
+  const tenants = getTenants();
+  const index = tenants.findIndex(t => t.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: 'Empresa não encontrada' });
+  tenants[index] = { ...tenants[index], ...req.body };
+  saveTenants(tenants);
+  res.json(tenants[index]);
+});
+
+router.delete('/admin/tenants/:id', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
+  let tenants = getTenants();
+  tenants = tenants.filter(t => t.id !== req.params.id);
+  saveTenants(tenants);
+  res.json({ success: true });
+});
+
+// ── OBSIDIAN ROUTES ───────────────────────────────────────────
+
+const { syncVault } = require('../obsidian/watcher');
+
+router.post('/obsidian/sync', authMiddleware, async (req, res) => {
+  try {
+    const { path: vaultPath } = req.body;
+    if (!vaultPath) return res.status(400).json({ error: 'Caminho do vault é obrigatório' });
+    syncVault(vaultPath, req.user.id);
+    res.json({ success: true, message: 'Sincronização iniciada' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── COMPANY SETTINGS ──────────────────────────────────────────
+
+router.put('/company/settings', authMiddleware, (req, res) => {
+  const tenants = getTenants();
+  const index = tenants.findIndex(t => t.id === req.user.id);
+  if (index === -1) return res.status(404).json({ error: 'Empresa não encontrada' });
+  const { name, logo } = req.body;
+  tenants[index].name = name || tenants[index].name;
+  tenants[index].logo = logo || tenants[index].logo;
+  saveTenants(tenants);
+  res.json(tenants[index]);
+});
+
+// ── PROTECTED BUSINESS ROUTES ──────────────────────────────────
+
+router.get('/knowledge', authMiddleware, async (req, res) => {
+  try {
+    const { type, agentId } = req.query;
+    const items = await listKnowledgeItems(type, agentId, req.user.id);
+    res.json(items);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/knowledge/upload', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const fileName = req.file.originalname;
+    const supabase = getSupabase();
+    const filePath = `uploads/${req.user.id}/${Date.now()}_${fileName}`;
+    const { data: storageData, error: storageError } = await supabase.storage.from('knowledge-files').upload(filePath, fileBuffer, { contentType: req.file.mimetype });
+    if (storageError) throw storageError;
+    const fileUrl = supabase.storage.from('knowledge-files').getPublicUrl(filePath).data.publicUrl;
+    let type = req.file.mimetype.startsWith('image/') ? 'image' : req.file.mimetype.startsWith('audio/') ? 'audio' : 'document';
+    const item = await addKnowledgeItem({ title: req.body.title || fileName, type, content: `Conteúdo de ${fileName}`, fileUrl, fileName, fileSize: req.file.size, agentId: req.body.agentId || 'global', tenantId: req.user.id });
+    fs.unlinkSync(req.file.path);
+    res.json(item);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/knowledge/:id', authMiddleware, async (req, res) => {
+  try {
+    await deleteKnowledgeItem(req.params.id, req.user.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/knowledge/:id/agent', authMiddleware, async (req, res) => {
+  try {
+    const { agentId } = req.body;
+    const supabase = getSupabase();
+    
+    // Busca para validar tenant
+    const { data: item } = await supabase.from('knowledge_items').select('metadata').eq('id', req.params.id).single();
+    if (!item) return res.status(404).json({ error: 'Item não encontrado' });
+    if ((item.metadata?.tenantId || 'default') !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
+    
+    const newMetadata = { ...item.metadata, agentId: agentId || 'unassigned' };
+    await supabase.from('knowledge_items').update({ metadata: newMetadata }).eq('id', req.params.id);
+    
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/conversations', authMiddleware, async (req, res) => {
+  try {
+    const items = await listConversations(100, req.user.id);
+    res.json(items);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/stats', authMiddleware, async (req, res) => {
+  try {
+    const stats = await getStats(req.user.id);
+    res.json(stats);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/learnings', authMiddleware, async (req, res) => {
+  try {
+    const { listLearnings } = require('../db/repository');
+    const items = await listLearnings(req.user.id);
+    res.json(items);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── WHATSAPP ROUTES ───────────────────────────────────────────
+
+const { getAgentsStatus, restartWhatsAppBot, addAgent, removeAgent, updateAgentSettings } = require('../whatsapp/bot');
+
+router.get('/whatsapp/status', authMiddleware, (req, res) => {
+  res.json({ agents: getAgentsStatus(req.user.id) });
+});
+
+router.post('/whatsapp/agents', authMiddleware, async (req, res) => {
+  try {
+    const id = await addAgent(req.body.name, req.user.id);
+    res.json({ success: true, id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/whatsapp/agents/:id/settings', authMiddleware, async (req, res) => {
+  try {
+    await updateAgentSettings(req.params.id, req.body.settings);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/whatsapp/agents/:id', authMiddleware, async (req, res) => {
+  try {
+    await removeAgent(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+module.exports = router;
