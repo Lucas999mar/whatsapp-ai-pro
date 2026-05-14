@@ -1,3 +1,5 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Database, MessageSquare, BrainCircuit, 
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X 
