@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: whatsapp-backend-pro
+    runtime: node
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 3001
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: BOT_NAME
+        value: Assistente
+      - key: RESPOND_ALL
+        value: "true"
+      - key: RESPONSE_MODE
+        value: mirror
+    buildCommand: npm install
+    startCommand: node index.js
