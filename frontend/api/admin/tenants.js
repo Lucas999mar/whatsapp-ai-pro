@@ -6,54 +6,53 @@ const SECRET = process.env.JWT_SECRET || 'wa-pro-secret-key-123';
 function verifyToken(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
-  const token = authHeader.split(' ')[1];
-  try {
-    return jwt.verify(token, SECRET);
-  } catch {
-    return null;
-  }
+  try { return jwt.verify(authHeader.split(' ')[1], SECRET); } catch { return null; }
 }
 
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const user = verifyToken(req);
   if (!user) return res.status(401).json({ error: 'Não autorizado' });
 
-  // GET - listar tenants
+  // GET - listar tenants com estatísticas completas
   if (req.method === 'GET') {
     if (user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
-    const { data, error } = await supabase.from('tenants').select('*').order('created_at');
+    
+    const { data: tenants, error } = await supabase.from('tenants').select('*').order('created_at');
     if (error) return res.status(500).json({ error: error.message });
     
-    // Enriquecer com contagens
-    const enriched = await Promise.all(data.map(async (t) => {
-      const { count: knowledgeCount } = await supabase
-        .from('knowledge_items')
-        .select('*', { count: 'exact', head: true })
-        .or(`metadata->>tenantId.eq.${t.id},metadata->>tenantId.is.null`);
-      
-      const { count: conversationCount } = await supabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .like('whatsapp_id', `${t.id}__%`);
+    // Buscar todos os agentes de uma vez
+    const { data: allAgents } = await supabase.from('agents').select('id, tenant_id');
+    
+    // Buscar contagens de conhecimento
+    const { data: allKnowledge } = await supabase
+      .from('knowledge_items')
+      .select('id, type, metadata');
+
+    const enriched = (tenants || []).map(t => {
+      const tenantAgents = (allAgents || []).filter(a => a.tenant_id === t.id);
+      const tenantKnowledge = (allKnowledge || []).filter(k => {
+        const meta = k.metadata || {};
+        return meta.tenantId === t.id || (!meta.tenantId && t.id === 'default');
+      });
+      const obsidianCount = tenantKnowledge.filter(k => k.type === 'obsidian').length;
 
       return {
         ...t,
-        agentCount: 0,
-        knowledgeCount: knowledgeCount || 0,
-        obsidianCount: 0,
-        conversationCount: conversationCount || 0
+        agentCount: tenantAgents.length,
+        knowledgeCount: tenantKnowledge.length,
+        obsidianCount: obsidianCount
       };
-    }));
+    });
 
     return res.status(200).json(enriched);
   }
