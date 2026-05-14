@@ -5,7 +5,7 @@ import axios from 'axios';
 const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
 
 const api = axios.create({
-  baseURL: isProduction ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001'
 });
 
 // Interceptor para adicionar o token JWT automaticamente
