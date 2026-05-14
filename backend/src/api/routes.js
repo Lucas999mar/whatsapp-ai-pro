@@ -14,7 +14,7 @@ const router = express.Router();
 const upload = multer({ dest: config.uploadsDir });
 
 const TENANTS_FILE = path.resolve(__dirname, 'tenants.json');
-const AGENTS_FILE = path.resolve(__dirname, '../../agents.json');
+const AGENTS_FILE = path.resolve(__dirname, '../../public/agents.json');
 
 // MIGRATION: Ensure all agents have a tenantId
 if (fs.existsSync(AGENTS_FILE)) {
@@ -256,6 +256,22 @@ router.post('/whatsapp/agents', authMiddleware, async (req, res) => {
 router.post('/whatsapp/agents/:id/settings', authMiddleware, async (req, res) => {
   try {
     await updateAgentSettings(req.params.id, req.body.settings);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/whatsapp/agents/:id/restart', authMiddleware, async (req, res) => {
+  try {
+    await restartWhatsAppBot(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Alias para o dashboard que usa /whatsapp/restart no body
+router.post('/whatsapp/restart', authMiddleware, async (req, res) => {
+  try {
+    const { agentId } = req.body;
+    await restartWhatsAppBot(agentId);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
