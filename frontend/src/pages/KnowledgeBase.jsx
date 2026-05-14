@@ -23,7 +23,7 @@ export default function KnowledgeBase() {
 
   const fetchAgents = async () => {
     try {
-      const res = await api.get('/api/whatsapp/status');
+      const res = await api.get('/whatsapp/status');
       setAgents(res.data.agents || []);
     } catch (err) {
       console.error('API Error:', err);
@@ -36,7 +36,7 @@ export default function KnowledgeBase() {
       if (filter !== 'all') queryParams.append('type', filter);
       if (selectedAgent !== 'all') queryParams.append('agentId', selectedAgent);
       
-      const res = await api.get(`/api/knowledge?${queryParams.toString()}`);
+      const res = await api.get(`/knowledge?${queryParams.toString()}`);
       setItems(res.data);
     } catch (err) {
       console.error(err);
@@ -58,7 +58,7 @@ export default function KnowledgeBase() {
     formData.append('agentId', selectedAgent === 'all' ? 'global' : selectedAgent);
 
     try {
-      await api.post('/api/knowledge/upload', formData);
+      await api.post('/knowledge/upload', formData);
       fetchItems();
       alert('Arquivo enviado com sucesso!');
     } catch (err) {
@@ -73,7 +73,7 @@ export default function KnowledgeBase() {
     if (!obsidianPath) return alert('Por favor, informe o caminho do seu vault.');
     setIsSyncing(true);
     try {
-      await api.post('/api/obsidian/sync', { path: obsidianPath });
+      await api.post('/obsidian/sync', { path: obsidianPath });
       alert('Sincronização do Obsidian iniciada! Os arquivos aparecerão em instantes.');
       setTimeout(fetchItems, 3000);
     } catch (err) {
@@ -86,7 +86,7 @@ export default function KnowledgeBase() {
   const handleDelete = async (id) => {
     if (!window.confirm('Tem certeza que deseja excluir este item?')) return;
     try {
-      await api.delete(`/api/knowledge/${encodeURIComponent(id)}`);
+      await api.delete(`/knowledge/${encodeURIComponent(id)}`);
       fetchItems();
     } catch (err) {
       alert('Erro ao deletar: ' + (err.response?.data?.error || err.message));
@@ -95,7 +95,7 @@ export default function KnowledgeBase() {
 
   const handleChangeAgent = async (id, newAgentId) => {
     try {
-      await api.put(`/api/knowledge/${encodeURIComponent(id)}/agent`, { agentId: newAgentId });
+      await api.put(`/knowledge/${encodeURIComponent(id)}/agent`, { agentId: newAgentId });
       fetchItems();
     } catch (err) {
       alert('Erro ao vincular agente: ' + (err.response?.data?.error || err.message));

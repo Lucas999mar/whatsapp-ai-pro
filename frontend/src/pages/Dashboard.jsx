@@ -23,7 +23,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await api.get('/api/stats');
+        const res = await api.get('/stats');
         setStats(res.data);
       } catch (err) {
         console.error('Stats Error:', err);
@@ -36,7 +36,7 @@ export default function Dashboard() {
 
   const fetchStatus = async () => {
     try {
-      const res = await api.get('/api/whatsapp/status');
+      const res = await api.get('/whatsapp/status');
       setAgents(res.data.agents || []);
     } catch (err) {
       console.error('API Error:', err);
@@ -47,7 +47,7 @@ export default function Dashboard() {
     if (!newAgentName.trim()) return;
     setIsSubmitting(true);
     try {
-      await api.post('/api/whatsapp/agents', { name: newAgentName });
+      await api.post('/whatsapp/agents', { name: newAgentName });
       setNewAgentName('');
       setIsAdding(false);
       // Busca status imediatamente para mostrar o novo agente "desconectado" ou "iniciando"
@@ -61,7 +61,7 @@ export default function Dashboard() {
 
   const handleRestartAgent = async (agentId) => {
     try {
-      await api.post('/api/whatsapp/restart', { agentId });
+      await api.post('/whatsapp/restart', { agentId });
     } catch (err) {
       alert('Erro ao reiniciar agente.');
     }
@@ -70,7 +70,7 @@ export default function Dashboard() {
   const handleDeleteAgent = async (agentId) => {
     if (!window.confirm('Tem certeza que deseja deletar este agente?')) return;
     try {
-      await api.delete(`/api/whatsapp/agents/${agentId}`);
+      await api.delete(`/whatsapp/agents/${agentId}`);
     } catch (err) {
       alert('Erro ao deletar agente.');
     }

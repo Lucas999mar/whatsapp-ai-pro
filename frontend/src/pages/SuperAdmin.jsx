@@ -23,7 +23,7 @@ export default function SuperAdmin() {
 
   const fetchTenants = async () => {
     try {
-      const res = await api.get('/api/admin/tenants');
+      const res = await api.get('/admin/tenants');
       setTenants(res.data);
     } catch (err) {
       console.error(err);
@@ -37,9 +37,9 @@ export default function SuperAdmin() {
     setSubmitting(true);
     try {
       if (editingId) {
-        await api.put(`/api/admin/tenants/${editingId}`, formData);
+        await api.put(`/admin/tenants/${editingId}`, formData);
       } else {
-        await api.post('/api/admin/tenants', formData);
+        await api.post('/admin/tenants', formData);
       }
       setShowModal(false);
       fetchTenants();
@@ -53,7 +53,7 @@ export default function SuperAdmin() {
   const toggleStatus = async (tenant) => {
     try {
       const newStatus = tenant.status === 'active' ? 'inactive' : 'active';
-      await api.put(`/api/admin/tenants/${tenant.id}`, { status: newStatus });
+      await api.put(`/admin/tenants/${tenant.id}`, { status: newStatus });
       fetchTenants();
     } catch (err) {
       alert('Erro ao alterar status');
@@ -64,7 +64,7 @@ export default function SuperAdmin() {
     if (id === 'admin' || id === 'default') return alert('Não é possível deletar contas padrão');
     if (!window.confirm('Deseja realmente excluir esta empresa e todos os seus agentes?')) return;
     try {
-      await api.delete(`/api/admin/tenants/${id}`);
+      await api.delete(`/admin/tenants/${id}`);
       fetchTenants();
     } catch (err) {
       alert('Erro ao excluir empresa');

@@ -4,8 +4,12 @@ import axios from 'axios';
 // Em desenvolvimento, apontamos para o backend local.
 const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
 
+let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+const finalBaseUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001'
+  baseURL: finalBaseUrl
 });
 
 // Interceptor para adicionar o token JWT automaticamente
