@@ -66,14 +66,18 @@ async function useSupabaseAuthState(agentId) {
     state: {
       creds,
       keys: {
-        get: (type, ids) => {
+        get: async (type, ids) => {
           const data = {};
           for (const id of ids) {
-            data[id] = keys[`${type}-${id}`];
+            let value = keys[`${type}-${id}`];
+            if (type === 'app-state-sync-key' && value) {
+              value = proto.Message.AppStateSyncKeyData.fromObject(value);
+            }
+            data[id] = value;
           }
           return data;
         },
-        set: (data) => {
+        set: async (data) => {
           for (const type in data) {
             for (const id in data[type]) {
               const value = data[type][id];
