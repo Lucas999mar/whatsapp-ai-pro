@@ -16,21 +16,7 @@ const upload = multer({ dest: config.uploadsDir });
 const TENANTS_FILE = path.resolve(__dirname, 'tenants.json');
 const AGENTS_FILE = path.resolve(__dirname, 'agents.json');
 
-// MIGRATION: Ensure all agents have a tenantId
-if (fs.existsSync(AGENTS_FILE)) {
-  try {
-    let agents = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8'));
-    let changed = false;
-    agents = agents.map(a => {
-      if (!a.tenantId) {
-        a.tenantId = 'default';
-        changed = true;
-      }
-      return a;
-    });
-    if (changed) fs.writeFileSync(AGENTS_FILE, JSON.stringify(agents, null, 2));
-  } catch (e) {}
-}
+// MIGRATION block removed for Vercel compatibility
 
 // Removido funções baseadas em arquivos locais para compatibilidade com Vercel (Production)
 // A persistência agora é feita via Supabase no repository.js

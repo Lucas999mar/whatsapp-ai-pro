@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 const { processMessage, transcribeAudio } = require('../ai/pipeline');
+const { getSupabase } = require('../db/supabase');
 const config = require('../config/config');
 
 const logger = pino({ level: 'silent' });
@@ -93,14 +94,51 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     if (!agentData) return;
     
     if (qr) {
+      // Salva QR na memória local
       agentData.qr = qr;
       agentData.status = 'waiting_qr';
+      agents.set(agentId, agentData);
+
+      // Persiste QR no Supabase para acesso em produção
+      try {
+        const supabase = getSupabase();
+        // Baileys may provide QR as a string (base64) or Buffer
+        const qrBase64 = typeof qr === 'string' ? qr : Buffer.from(qr).toString('base64');
+        const { error } = await supabase.from('agents').update({ qr_code: qrBase64, status: 'waiting_qr' }).eq('id', agentId);
+        if (error) console.error('⚠️ Falha ao salvar QR no Supabase:', error.message);
+        else console.log(`📱 QR-Code salvo para agente ${agentId}`);
+      } catch (e) {
+        console.error('⚠️ Erro ao persistir QR:', e.message);
+      }
+
+      // Timeout: limpa QR expirado após 2 minutos
+      setTimeout(async () => {
+        const current = agents.get(agentId);
+        if (current && current.status === 'waiting_qr') {
+          current.qr = null;
+          current.status = 'disconnected';
+          agents.set(agentId, current);
+          try {
+            const supabase = getSupabase();
+            await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
+          } catch (e) {}
+          console.log(`⏰ QR expirado para agente ${agentId}`);
+        }
+      }, 2 * 60 * 1000);
     }
     
     if (connection === 'close') {
       agentData.qr = null;
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       agentData.status = 'disconnected';
+      agents.set(agentId, agentData);
+
+      // Atualiza status no Supabase
+      try {
+        const supabase = getSupabase();
+        await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
+      } catch (e) {}
+
       if (shouldReconnect) {
         setTimeout(() => startWhatsAppBot(agentId, agentName, agentData.settings, agentData.tenantId), 3000);
       } else {
@@ -111,10 +149,16 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     if (connection === 'open') {
       agentData.qr = null;
       agentData.status = 'connected';
+      agents.set(agentId, agentData);
+
+      // Limpa QR e atualiza status no Supabase
+      try {
+        const supabase = getSupabase();
+        await supabase.from('agents').update({ qr_code: null, status: 'connected' }).eq('id', agentId);
+      } catch (e) {}
+
       console.log(`✅ [${agentName} | ${agentData.tenantId}] WhatsApp Conectado!`);
     }
-    
-    agents.set(agentId, agentData);
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -196,6 +240,12 @@ async function restartWhatsAppBot(agentId) {
     console.error('Erro ao deletar auth_info:', e);
   }
   
+  // Atualiza status no Supabase
+  try {
+    const supabase = getSupabase();
+    await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
+  } catch (e) {}
+
   setTimeout(() => startWhatsAppBot(agentId, agentData.name, agentData.settings, agentData.tenantId), 2000);
 }
 
@@ -217,14 +267,39 @@ async function startFleet() {
 
 async function addAgent(name, tenantId = 'default') {
   const newId = `agent_${Date.now()}`;
-  const fleetFile = path.resolve('./agents.json');
-  let savedAgents = [];
-  if (fs.existsSync(fleetFile)) {
-    savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+  
+  // Salva no Supabase
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('agents').upsert({
+      id: newId,
+      tenant_id: tenantId,
+      name,
+      status: 'disconnected',
+      settings: {
+        bot_name: name,
+        system_prompt: 'Você é um assistente amigável.',
+        response_mode: 'mirror',
+        tts_voice: 'nova',
+        prefix: '!ia',
+        respond_all: true
+      }
+    });
+    if (error) console.error('⚠️ Erro ao salvar agente no Supabase:', error.message);
+  } catch (e) {
+    console.error('⚠️ Erro ao persistir agente:', e.message);
   }
-  const newAgent = { id: newId, name, tenantId };
-  savedAgents.push(newAgent);
-  fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
+
+  // Fallback: salva no arquivo local também
+  const fleetFile = path.resolve(__dirname, '../api/agents.json');
+  try {
+    let savedAgents = [];
+    if (fs.existsSync(fleetFile)) {
+      savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+    }
+    savedAgents.push({ id: newId, name, tenantId });
+    fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
+  } catch (e) {}
   
   await startWhatsAppBot(newId, name, null, tenantId);
   return newId;
@@ -242,32 +317,64 @@ async function removeAgent(agentId) {
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
   if (fs.existsSync(authDir)) fs.rmSync(authDir, { recursive: true, force: true });
   
-  const fleetFile = path.resolve('./agents.json');
-  if (fs.existsSync(fleetFile)) {
-    let savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
-    savedAgents = savedAgents.filter(a => a.id !== agentId);
-    fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
+  // Remove do Supabase (ignore if not found)
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('agents').delete().eq('id', agentId);
+    if (error) console.error('⚠️ Erro ao remover agente no Supabase:', error.message);
+    else console.log(`🗑️ Agente ${agentId} removido do Supabase (se existia)`);
+  } catch (e) {
+    console.error('⚠️ Exceção ao remover agente no Supabase:', e.message);
+  }
+  // Remove do arquivo local (fallback) – safely ignore missing file
+  const fleetFile = path.resolve(__dirname, '../api/agents.json');
+  try {
+    if (fs.existsSync(fleetFile)) {
+      let savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+      const newList = savedAgents.filter(a => a.id !== agentId);
+      if (newList.length !== savedAgents.length) {
+        fs.writeFileSync(fleetFile, JSON.stringify(newList));
+        console.log(`🗑️ Agente ${agentId} removido do arquivo local`);
+      } else {
+        console.log(`ℹ️ Agente ${agentId} não estava no arquivo local`);
+      }
+    }
+  } catch (e) {
+    console.error('⚠️ Erro ao manipular arquivo local de agentes:', e.message);
   }
 }
 
 async function updateAgentSettings(agentId, newSettings) {
-  const fleetFile = path.resolve('./agents.json');
-  if (!fs.existsSync(fleetFile)) return;
-  
-  let savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
-  const index = savedAgents.findIndex(a => a.id === agentId);
-  if (index === -1) return;
-  
-  savedAgents[index].settings = { ...savedAgents[index].settings, ...newSettings };
-  savedAgents[index].name = newSettings.bot_name || savedAgents[index].name;
-  
-  fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
+  // Atualiza no Supabase
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('agents').update({
+      settings: newSettings,
+      name: newSettings.bot_name || undefined,
+      updated_at: new Date().toISOString()
+    }).eq('id', agentId);
+    if (error) console.error('⚠️ Erro ao atualizar settings no Supabase:', error.message);
+  } catch (e) {}
+
+  // Atualiza no arquivo local (fallback)
+  const fleetFile = path.resolve(__dirname, '../api/agents.json');
+  try {
+    if (fs.existsSync(fleetFile)) {
+      let savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+      const index = savedAgents.findIndex(a => a.id === agentId);
+      if (index !== -1) {
+        savedAgents[index].settings = { ...savedAgents[index].settings, ...newSettings };
+        savedAgents[index].name = newSettings.bot_name || savedAgents[index].name;
+        fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
+      }
+    }
+  } catch (e) {}
   
   // Update running instance
   const agentData = agents.get(agentId);
   if (agentData) {
-    agentData.settings = savedAgents[index].settings;
-    agentData.name = savedAgents[index].name;
+    agentData.settings = { ...agentData.settings, ...newSettings };
+    agentData.name = newSettings.bot_name || agentData.name;
     agents.set(agentId, agentData);
   }
 }
