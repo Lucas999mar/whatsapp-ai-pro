@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const config = require('../config/config');
 
 function cleanMarkdown(content) {
   return content
@@ -13,7 +14,7 @@ function cleanMarkdown(content) {
     .trim();
 }
 
-function splitIntoChunks(text, chunkSize = 1500, chunkOverlap = 200) {
+function splitIntoChunks(text, chunkSize = config.rag.chunkSize, chunkOverlap = config.rag.chunkOverlap) {
   const chunks = [];
   const paragraphs = text.split(/\n\n+/);
   let currentChunk = '';

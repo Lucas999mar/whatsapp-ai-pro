@@ -73,23 +73,15 @@ Formato esperado: [ "Aprendizado 1", "Aprendizado 2" ]`;
     }
 
     console.log(`   💡 Extraídos ${learnings.length} novos aprendizados.`);
+    const { addLearning } = require('../db/repository');
 
-    // 3. Salva os aprendizados como knowledge_items e na tabela learnings
+    // 3. Salva os aprendizados
     for (const learning of learnings) {
-      const embedding = await generateEmbedding(learning);
-      
-      // Salva na tabela dedicada
-      await supabase.from('learnings').insert({
-        content: learning,
-        embedding
-      });
-
-      // Salva na base de conhecimento geral
-      await supabase.from('knowledge_items').insert({
+      await addLearning({
         title: 'Auto-Aprendizado: Conversas',
-        type: 'learning',
         content: learning,
-        embedding
+        type: 'batch',
+        metadata: { source: 'batch_job' }
       });
     }
 

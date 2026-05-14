@@ -27,6 +27,10 @@ module.exports = {
     respondAll: process.env.RESPOND_ALL === 'true',
     responseMode: process.env.RESPONSE_MODE || 'mirror', // text | audio | mirror
   },
+  rag: {
+    chunkSize: parseInt(process.env.CHUNK_SIZE || '1500'),
+    chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200'),
+  },
   learning: {
     batchSize: parseInt(process.env.LEARNING_BATCH_SIZE || '20'),
   },

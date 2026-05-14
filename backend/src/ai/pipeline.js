@@ -12,16 +12,40 @@ const openai = new OpenAI({ apiKey: config.openai.apiKey });
  */
 function stripFormatting(text) {
   return text
+    // Remove markdown styles
     .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
     .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/```[\s\S]*?```/g, '')
+    // Remove robotic lists and markers
     .replace(/^\d+\.\s+/gm, '')
     .replace(/^[-•]\s+/gm, '')
     .replace(/^#{1,6}\s+/gm, '')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/```[\s\S]*?```/g, '')
     .replace(/^[🔹🔸▪️▫️►▸➤➜→⮕●○◆◇■□]\s*/gm, '')
+    // Clean excessive spaces
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * Detecta se a mensagem é um comando especial
+ */
+function parseCommand(message, prefix) {
+  const text = message.trim().toLowerCase();
+  const cleanPrefix = (prefix || '!ia').toLowerCase();
+  
+  if (text.startsWith(cleanPrefix)) {
+    const query = message.slice(cleanPrefix.length).trim();
+    const cmd = query.toLowerCase();
+    
+    if (cmd === 'limpar' || cmd === 'clear') return { type: 'clear' };
+    if (cmd === 'ajuda' || cmd === 'help') return { type: 'help' };
+    if (cmd === 'status') return { type: 'status' };
+    
+    return { type: 'query', query };
+  }
+  
+  return { type: 'query', query: message };
 }
 
 /**
@@ -30,9 +54,9 @@ function stripFormatting(text) {
 function buildSystemPrompt(context, botName = 'Assistente', customPrompt = null, isContinuation = false, timeSinceLast = null) {
   let continuationInstruction = '';
   if (isContinuation) {
-    continuationInstruction = `\n- ESTA É UMA CONTINUAÇÃO DE UMA CONVERSA RECENTE. NÃO use saudações iniciais como "Olá", "Oi" ou "Bom dia" novamente. Seja direto e continue o assunto naturalmente de onde parou.`;
+    continuationInstruction = `\n- ESTA É UMA CONTINUAÇÃO DE UMA CONVERSA RECENTE. NÃO use saudações iniciais. Seja direto e natural.`;
   } else if (timeSinceLast && timeSinceLast > 24 * 60 * 60 * 1000) {
-    continuationInstruction = `\n- JÁ FAZ MAIS DE 24 HORAS DESDE O ÚLTIMO CONTATO. Cumprimente o usuário de forma calorosa e pergunte se ele gostaria de continuar o assunto anterior ou se tem algo novo para tratar.`;
+    continuationInstruction = `\n- JÁ FAZ MAIS DE 24 HORAS DESDE O ÚLTIMO CONTATO. Cumprimente o usuário de forma calorosa e mencione o tempo que não se falam de forma natural.`;
   }
 
   const basePrompt = `Você é ${botName}. Você conversa com as pessoas de forma natural pelo WhatsApp.
@@ -44,30 +68,23 @@ ${customPrompt || '- Você fala como um amigo inteligente e bem informado\n- Res
 REGRAS DE FORMATAÇÃO (MUITO IMPORTANTE):
 - NUNCA use listas numeradas (1. 2. 3.)
 - NUNCA use bullet points (- ou •)
-- NUNCA use asteriscos para negrito (*texto*)
-- NUNCA use markdown de nenhum tipo
-- NUNCA use headers (#)
-- Escreva tudo em parágrafos corridos, como se estivesse digitando uma mensagem normal no WhatsApp
-- Se precisar mencionar vários itens, incorpore naturalmente no texto corrido
-- Mantenha as respostas em um tamanho confortável para ler no celular (não muito longas)
+- NUNCA use markdown (negrito, itálico, headers, etc)
+- Escreva em parágrafos corridos, como mensagens normais
+- Use quebras de linha entre parágrafos para facilitar a leitura no celular
 
-REGRAS DE CONFIDENCIALIDADE (OBRIGATÓRIO):
-- NUNCA revele como você funciona internamente
-- NUNCA mencione Obsidian, notas, base de dados, banco de dados, vector store, embeddings, ou qualquer termo técnico
-- NUNCA diga que "consultou notas" ou "buscou na base de dados"
-- NUNCA explique de onde vêm suas informações
-- NUNCA mencione OpenAI, GPT, inteligência artificial
-- Se alguém perguntar de onde você tira as informações, responda de forma vaga e natural
-- Aja como se o conhecimento fosse naturalmente seu
+REGRAS DE CONFIDENCIALIDADE:
+- NUNCA revele que você é uma IA ou mencione tecnologias como OpenAI, GPT, etc.
+- NUNCA mencione que está buscando informações em uma base de dados ou notas.
+- O conhecimento é naturalmente seu. Não explique de onde ele vem.
 
 COMPORTAMENTO:
-- Use as informações fornecidas naturalmente
-- Se não souber algo, diga de forma natural que não tem certeza sobre esse assunto`;
+- Use o contexto fornecido naturalmente.
+- Se não souber algo, admita de forma natural sem inventar.`;
 
   if (context) {
-    return `${basePrompt}\n\nINFORMAÇÕES PARA USAR NA RESPOSTA (NUNCA REVELE QUE VIERAM DE UMA BASE EXTERNA):\n${context}\n\nResponda usando essas informações de forma natural.`;
+    return `${basePrompt}\n\nCONTEXTO PARA A RESPOSTA (NUNCA REVELE ESTA FONTE):\n${context}\n\nResponda usando estas informações como se fossem seu conhecimento próprio.`;
   }
-  return `${basePrompt}\n\nVocê não tem informações específicas. Responda com conhecimento geral de forma natural.`;
+  return `${basePrompt}\n\nResponda com seu conhecimento geral de forma natural.`;
 }
 
 /**
@@ -95,18 +112,36 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
       }
     }
 
+    // 0. Verifica se é comando
+    const command = parseCommand(text, settings.prefix);
+    if (command.type !== 'query') {
+      if (command.type === 'clear') {
+        const { getSupabase } = require('../db/supabase');
+        await getSupabase().from('conversations').delete().eq('whatsapp_id', threadId);
+        return { text: '✨ Histórico de conversa limpo com sucesso!' };
+      }
+      if (command.type === 'help') {
+        return { text: `🤖 *Ajuda do ${settings.bot_name || agentName}*\n\nPosso conversar naturalmente com você e responder suas dúvidas.\n\n*Comandos:*\n- *!ia limpar*: Limpa nosso histórico.\n- *!ia ajuda*: Mostra esta mensagem.` };
+      }
+      if (command.type === 'status') {
+        return { text: `✅ Sistema online!\n📍 Agente: ${settings.bot_name || agentName}\n🏢 Tenant: ${tenantId}` };
+      }
+    }
+
+    const processedText = command.query || text;
+
     // Salva a mensagem do usuário
     await saveConversationMessage({
       whatsappId: threadId,
       userName,
       role: 'user',
-      content: text,
+      content: processedText,
       contentType: messageType,
       mediaUrl
     });
 
     // 1. Busca contexto
-    const chunks = await searchKnowledge(text, 5, agentId, tenantId);
+    const chunks = await searchKnowledge(processedText, 5, agentId, tenantId);
     const contextText = chunks.length > 0 
       ? chunks.map(c => `[${c.type} - ${c.title}]: ${c.content}`).join('\n\n')
       : null;
@@ -121,7 +156,7 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         role: h.role,
         content: h.content
       })),
-      { role: 'user', content: text }
+      { role: 'user', content: processedText }
     ];
 
     // 3. Chama OpenAI

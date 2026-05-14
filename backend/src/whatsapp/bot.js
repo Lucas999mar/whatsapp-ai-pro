@@ -200,15 +200,14 @@ async function restartWhatsAppBot(agentId) {
 }
 
 async function startFleet() {
-  const fleetFile = path.resolve('./agents.json');
-  let savedAgents = [{ id: 'default', name: 'Assistente Principal', tenantId: 'default' }];
+  const { listAgents } = require('../db/repository');
+  const savedAgents = await listAgents();
   
-  if (fs.existsSync(fleetFile)) {
-    try {
-      savedAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
-    } catch(e){}
-  } else {
-    fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
+  if (savedAgents.length === 0) {
+    console.log('⚠️ Nenhum agente encontrado para iniciar.');
+    // Inicia o padrão se não houver nada (apenas para garantir)
+    await startWhatsAppBot('default', 'Assistente Principal', null, 'default');
+    return;
   }
   
   for (const agent of savedAgents) {

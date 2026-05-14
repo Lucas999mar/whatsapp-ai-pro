@@ -252,15 +252,118 @@ async function getStats(tenantId = 'default') {
 }
 
 /**
+ * Adiciona um aprendizado extraído à base de dados
+ */
+async function addLearning({ title, content, type = 'auto', metadata = {} }) {
+  const supabase = getSupabase();
+  const tenantId = metadata.tenantId || 'default';
+  
+  let embedding = null;
+  try {
+    embedding = await generateEmbedding(content);
+  } catch (err) {
+    console.warn('Aviso: falha ao gerar embedding para aprendizado:', err.message);
+  }
+
+  // Salva na tabela dedicada
+  const { data: learningData, error: learnErr } = await supabase
+    .from('learnings')
+    .insert({
+      content,
+      embedding,
+      metadata: { ...metadata, tenantId }
+    })
+    .select()
+    .single();
+
+  if (learnErr) throw learnErr;
+
+  // Também adiciona à base de conhecimento geral para que o RAG possa usar
+  await addKnowledgeItem({
+    title: title || 'Aprendizado Automático',
+    type: 'learning',
+    content,
+    metadata: { ...metadata, tenantId, learningId: learningData.id },
+    tenantId
+  });
+
+  return learningData;
+}
+
+/**
+ * Lista aprendizados extraídos
+ */
+async function listLearnings(tenantId = 'default') {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('learnings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  // Filtro manual por tenantId se não estiver no nível da query
+  return (data || []).filter(l => (l.metadata?.tenantId || 'default') === tenantId);
+}
+
+/**
+ * Lista Empresas/Tenants (Prioriza Supabase, fallback JSON)
+ */
+async function listTenants() {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('tenants').select('*');
+  
+  if (!error && data && data.length > 0) {
+    return data;
+  }
+
+  // Fallback para arquivo local se banco estiver vazio ou der erro
+  const tenantsFile = path.resolve(__dirname, '../api/tenants.json');
+  if (fs.existsSync(tenantsFile)) {
+    return JSON.parse(fs.readFileSync(tenantsFile, 'utf8'));
+  }
+  return [];
+}
+
+/**
+ * Lista Agentes (Prioriza Supabase, fallback JSON)
+ */
+async function listAgents(tenantId = null) {
+  const supabase = getSupabase();
+  let query = supabase.from('agents').select('*');
+  if (tenantId) query = query.eq('tenant_id', tenantId);
+  
+  const { data, error } = await query;
+  
+  if (!error && data && data.length > 0) {
+    // Mapeia snake_case do banco para camelCase do app
+    return data.map(a => ({
+      id: a.id,
+      name: a.name,
+      tenantId: a.tenant_id,
+      status: a.status,
+      settings: a.settings,
+      qr: a.qr_code
+    }));
+  }
+
+  // Fallback para arquivo local
+  const fleetFile = path.resolve(__dirname, '../api/agents.json');
+  if (fs.existsSync(fleetFile)) {
+    const agents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+    if (tenantId) return agents.filter(a => (a.tenantId || 'default') === tenantId);
+    return agents;
+  }
+  return [];
+}
+
+/**
  * Bot Settings (Multi-Tenant)
  */
 async function getBotSettings(agentId = 'default', tenantId = 'default') {
-  const fleetFile = path.resolve('./agents.json');
-  if (fs.existsSync(fleetFile)) {
-    const agents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
-    const agent = agents.find(a => a.id === agentId && (a.tenantId || 'default') === tenantId);
-    if (agent && agent.settings) return agent.settings;
-  }
+  const agents = await listAgents(tenantId);
+  const agent = agents.find(a => a.id === agentId);
+  if (agent && agent.settings) return agent.settings;
 
   return {
     bot_name: 'Assistente',
@@ -283,4 +386,8 @@ module.exports = {
   listConversations,
   getStats,
   getBotSettings,
+  addLearning,
+  listLearnings,
+  listTenants,
+  listAgents
 };

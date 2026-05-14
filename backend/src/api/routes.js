@@ -6,7 +6,7 @@ const config = require('../config/config');
 const { getSupabase } = require('../db/supabase');
 const { 
   listKnowledgeItems, addKnowledgeItem, deleteKnowledgeItem, 
-  listConversations, getStats 
+  listConversations, getStats, listTenants, listAgents 
 } = require('../db/repository');
 const { generateToken, authMiddleware } = require('./auth');
 
@@ -14,7 +14,7 @@ const router = express.Router();
 const upload = multer({ dest: config.uploadsDir });
 
 const TENANTS_FILE = path.resolve(__dirname, 'tenants.json');
-const AGENTS_FILE = path.resolve(__dirname, '../../public/agents.json');
+const AGENTS_FILE = path.resolve(__dirname, 'agents.json');
 
 // MIGRATION: Ensure all agents have a tenantId
 if (fs.existsSync(AGENTS_FILE)) {
@@ -32,14 +32,8 @@ if (fs.existsSync(AGENTS_FILE)) {
   } catch (e) {}
 }
 
-function getTenants() {
-  if (!fs.existsSync(TENANTS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(TENANTS_FILE, 'utf8'));
-}
-
-function saveTenants(tenants) {
-  fs.writeFileSync(TENANTS_FILE, JSON.stringify(tenants, null, 2));
-}
+// Removido funções baseadas em arquivos locais para compatibilidade com Vercel (Production)
+// A persistência agora é feita via Supabase no repository.js
 
 // ── LOGO UPLOAD ROUTE ─────────────────────────────────────────
 
@@ -68,9 +62,9 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
 
 // ── AUTH ROUTES ───────────────────────────────────────────────
 
-router.post('/auth/login', (req, res) => {
+router.post('/auth/login', async (req, res) => {
   const { id, password } = req.body;
-  const tenants = getTenants();
+  const tenants = await listTenants();
   console.log(`🔑 Tentativa de login: ID=${id} | Senha=${password ? '***' : 'vazia'}`);
   
   const tenant = tenants.find(t => String(t.id).toLowerCase() === String(id).toLowerCase() && String(t.password) === String(password));
@@ -94,8 +88,8 @@ router.post('/auth/login', (req, res) => {
 
 router.get('/admin/tenants', authMiddleware, async (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
-  const tenants = getTenants();
-  const agentsList = fs.existsSync(AGENTS_FILE) ? JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')) : [];
+  const tenants = await listTenants();
+  const agentsList = await listAgents();
   const enrichedTenants = await Promise.all(tenants.map(async t => {
     const stats = await getStats(t.id);
     return {
