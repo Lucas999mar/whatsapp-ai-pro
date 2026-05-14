@@ -19,20 +19,21 @@ const BASE_AUTH_DIR = path.resolve(config.authDir);
 // Map to store multiple bot sessions: { [id]: { sock, status, qr, name, settings, tenantId } }
 const agents = new Map();
 
-function getAgentsStatus(tenantId = null) {
-  let entries = Array.from(agents.entries());
-  if (tenantId) {
-    entries = entries.filter(([id, data]) => data.tenantId === tenantId);
-  }
+async function getAgentsStatus(tenantId = null) {
+  const { listAgents } = require('../db/repository');
+  const savedAgents = await listAgents(tenantId);
   
-  return entries.map(([id, data]) => ({
-    id,
-    name: data.name,
-    status: data.status,
-    qr: data.qr,
-    settings: data.settings,
-    tenantId: data.tenantId
-  }));
+  return savedAgents.map(saved => {
+    const running = agents.get(saved.id);
+    return {
+      id: saved.id,
+      name: saved.name,
+      status: running ? running.status : (saved.status || 'disconnected'),
+      qr: running ? (running.qr || saved.qr) : (saved.qr || null),
+      settings: running ? running.settings : (saved.settings || {}),
+      tenantId: saved.tenantId || saved.tenant_id
+    };
+  });
 }
 
 function getMessageType(msg) {
@@ -261,7 +262,11 @@ async function startFleet() {
   }
   
   for (const agent of savedAgents) {
-    await startWhatsAppBot(agent.id, agent.name, agent.settings, agent.tenantId || 'default');
+    try {
+      await startWhatsAppBot(agent.id, agent.name, agent.settings, agent.tenantId || 'default');
+    } catch (err) {
+      console.error(`❌ Erro ao iniciar agente ${agent.name} (${agent.id}):`, err.message);
+    }
   }
 }
 
@@ -301,7 +306,11 @@ async function addAgent(name, tenantId = 'default') {
     fs.writeFileSync(fleetFile, JSON.stringify(savedAgents));
   } catch (e) {}
   
-  await startWhatsAppBot(newId, name, null, tenantId);
+  // Inicia o bot em background (não aguarda conexão para não travar a UI)
+  startWhatsAppBot(newId, name, null, tenantId).catch(err => {
+    console.error(`❌ Falha ao iniciar bot para novo agente ${name}:`, err.message);
+  });
+
   return newId;
 }
 

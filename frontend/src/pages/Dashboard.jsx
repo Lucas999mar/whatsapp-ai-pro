@@ -15,15 +15,6 @@ export default function Dashboard() {
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await api.get('/api/whatsapp/status');
-        setAgents(res.data.agents || []);
-      } catch (err) {
-        console.error('API Error:', err);
-      }
-    };
-    
     fetchStatus();
     const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
@@ -41,14 +32,30 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await api.get('/api/whatsapp/status');
+      setAgents(res.data.agents || []);
+    } catch (err) {
+      console.error('API Error:', err);
+    }
+  };
+
   const handleAddAgent = async () => {
     if (!newAgentName.trim()) return;
+    setIsSubmitting(true);
     try {
       await api.post('/api/whatsapp/agents', { name: newAgentName });
       setNewAgentName('');
       setIsAdding(false);
+      // Busca status imediatamente para mostrar o novo agente "desconectado" ou "iniciando"
+      await fetchStatus();
     } catch (err) {
-      alert('Erro ao adicionar agente.');
+      alert('Erro ao adicionar agente: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -93,7 +100,13 @@ export default function Dashboard() {
                 className="bg-transparent border border-white/10 rounded-lg px-3 py-1.5 text-white outline-none"
                 autoFocus
               />
-              <button onClick={handleAddAgent} className="bg-[#25D366] text-slate-900 px-3 py-1.5 rounded-lg font-bold">Criar</button>
+              <button 
+                onClick={handleAddAgent} 
+                disabled={isSubmitting}
+                className="bg-[#25D366] text-slate-900 px-3 py-1.5 rounded-lg font-bold disabled:opacity-50"
+              >
+                {isSubmitting ? 'Criando...' : 'Criar'}
+              </button>
               <button onClick={() => setIsAdding(false)} className="text-slate-400 px-2">Cancelar</button>
             </div>
           )}

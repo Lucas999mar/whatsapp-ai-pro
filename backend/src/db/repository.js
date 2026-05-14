@@ -318,11 +318,9 @@ async function listTenants() {
   }
 
   // Fallback para arquivo local se banco estiver vazio ou der erro
-  try {
-    const fallbackTenants = require('../api/tenants.json');
-    return fallbackTenants;
-  } catch (err) {
-    console.log('Sem fallback de tenants locais.');
+  const tenantsFile = path.resolve(__dirname, '../api/tenants.json');
+  if (fs.existsSync(tenantsFile)) {
+    return JSON.parse(fs.readFileSync(tenantsFile, 'utf8'));
   }
   return [];
 }
@@ -350,12 +348,11 @@ async function listAgents(tenantId = null) {
   }
 
   // Fallback para arquivo local
-  try {
-    const fallbackAgents = require('../api/agents.json');
-    if (tenantId) return fallbackAgents.filter(a => (a.tenantId || 'default') === tenantId);
-    return fallbackAgents;
-  } catch (err) {
-    console.log('Sem fallback de agentes locais.');
+  const fleetFile = path.resolve(__dirname, '../api/agents.json');
+  if (fs.existsSync(fleetFile)) {
+    const agents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+    if (tenantId) return agents.filter(a => (a.tenantId || 'default') === tenantId);
+    return agents;
   }
   return [];
 }

@@ -102,6 +102,8 @@ INSERT INTO bot_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 -- ── FUNÇÃO DE BUSCA VETORIAL ──────────────────────────────────
 CREATE OR REPLACE FUNCTION search_knowledge(
   query_embedding VECTOR(1536),
+  p_tenant_id TEXT DEFAULT NULL,
+  p_agent_id TEXT DEFAULT NULL,
   match_count INTEGER DEFAULT 5,
   similarity_threshold FLOAT DEFAULT 0.3
 )

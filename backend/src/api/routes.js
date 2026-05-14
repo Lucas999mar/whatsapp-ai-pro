@@ -13,14 +13,6 @@ const { generateToken, authMiddleware } = require('./auth');
 const router = express.Router();
 const upload = multer({ dest: config.uploadsDir });
 
-const TENANTS_FILE = path.resolve(__dirname, 'tenants.json');
-const AGENTS_FILE = path.resolve(__dirname, 'agents.json');
-
-// MIGRATION block removed for Vercel compatibility
-
-// Removido funções baseadas em arquivos locais para compatibilidade com Vercel (Production)
-// A persistência agora é feita via Supabase no repository.js
-
 // ── LOGO UPLOAD ROUTE ─────────────────────────────────────────
 
 router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, res) => {
@@ -33,12 +25,10 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
     const { error } = await supabase.storage.from('knowledge-files').upload(filePath, fileBuffer, { contentType: req.file.mimetype, upsert: true });
     if (error) throw error;
     const logoUrl = supabase.storage.from('knowledge-files').getPublicUrl(filePath).data.publicUrl;
-    const tenants = getTenants();
-    const index = tenants.findIndex(t => t.id === req.user.id);
-    if (index !== -1) {
-      tenants[index].logo = logoUrl;
-      saveTenants(tenants);
-    }
+    
+    // Atualiza logo no Supabase
+    await supabase.from('tenants').update({ logo: logoUrl }).eq('id', req.user.id);
+    
     fs.unlinkSync(req.file.path);
     res.json({ logoUrl });
   } catch (err) {
@@ -80,7 +70,7 @@ router.get('/admin/tenants', authMiddleware, async (req, res) => {
     const stats = await getStats(t.id);
     return {
       ...t,
-      agentCount: agentsList.filter(a => (a.tenantId || 'default') === t.id).length,
+      agentCount: agentsList.filter(a => (a.tenantId || a.tenant_id || 'default') === t.id).length,
       knowledgeCount: stats.knowledge.total,
       obsidianCount: stats.knowledge.byType.obsidian
     };
@@ -88,32 +78,39 @@ router.get('/admin/tenants', authMiddleware, async (req, res) => {
   res.json(enrichedTenants);
 });
 
-router.post('/admin/tenants', authMiddleware, (req, res) => {
+router.post('/admin/tenants', authMiddleware, async (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
   const { id, name, password } = req.body;
-  const tenants = getTenants();
+  const tenants = await listTenants();
   if (tenants.find(t => t.id === id)) return res.status(400).json({ error: 'ID já existe' });
   const newTenant = { id, name, password, role: 'company', status: 'active', logo: null };
-  tenants.push(newTenant);
-  saveTenants(tenants);
+  
+  // Salva no Supabase
+  const supabase = getSupabase();
+  const { error } = await supabase.from('tenants').insert(newTenant);
+  if (error) return res.status(500).json({ error: error.message });
+  
   res.json(newTenant);
 });
 
-router.put('/admin/tenants/:id', authMiddleware, (req, res) => {
+router.put('/admin/tenants/:id', authMiddleware, async (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
-  const tenants = getTenants();
-  const index = tenants.findIndex(t => t.id === req.params.id);
-  if (index === -1) return res.status(404).json({ error: 'Empresa não encontrada' });
-  tenants[index] = { ...tenants[index], ...req.body };
-  saveTenants(tenants);
-  res.json(tenants[index]);
+  const supabase = getSupabase();
+  const { data: existing } = await supabase.from('tenants').select('*').eq('id', req.params.id).single();
+  if (!existing) return res.status(404).json({ error: 'Empresa não encontrada' });
+  
+  const updated = { ...existing, ...req.body };
+  const { error } = await supabase.from('tenants').update(req.body).eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  
+  res.json(updated);
 });
 
-router.delete('/admin/tenants/:id', authMiddleware, (req, res) => {
+router.delete('/admin/tenants/:id', authMiddleware, async (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
-  let tenants = getTenants();
-  tenants = tenants.filter(t => t.id !== req.params.id);
-  saveTenants(tenants);
+  const supabase = getSupabase();
+  const { error } = await supabase.from('tenants').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true });
 });
 
@@ -134,15 +131,20 @@ router.post('/obsidian/sync', authMiddleware, async (req, res) => {
 
 // ── COMPANY SETTINGS ──────────────────────────────────────────
 
-router.put('/company/settings', authMiddleware, (req, res) => {
-  const tenants = getTenants();
-  const index = tenants.findIndex(t => t.id === req.user.id);
-  if (index === -1) return res.status(404).json({ error: 'Empresa não encontrada' });
+router.put('/company/settings', authMiddleware, async (req, res) => {
+  const supabase = getSupabase();
+  const { data: tenant } = await supabase.from('tenants').select('*').eq('id', req.user.id).single();
+  if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada' });
+  
   const { name, logo } = req.body;
-  tenants[index].name = name || tenants[index].name;
-  tenants[index].logo = logo || tenants[index].logo;
-  saveTenants(tenants);
-  res.json(tenants[index]);
+  const updates = {};
+  if (name) updates.name = name;
+  if (logo) updates.logo = logo;
+  
+  const { error } = await supabase.from('tenants').update(updates).eq('id', req.user.id);
+  if (error) return res.status(500).json({ error: error.message });
+  
+  res.json({ ...tenant, ...updates });
 });
 
 // ── PROTECTED BUSINESS ROUTES ──────────────────────────────────
@@ -222,8 +224,23 @@ router.get('/learnings', authMiddleware, async (req, res) => {
 
 const { getAgentsStatus, restartWhatsAppBot, addAgent, removeAgent, updateAgentSettings } = require('../whatsapp/bot');
 
-router.get('/whatsapp/status', authMiddleware, (req, res) => {
-  res.json({ agents: getAgentsStatus(req.user.id) });
+// Status de todos os agentes do tenant
+router.get('/whatsapp/status', authMiddleware, async (req, res) => {
+  res.json({ agents: await getAgentsStatus(req.user.id) });
+});
+
+// QR Code de um agente específico (lê do Supabase)
+router.get('/whatsapp/qr/:agentId', authMiddleware, async (req, res) => {
+  const { agentId } = req.params;
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('agents').select('qr_code').eq('id', agentId).single();
+  if (error) {
+    console.error('⚠️ Erro ao buscar QR:', error.message);
+    return res.status(500).json({ error: 'Não foi possível buscar QR' });
+  }
+  if (!data?.qr_code) return res.json({ qr: null });
+  const qrDataUrl = `data:image/png;base64,${data.qr_code}`;
+  res.json({ qr: qrDataUrl });
 });
 
 router.post('/whatsapp/agents', authMiddleware, async (req, res) => {
