@@ -71,9 +71,21 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
 router.post('/auth/login', (req, res) => {
   const { id, password } = req.body;
   const tenants = getTenants();
-  const tenant = tenants.find(t => t.id === id && t.password === password);
-  if (!tenant) return res.status(401).json({ error: 'Credenciais inválidas' });
-  if (tenant.status !== 'active') return res.status(403).json({ error: 'Conta desativada' });
+  console.log(`🔑 Tentativa de login: ID=${id} | Senha=${password ? '***' : 'vazia'}`);
+  
+  const tenant = tenants.find(t => String(t.id).toLowerCase() === String(id).toLowerCase() && String(t.password) === String(password));
+  
+  if (!tenant) {
+    console.log(`❌ Login falhou para ID=${id}. Empresas disponíveis:`, tenants.map(t => t.id));
+    return res.status(401).json({ error: 'Credenciais inválidas' });
+  }
+  
+  if (tenant.status !== 'active') {
+    console.log(`⚠️ Conta desativada para ID=${id}`);
+    return res.status(403).json({ error: 'Conta desativada' });
+  }
+
+  console.log(`✅ Login bem-sucedido para ID=${id}`);
   const token = generateToken({ id: tenant.id, name: tenant.name, role: tenant.role });
   res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role, logo: tenant.logo } });
 });
