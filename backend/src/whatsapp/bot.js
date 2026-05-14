@@ -46,7 +46,18 @@ function getMessageType(msg) {
   return { type: 'unknown' };
 }
 
+const initializingAgents = new Set();
+
 async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Principal', agentSettings = null, tenantId = 'default') {
+  if (initializingAgents.has(agentId)) {
+    console.log(`⏳ Agente ${agentId} já está inicializando. Bloqueando tentativa duplicada.`);
+    return;
+  }
+  
+  const existing = agents.get(agentId);
+  if (existing && existing.status === 'connected') return existing.sock;
+
+  initializingAgents.add(agentId);
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
   if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
   
@@ -59,6 +70,9 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     auth: state,
     printQRInTerminal: false,
     browser: ['WA Pro', 'Chrome', '126.0.0'],
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
+    keepAliveIntervalMs: 30000,
   });
   
   const defaultSettings = {
@@ -72,7 +86,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
   agents.set(agentId, { 
     sock, 
-    status: 'disconnected', 
+    status: 'connecting', 
     qr: null, 
     name: agentName, 
     tenantId: tenantId || 'default',
@@ -89,7 +103,6 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       agentData.status = 'waiting_qr';
       agents.set(agentId, agentData);
       
-      // Salva no Supabase para o dashboard ver
       try {
         const supabase = getSupabase();
         await supabase.from('agents').update({ qr_code: qr, status: 'waiting_qr' }).eq('id', agentId);
@@ -97,8 +110,10 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     }
     
     if (connection === 'close') {
+      initializingAgents.delete(agentId);
       agentData.qr = null;
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       agentData.status = 'disconnected';
       agents.set(agentId, agentData);
       
@@ -108,11 +123,14 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       } catch (e) {}
 
       if (shouldReconnect) {
-        setTimeout(() => startWhatsAppBot(agentId, agentName, agentData.settings, agentData.tenantId), 3000);
+        const delay = statusCode === DisconnectReason.restartRequired ? 1000 : 10000;
+        console.log(`⚠️ Conexão perdida para [${agentName}]. Tentando reconectar em ${delay/1000}s...`);
+        setTimeout(() => startWhatsAppBot(agentId, agentName, agentData.settings, agentData.tenantId), delay);
       }
     }
     
     if (connection === 'open') {
+      initializingAgents.delete(agentId);
       agentData.qr = null;
       agentData.status = 'connected';
       agents.set(agentId, agentData);
@@ -121,7 +139,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
         const supabase = getSupabase();
         await supabase.from('agents').update({ qr_code: null, status: 'connected' }).eq('id', agentId);
       } catch (e) {}
-      console.log(`✅ [${agentName}] Conectado!`);
+      console.log(`✅ [${agentName}] WhatsApp Conectado com Sucesso!`);
     }
   });
 
