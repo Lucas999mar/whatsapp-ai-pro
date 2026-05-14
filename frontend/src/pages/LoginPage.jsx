@@ -16,7 +16,8 @@ export default function LoginPage() {
     try {
       await login(id, password);
     } catch (err) {
-      setError('Credenciais inválidas ou conta desativada.');
+      console.error('Login error:', err);
+      setError(err.response?.data?.error || 'Erro de conexão com o servidor.');
     } finally {
       setLoading(false);
     }
