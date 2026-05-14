@@ -155,7 +155,12 @@ export default function Dashboard() {
 
             {agent.status === 'waiting_qr' && agent.qr && (
               <div className="mt-4 flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-inner">
-                <QRCodeSVG value={agent.qr} size={160} />
+                {agent.qr.startsWith('data:') ? (
+                  <img src={agent.qr} alt="QR Code" className="w-40 h-40" />
+                ) : (
+                  <QRCodeSVG value={agent.qr} size={160} />
+                )}
+                <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-tighter">Escaneie para conectar</p>
               </div>
             )}
             

@@ -133,15 +133,15 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       if (!agentData) return;
 
       if (qr) {
-        agentData.qr = qr;
+        agentData.qr = qr; // Envia o texto PURO para o QRCodeSVG do Frontend
         agentData.status = 'waiting_qr';
         agents.set(agentId, agentData);
 
         try {
           const supabase = getSupabase();
-          const qrBase64 = typeof qr === 'string' ? qr : Buffer.from(qr).toString('base64');
-          await supabase.from('agents').update({ qr_code: qrBase64, status: 'waiting_qr' }).eq('id', agentId);
-          console.log(`📱 QR-Code salvo para agente ${agentId}`);
+          // Salva o texto bruto no banco para o Frontend ler via API se precisar
+          await supabase.from('agents').update({ qr_code: qr, status: 'waiting_qr' }).eq('id', agentId);
+          console.log(`📱 [${agentName}] QR-Code pronto para leitura no painel.`);
         } catch (e) {
           console.error('⚠️ Erro ao persistir QR:', e.message);
         }
