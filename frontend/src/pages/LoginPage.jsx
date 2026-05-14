@@ -17,7 +17,8 @@ export default function LoginPage() {
       await login(id, password);
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.error || 'Erro de conexão com o servidor.');
+      const backendUrl = api.defaults.baseURL;
+      setError(`${err.response?.data?.error || 'Erro de conexão'} (API: ${backendUrl})`);
     } finally {
       setLoading(false);
     }
