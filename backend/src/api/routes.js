@@ -22,16 +22,26 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
     const fileName = `logo_${req.user.id}_${Date.now()}${path.extname(req.file.originalname)}`;
     const supabase = getSupabase();
     const filePath = `logos/${fileName}`;
-    const { error } = await supabase.storage.from('knowledge-files').upload(filePath, fileBuffer, { contentType: req.file.mimetype, upsert: true });
-    if (error) throw error;
-    const logoUrl = supabase.storage.from('knowledge-files').getPublicUrl(filePath).data.publicUrl;
     
-    // Atualiza logo no Supabase
-    await supabase.from('tenants').update({ logo: logoUrl }).eq('id', req.user.id);
+    // Tenta upload
+    const { error: uploadError } = await supabase.storage
+      .from('knowledge-files')
+      .upload(filePath, fileBuffer, { contentType: req.file.mimetype, upsert: true });
+    
+    if (uploadError) {
+      console.error('❌ Erro no Storage (Verifique se o bucket "knowledge-files" existe):', uploadError.message);
+      throw new Error(`Erro ao subir imagem: ${uploadError.message}. Verifique se o bucket "knowledge-files" foi criado no Storage do Supabase.`);
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('knowledge-files').getPublicUrl(filePath);
+    
+    // Atualiza logo no Supabase usando UPSERT para garantir persistência
+    await supabase.from('tenants').upsert({ id: req.user.id, logo: publicUrl, updated_at: new Date().toISOString() });
     
     fs.unlinkSync(req.file.path);
-    res.json({ logoUrl });
+    res.json({ logoUrl: publicUrl });
   } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
     res.status(500).json({ error: err.message });
   }
 });
@@ -150,19 +160,25 @@ router.post('/obsidian/sync', authMiddleware, async (req, res) => {
 // ── COMPANY SETTINGS ──────────────────────────────────────────
 
 router.put('/company/settings', authMiddleware, async (req, res) => {
-  const supabase = getSupabase();
-  const { data: tenant } = await supabase.from('tenants').select('*').eq('id', req.user.id).single();
-  if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada' });
-  
-  const { name, logo } = req.body;
-  const updates = {};
-  if (name) updates.name = name;
-  if (logo) updates.logo = logo;
-  
-  const { error } = await supabase.from('tenants').update(updates).eq('id', req.user.id);
-  if (error) return res.status(500).json({ error: error.message });
-  
-  res.json({ ...tenant, ...updates });
+  try {
+    const supabase = getSupabase();
+    const { name, logo } = req.body;
+    const updates = { 
+      id: req.user.id,
+      updated_at: new Date().toISOString() 
+    };
+    if (name) updates.name = name;
+    if (logo) updates.logo = logo;
+    
+    // Usa UPSERT para garantir que a configuração seja salva mesmo se for o primeiro acesso
+    const { data, error } = await supabase.from('tenants').upsert(updates).select().single();
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('❌ Erro ao salvar configurações:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── PROTECTED BUSINESS ROUTES ──────────────────────────────────
