@@ -21,89 +21,58 @@ const BufferJSON = {
 async function useSupabaseAuthState(agentId) {
   const supabase = getSupabase();
   const table = 'whatsapp_auth';
-  const localCache = new Map();
+  const keys = {}; // Memória local para chaves temporárias (veloz)
 
-  const readData = async (type) => {
-    if (localCache.has(type)) return localCache.get(type);
-    
+  const readCreds = async () => {
     try {
       const { data, error } = await supabase
         .from(table)
         .select('data')
-        .eq('id', `${agentId}:${type}`)
+        .eq('id', `${agentId}:creds`)
         .single();
-      
       if (error || !data) return null;
-      const parsed = JSON.parse(JSON.stringify(data.data), BufferJSON.reviver);
-      localCache.set(type, parsed);
-      return parsed;
-    } catch (e) {
-      return null;
-    }
+      return JSON.parse(JSON.stringify(data.data), BufferJSON.reviver);
+    } catch (e) { return null; }
   };
 
-  const writeData = async (data, type) => {
-    localCache.set(type, data);
+  const writeCreds = async (data) => {
     try {
       const content = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
-      await supabase
-        .from(table)
-        .upsert({ 
-          id: `${agentId}:${type}`, 
-          data: content,
-          updated_at: new Date().toISOString() 
-        });
-    } catch (e) {
-      console.error(`❌ Erro Supabase (${type}):`, e.message);
-    }
+      await supabase.from(table).upsert({ id: `${agentId}:creds`, data: content, updated_at: new Date().toISOString() });
+    } catch (e) { console.error('❌ Erro ao salvar creds:', e.message); }
   };
 
-  const removeData = async (type) => {
-    localCache.delete(type);
-    try {
-      await supabase.from(table).delete().eq('id', `${agentId}:${type}`);
-    } catch (e) {}
-  };
-
-  // Initialize creds
-  let creds = await readData('creds');
+  // Carrega credenciais do banco ou inicia novas
+  let creds = await readCreds();
   if (!creds) {
     creds = AuthenticationUtils.initAuthState().creds;
-    await writeData(creds, 'creds');
+    await writeCreds(creds);
   }
 
   return {
     state: {
       creds,
       keys: {
-        get: async (type, ids) => {
+        get: (type, ids) => {
           const data = {};
-          await Promise.all(
-            ids.map(async (id) => {
-              const key = `${type}-${id}`;
-              let value = await readData(key);
-              if (type === 'app-state-sync-key' && value) {
-                value = proto.Message.AppStateSyncKeyData.fromObject(value);
-              }
-              data[id] = value;
-            })
-          );
+          for (const id of ids) {
+            data[id] = keys[`${type}-${id}`];
+          }
           return data;
         },
-        set: async (data) => {
-          const tasks = [];
+        set: (data) => {
           for (const type in data) {
             for (const id in data[type]) {
               const value = data[type][id];
               const key = `${type}-${id}`;
-              tasks.push(value ? writeData(value, key) : removeData(key));
+              if (value) keys[key] = value;
+              else delete keys[key];
             }
           }
-          await Promise.all(tasks);
         },
       },
     },
-    saveCreds: () => writeData(creds, 'creds'),
+    saveCreds: () => writeCreds(creds),
   };
 }
 
