@@ -33,7 +33,7 @@ export default function LoginPage() {
           <div className="inline-flex p-4 rounded-3xl bg-[#25D366]/10 border border-[#25D366]/20 mb-6 animate-bounce-slow">
             <Bot size={48} className="text-[#25D366]" />
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tight mb-3">WhatsApp <span className="text-[#25D366]">AI PRO</span></h1>
+          <h1 className="text-4xl font-black text-white tracking-tight mb-3 uppercase">Biticonia</h1>
           <p className="text-slate-400 text-lg">A plataforma multi-agente definitiva para sua empresa.</p>
         </div>
 

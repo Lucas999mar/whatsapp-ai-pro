@@ -12,7 +12,7 @@ export default function LandingPage() {
             <div className="w-10 h-10 rounded-xl bg-[#25D366] flex items-center justify-center">
               <Bot size={24} className="text-slate-900" />
             </div>
-            <span className="text-2xl font-black tracking-tighter">WA AI <span className="text-[#25D366]">PRO</span></span>
+            <span className="text-2xl font-black tracking-tighter">BITI<span className="text-[#25D366]">CONIA</span></span>
           </div>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
@@ -116,13 +116,13 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-lg bg-[#25D366] flex items-center justify-center">
               <Bot size={18} className="text-slate-900" />
             </div>
-            <span className="text-xl font-black tracking-tighter">WA AI PRO</span>
+            <span className="text-xl font-black tracking-tighter uppercase">Biticonia</span>
           </div>
           <p className="text-slate-500 max-w-md mx-auto">
             Transformando o WhatsApp na ferramenta de inteligência suprema para o seu negócio.
           </p>
           <div className="pt-8 text-xs font-bold text-slate-600 uppercase tracking-widest">
-            © 2026 WhatsApp AI PRO • All Rights Reserved
+            © 2026 Biticonia • All Rights Reserved
           </div>
         </div>
       </footer>

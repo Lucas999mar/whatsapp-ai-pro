@@ -43,7 +43,7 @@ function Sidebar() {
           </div>
           <div className="text-center">
             <h1 className="text-lg font-black tracking-tight text-white leading-tight">
-              {user?.name || 'WA AI Pro'}
+              {user?.name || 'Biticonia'}
             </h1>
             <span className="text-[10px] text-[#25D366] font-bold uppercase tracking-widest">{user?.role}</span>
           </div>
