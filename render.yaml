@@ -10,9 +10,11 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: SUPABASE_URL
-        sync: false
+        value: https://vjyhisennbprtkfktpwy.supabase.co
       - key: SUPABASE_SERVICE_KEY
-        sync: false
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqeWhpc2VubmJwcnRrZmt0cHd5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODY5ODI1NCwiZXhwIjoyMDk0Mjc0MjU0fQ.W2iveCAv50QfSxaEoLx28bmRyRdFwOfaqxPNnjK8E9k
+      - key: FRONTEND_URL
+        value: https://whatsapp-ai-pro-lucas.vercel.app
       - key: BOT_NAME
         value: Assistente
       - key: RESPOND_ALL
