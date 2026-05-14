@@ -1,7 +1,10 @@
 const { proto } = require('@whiskeysockets/baileys');
 const { getSupabase } = require('../db/supabase');
-const { Curve, signedKeyPair } = require('@whiskeysockets/baileys/lib/Utils/crypto');
-const { AuthenticationUtils } = require('@whiskeysockets/baileys/lib/Utils/auth-utils');
+const { 
+  Curve, 
+  signedKeyPair, 
+  generateRegistrationId 
+} = require('@whiskeysockets/baileys/lib/Utils');
 
 const BufferJSON = {
   replacer: (k, v) => {
