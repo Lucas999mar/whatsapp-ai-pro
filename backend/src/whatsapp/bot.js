@@ -59,17 +59,13 @@ function getMessageType(msg) {
 const { useSupabaseAuthState } = require('./supabase-auth');
 
 async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Principal', agentSettings = null, tenantId = 'default') {
-  const { state, saveCreds } = await useSupabaseAuthState(agentId);
-  const { version } = await fetchLatestBaileysVersion();
-  
-  const sock = makeWASocket({
-    version,
-    logger,
-    auth: state,
-    printQRInTerminal: false,
-    browser: [`WA Pro - ${agentName}`, 'Chrome', '126.0.0'],
-  });
-  
+  // Evita iniciar o mesmo agente se ele já estiver em processo de conexão ou conectado
+  const existing = agents.get(agentId);
+  if (existing && (existing.status === 'connected' || existing.status === 'connecting')) {
+    console.log(`⚠️ Agente ${agentId} já está ativo ou conectando. Ignorando nova tentativa.`);
+    return existing.sock;
+  }
+
   const defaultSettings = {
     bot_name: agentName,
     system_prompt: 'Você é um assistente amigável. Responda em português de forma natural.',
@@ -79,9 +75,23 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     respond_all: true
   };
 
+  const { state, saveCreds } = await useSupabaseAuthState(agentId);
+  const { version } = await fetchLatestBaileysVersion();
+  
+  const sock = makeWASocket({
+    version,
+    logger,
+    auth: state,
+    printQRInTerminal: false,
+    browser: [`WA Pro - ${agentName}`, 'Chrome', '126.0.0'],
+    connectTimeoutMs: 60000, // Aumentado para 60s para lidar com lentidão do Render
+    defaultQueryTimeoutMs: 60000,
+    keepAliveIntervalMs: 30000,
+  });
+  
   agents.set(agentId, { 
     sock, 
-    status: 'disconnected', 
+    status: 'connecting', 
     qr: null, 
     name: agentName, 
     tenantId: tenantId || 'default',
