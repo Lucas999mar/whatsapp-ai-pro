@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../api/api';
 import { Settings, Save, Bot, Volume2, Shield, Loader2, Building2, Image as ImageIcon, Upload } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,7 +30,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/whatsapp/status');
+        const res = await api.get('/api/whatsapp/status');
         const agentsList = res.data.agents || [];
         setAgents(agentsList);
         if (agentsList.length > 0 && !selectedAgentId) {
@@ -64,11 +64,11 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await axios.post(`http://localhost:3001/api/whatsapp/agents/${selectedAgentId}/settings`, {
+      await api.post(`/api/whatsapp/agents/${selectedAgentId}/settings`, {
         settings
       });
       alert('Configurações salvas com sucesso!');
-      const res = await axios.get('http://localhost:3001/api/whatsapp/status');
+      const res = await api.get('/api/whatsapp/status');
       setAgents(res.data.agents || []);
     } catch (err) {
       alert('Erro ao salvar configurações: ' + err.message);
@@ -90,7 +90,7 @@ export default function SettingsPage() {
     formData.append('logo', file);
 
     try {
-      const res = await axios.post('http://localhost:3001/api/company/logo', formData, {
+      const res = await api.post('/api/company/logo', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setCompanyLogo(res.data.logoUrl);
@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const handleSaveCompany = async () => {
     setSavingCompany(true);
     try {
-      await axios.put('http://localhost:3001/api/company/settings', {
+      await api.put('/api/company/settings', {
         name: companyName,
         logo: companyLogo
       });
@@ -280,3 +280,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

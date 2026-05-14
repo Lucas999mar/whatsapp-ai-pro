@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../api/api';
 import { User, Bot, Clock, Sparkles, Database, MessageSquare, X, GripVertical, Edit2, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -56,7 +56,7 @@ export default function Conversations() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/whatsapp/status');
+        const res = await api.get('/api/whatsapp/status');
         setAgents(res.data.agents || [{ id: 'default', name: 'Assistente Principal' }]);
       } catch (err) {
         console.error('Agents Error:', err);
@@ -67,7 +67,7 @@ export default function Conversations() {
 
   const fetchConversations = async () => {
     try {
-      const res = await axios.get('http://localhost:3001/api/conversations');
+      const res = await api.get('/api/conversations');
       const data = res.data;
       setConversations(data);
 
@@ -371,3 +371,4 @@ export default function Conversations() {
     </div>
   );
 }
+

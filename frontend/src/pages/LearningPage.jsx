@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/api';
 import { BrainCircuit, Lightbulb, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,7 +14,7 @@ export default function LearningPage() {
   useEffect(() => {
     const fetchLearnings = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/learnings');
+        const res = await api.get('/api/learnings');
         setLearnings(res.data);
       } catch (err) {
         console.error('Error fetching learnings:', err);
@@ -77,3 +77,4 @@ export default function LearningPage() {
     </div>
   );
 }
+

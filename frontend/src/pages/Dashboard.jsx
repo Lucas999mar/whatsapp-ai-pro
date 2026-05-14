@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/api';
 import { Bot, MessageSquare, Database, TrendingUp, CheckCircle2, Activity, QrCode, Smartphone, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -17,7 +17,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/whatsapp/status');
+        const res = await api.get('/api/whatsapp/status');
         setAgents(res.data.agents || []);
       } catch (err) {
         console.error('API Error:', err);
@@ -32,7 +32,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/stats');
+        const res = await api.get('/api/stats');
         setStats(res.data);
       } catch (err) {
         console.error('Stats Error:', err);
@@ -44,7 +44,7 @@ export default function Dashboard() {
   const handleAddAgent = async () => {
     if (!newAgentName.trim()) return;
     try {
-      await axios.post('http://localhost:3001/api/whatsapp/agents', { name: newAgentName });
+      await api.post('/api/whatsapp/agents', { name: newAgentName });
       setNewAgentName('');
       setIsAdding(false);
     } catch (err) {
@@ -54,7 +54,7 @@ export default function Dashboard() {
 
   const handleRestartAgent = async (agentId) => {
     try {
-      await axios.post('http://localhost:3001/api/whatsapp/restart', { agentId });
+      await api.post('/api/whatsapp/restart', { agentId });
     } catch (err) {
       alert('Erro ao reiniciar agente.');
     }
@@ -63,7 +63,7 @@ export default function Dashboard() {
   const handleDeleteAgent = async (agentId) => {
     if (!window.confirm('Tem certeza que deseja deletar este agente?')) return;
     try {
-      await axios.delete(`http://localhost:3001/api/whatsapp/agents/${agentId}`);
+      await api.delete(`/api/whatsapp/agents/${agentId}`);
     } catch (err) {
       alert('Erro ao deletar agente.');
     }
@@ -204,3 +204,4 @@ function StatCard({ icon, title, value, subtext }) {
     </div>
   );
 }
+

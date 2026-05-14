@@ -6,6 +6,34 @@
 -- Habilita extensão de vetores
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- ── TENANTS (EMPRESAS) ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tenants (
+  id TEXT PRIMARY KEY,             -- ex: 'default', 'lucas'
+  name TEXT NOT NULL,
+  password TEXT NOT NULL,
+  role TEXT DEFAULT 'company' CHECK (role IN ('superadmin', 'company')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  logo TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── AGENTS (BOTS) ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,             -- JID do WhatsApp ou UUID
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  status TEXT DEFAULT 'disconnected',
+  qr_code TEXT,
+  settings JSONB DEFAULT '{
+    "bot_name": "Assistente",
+    "system_prompt": "",
+    "response_mode": "mirror",
+    "tts_voice": "nova"
+  }',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ── KNOWLEDGE BASE ────────────────────────────────────────────
 -- Armazena todos os itens da base de conhecimento
 CREATE TABLE IF NOT EXISTS knowledge_items (
@@ -17,6 +45,8 @@ CREATE TABLE IF NOT EXISTS knowledge_items (
   file_name TEXT,
   file_size INTEGER,
   metadata JSONB DEFAULT '{}',     -- info extra (páginas, duração, vault, etc)
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  agent_id TEXT,                   -- 'unassigned' ou ID do agente
   embedding VECTOR(1536),          -- embedding do conteúdo
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -98,6 +128,8 @@ BEGIN
     1 - (k.embedding <=> query_embedding) AS similarity
   FROM knowledge_items k
   WHERE k.embedding IS NOT NULL
+    AND (k.tenant_id = p_tenant_id OR p_tenant_id IS NULL)
+    AND (k.agent_id = 'global' OR k.agent_id = p_agent_id OR k.agent_id IS NULL)
     AND 1 - (k.embedding <=> query_embedding) > similarity_threshold
   ORDER BY k.embedding <=> query_embedding
   LIMIT match_count;

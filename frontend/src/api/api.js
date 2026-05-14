@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// Em produção (Vercel), as APIs serverless ficam no mesmo domínio.
+// Em desenvolvimento, apontamos para o backend local.
+const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001'
+  baseURL: isProduction ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')
 });
 
 // Interceptor para adicionar o token JWT automaticamente
