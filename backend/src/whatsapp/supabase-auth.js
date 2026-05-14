@@ -21,7 +21,7 @@ const BufferJSON = {
 async function useSupabaseAuthState(agentId) {
   const supabase = getSupabase();
   const table = 'whatsapp_auth';
-  const keys = {}; // Memória local para chaves temporárias (veloz)
+  const keys = {}; // Memória local para chaves temporárias
 
   const readCreds = async () => {
     try {
@@ -39,13 +39,23 @@ async function useSupabaseAuthState(agentId) {
     try {
       const content = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
       await supabase.from(table).upsert({ id: `${agentId}:creds`, data: content, updated_at: new Date().toISOString() });
-    } catch (e) { console.error('❌ Erro ao salvar creds:', e.message); }
+    } catch (e) { console.error('❌ Erro Supabase:', e.message); }
   };
 
-  // Carrega credenciais do banco ou inicia novas
   let creds = await readCreds();
   if (!creds) {
-    creds = AuthenticationUtils.initAuthState().creds;
+    creds = {
+      noiseKey: Curve.generateKeyPair(),
+      signedIdentityKey: Curve.generateKeyPair(),
+      signedPreKey: signedKeyPair(Curve.generateKeyPair(), 1),
+      registrationId: Math.floor(Math.random() * 16380) + 1,
+      advSecretKey: Curve.generateKeyPair().private.toString('base64'),
+      processedHistoryMessages: [],
+      nextPreKeyId: 1,
+      firstUnuploadedPreKeyId: 1,
+      accountSettings: { unarchiveChats: false },
+      deviceId: Buffer.from(Curve.generateKeyPair().public).toString('base64').slice(0, 6)
+    };
     await writeCreds(creds);
   }
 
