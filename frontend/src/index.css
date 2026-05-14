@@ -98,3 +98,21 @@ body {
 .custom-input {
   @apply bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-[#25D366]/50 focus:ring-1 focus:ring-[#25D366]/20 transition-all duration-300;
 }
+
+/* Mobile Utilities */
+@media (max-width: 1024px) {
+  .glass-panel {
+    border-radius: 1rem;
+    padding: 1.25rem !important;
+  }
+}
+
+img, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Touch improvements */
+button, a {
+  touch-action: manipulation;
+}
