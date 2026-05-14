@@ -21,8 +21,11 @@ const BufferJSON = {
 async function useSupabaseAuthState(agentId) {
   const supabase = getSupabase();
   const table = 'whatsapp_auth';
+  const localCache = new Map();
 
   const readData = async (type) => {
+    if (localCache.has(type)) return localCache.get(type);
+    
     try {
       const { data, error } = await supabase
         .from(table)
@@ -31,13 +34,16 @@ async function useSupabaseAuthState(agentId) {
         .single();
       
       if (error || !data) return null;
-      return JSON.parse(JSON.stringify(data.data), BufferJSON.reviver);
+      const parsed = JSON.parse(JSON.stringify(data.data), BufferJSON.reviver);
+      localCache.set(type, parsed);
+      return parsed;
     } catch (e) {
       return null;
     }
   };
 
   const writeData = async (data, type) => {
+    localCache.set(type, data);
     try {
       const content = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
       await supabase
@@ -48,11 +54,12 @@ async function useSupabaseAuthState(agentId) {
           updated_at: new Date().toISOString() 
         });
     } catch (e) {
-      console.error(`❌ Erro ao salvar auth ${type} no Supabase:`, e.message);
+      console.error(`❌ Erro Supabase (${type}):`, e.message);
     }
   };
 
   const removeData = async (type) => {
+    localCache.delete(type);
     try {
       await supabase.from(table).delete().eq('id', `${agentId}:${type}`);
     } catch (e) {}
@@ -61,18 +68,7 @@ async function useSupabaseAuthState(agentId) {
   // Initialize creds
   let creds = await readData('creds');
   if (!creds) {
-    creds = {
-      noiseKey: Curve.generateKeyPair(),
-      signedIdentityKey: Curve.generateKeyPair(),
-      signedPreKey: signedKeyPair(Curve.generateKeyPair(), 1),
-      registrationId: Math.floor(Math.random() * 16380) + 1,
-      advSecretKey: Curve.generateKeyPair().private.toString('base64'),
-      processedHistoryMessages: [],
-      nextPreKeyId: 1,
-      firstUnuploadedPreKeyId: 1,
-      accountSettings: { unarchiveChats: false },
-      deviceId: Buffer.from(Curve.generateKeyPair().public).toString('base64').slice(0, 6)
-    };
+    creds = AuthenticationUtils.initAuthState().creds;
     await writeData(creds, 'creds');
   }
 
@@ -84,7 +80,8 @@ async function useSupabaseAuthState(agentId) {
           const data = {};
           await Promise.all(
             ids.map(async (id) => {
-              let value = await readData(`${type}-${id}`);
+              const key = `${type}-${id}`;
+              let value = await readData(key);
               if (type === 'app-state-sync-key' && value) {
                 value = proto.Message.AppStateSyncKeyData.fromObject(value);
               }
