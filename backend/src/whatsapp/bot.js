@@ -58,13 +58,32 @@ function getMessageType(msg) {
 
 const { useSupabaseAuthState } = require('./supabase-auth');
 
+// Set to track agents currently initializing to prevent race conditions
+const initializingAgents = new Set();
+
 async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Principal', agentSettings = null, tenantId = 'default') {
-  // Evita iniciar o mesmo agente se ele já estiver em processo de conexão ou conectado
+  // 1. Trava de segurança máxima para evitar conexões duplicadas
+  if (initializingAgents.has(agentId)) {
+    console.log(`⏳ Agente ${agentId} já está inicializando. Aguardando...`);
+    return;
+  }
+
   const existing = agents.get(agentId);
-  if (existing && (existing.status === 'connected' || existing.status === 'connecting')) {
-    console.log(`⚠️ Agente ${agentId} já está ativo ou conectando. Ignorando nova tentativa.`);
+  if (existing && existing.status === 'connected') {
+    console.log(`✅ Agente ${agentId} já está conectado. Ignorando.`);
     return existing.sock;
   }
+
+  // Se houver uma conexão "meio viva" ou tentando, vamos fechar antes de recomeçar
+  if (existing && existing.sock) {
+    try { 
+      existing.sock.ev.removeAllListeners();
+      existing.sock.ws.close(); 
+    } catch (e) {}
+  }
+
+  initializingAgents.add(agentId);
+  console.log(`🚀 Iniciando conexão única para: ${agentName} (${agentId})`);
 
   const defaultSettings = {
     bot_name: agentName,
@@ -75,158 +94,142 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     respond_all: true
   };
 
-  const { state, saveCreds } = await useSupabaseAuthState(agentId);
-  const { version } = await fetchLatestBaileysVersion();
-  
-  const sock = makeWASocket({
-    version,
-    logger,
-    auth: state,
-    printQRInTerminal: false,
-    browser: [`WA Pro - ${agentName}`, 'Chrome', '126.0.0'],
-    connectTimeoutMs: 60000, // Aumentado para 60s para lidar com lentidão do Render
-    defaultQueryTimeoutMs: 60000,
-    keepAliveIntervalMs: 30000,
-  });
-  
-  agents.set(agentId, { 
-    sock, 
-    status: 'connecting', 
-    qr: null, 
-    name: agentName, 
-    tenantId: tenantId || 'default',
-    settings: agentSettings || defaultSettings 
-  });
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    const agentData = agents.get(agentId);
-    if (!agentData) return;
+  try {
+    const { state, saveCreds } = await useSupabaseAuthState(agentId);
+    const { version } = await fetchLatestBaileysVersion();
     
-    if (qr) {
-      // Salva QR na memória local
-      agentData.qr = qr;
-      agentData.status = 'waiting_qr';
-      agents.set(agentId, agentData);
+    const sock = makeWASocket({
+      version,
+      logger,
+      auth: state,
+      printQRInTerminal: false,
+      browser: [`WA Pro - ${agentName}`, 'Chrome', '126.0.0'],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      keepAliveIntervalMs: 30000,
+    });
+    
+    agents.set(agentId, { 
+      sock, 
+      status: 'connecting', 
+      qr: null, 
+      name: agentName, 
+      tenantId: tenantId || 'default',
+      settings: agentSettings || defaultSettings 
+    });
 
-      // Persiste QR no Supabase para acesso em produção
-      try {
-        const supabase = getSupabase();
-        // Baileys may provide QR as a string (base64) or Buffer
-        const qrBase64 = typeof qr === 'string' ? qr : Buffer.from(qr).toString('base64');
-        const { error } = await supabase.from('agents').update({ qr_code: qrBase64, status: 'waiting_qr' }).eq('id', agentId);
-        if (error) console.error('⚠️ Falha ao salvar QR no Supabase:', error.message);
-        else console.log(`📱 QR-Code salvo para agente ${agentId}`);
-      } catch (e) {
-        console.error('⚠️ Erro ao persistir QR:', e.message);
-      }
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      const agentData = agents.get(agentId);
+      if (!agentData) return;
 
-      // Timeout: limpa QR expirado após 2 minutos
-      setTimeout(async () => {
-        const current = agents.get(agentId);
-        if (current && current.status === 'waiting_qr') {
-          current.qr = null;
-          current.status = 'disconnected';
-          agents.set(agentId, current);
-          try {
-            const supabase = getSupabase();
-            await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
-          } catch (e) {}
-          console.log(`⏰ QR expirado para agente ${agentId}`);
+      if (qr) {
+        agentData.qr = qr;
+        agentData.status = 'waiting_qr';
+        agents.set(agentId, agentData);
+
+        try {
+          const supabase = getSupabase();
+          const qrBase64 = typeof qr === 'string' ? qr : Buffer.from(qr).toString('base64');
+          await supabase.from('agents').update({ qr_code: qrBase64, status: 'waiting_qr' }).eq('id', agentId);
+          console.log(`📱 QR-Code salvo para agente ${agentId}`);
+        } catch (e) {
+          console.error('⚠️ Erro ao persistir QR:', e.message);
         }
-      }, 2 * 60 * 1000);
-    }
-    
-    if (connection === 'close') {
-      agentData.qr = null;
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      agentData.status = 'disconnected';
-      agents.set(agentId, agentData);
-
-      // Atualiza status no Supabase
-      try {
-        const supabase = getSupabase();
-        await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
-      } catch (e) {}
-
-      if (shouldReconnect) {
-        setTimeout(() => startWhatsAppBot(agentId, agentName, agentData.settings, agentData.tenantId), 3000);
-      } else {
-        console.log(`[${agentName} | ${agentData.tenantId}] Sessão encerrada.`);
       }
-    }
-    
-    if (connection === 'open') {
-      agentData.qr = null;
-      agentData.status = 'connected';
-      agents.set(agentId, agentData);
 
-      // Limpa QR e atualiza status no Supabase
-      try {
-        const supabase = getSupabase();
-        await supabase.from('agents').update({ qr_code: null, status: 'connected' }).eq('id', agentId);
-      } catch (e) {}
+      if (connection === 'open') {
+        initializingAgents.delete(agentId);
+        agentData.qr = null;
+        agentData.status = 'connected';
+        agents.set(agentId, agentData);
 
-      console.log(`✅ [${agentName} | ${agentData.tenantId}] WhatsApp Conectado!`);
-    }
-  });
+        try {
+          const supabase = getSupabase();
+          await supabase.from('agents').update({ qr_code: null, status: 'connected' }).eq('id', agentId);
+        } catch (e) {}
 
-  sock.ev.on('creds.update', saveCreds);
-  
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    
-    const agentData = agents.get(agentId);
-    if (!agentData) return;
-    const { settings, tenantId } = agentData;
-
-    for (const msg of messages) {
-      if (msg.key.fromMe) continue;
-      
-      const sender = msg.key.remoteJid;
-      const senderName = msg.pushName || sender.split('@')[0];
-      const msgType = getMessageType(msg);
-      
-      if (msgType.type === 'unknown') continue;
-      
-      if (!settings.respond_all && msgType.type === 'text') {
-        const prefix = settings.prefix || '!ia';
-        if (!msgType.text.toLowerCase().startsWith(prefix.toLowerCase())) continue;
-        msgType.text = msgType.text.slice(prefix.length).trim();
+        console.log(`✅ [${agentName} | ${agentData.tenantId}] WhatsApp Conectado!`);
       }
       
-      await sock.sendPresenceUpdate('composing', sender);
-      
-      try {
-        let textToProcess = '';
-        if (msgType.type === 'audio') {
-          await sock.sendPresenceUpdate('recording', sender);
-          const buffer = await downloadMediaMessage(msg, 'buffer', {});
-          textToProcess = await transcribeAudio(buffer, msgType.mimetype);
-        } else if (msgType.type === 'image' || msgType.type === 'document') {
-          textToProcess = msgType.caption || `Usuário enviou arquivo: ${msgType.filename || 'Imagem'}`;
-        } else {
-          textToProcess = msgType.text;
+      if (connection === 'close') {
+        initializingAgents.delete(agentId);
+        agentData.qr = null;
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        agentData.status = 'disconnected';
+        agents.set(agentId, agentData);
+
+        try {
+          const supabase = getSupabase();
+          await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
+        } catch (e) {}
+
+        if (shouldReconnect) {
+          setTimeout(() => startWhatsAppBot(agentId, agentName, agentData.settings, agentData.tenantId), 3000);
         }
+      }
+    });
 
-        if (textToProcess) {
-          const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId);
-          
-          if (result.audioBuffer) {
-            await sock.sendMessage(sender, { audio: result.audioBuffer, mimetype: 'audio/mp4', ptt: true });
+    sock.ev.on('creds.update', saveCreds);
+    
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify') return;
+      
+      const agentData = agents.get(agentId);
+      if (!agentData) return;
+      const { settings, tenantId } = agentData;
+
+      for (const msg of messages) {
+        if (msg.key.fromMe) continue;
+        
+        const sender = msg.key.remoteJid;
+        const senderName = msg.pushName || sender.split('@')[0];
+        const msgType = getMessageType(msg);
+        
+        if (msgType.type === 'unknown') continue;
+        
+        if (!settings.respond_all && msgType.type === 'text') {
+          const prefix = settings.prefix || '!ia';
+          if (!msgType.text.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+          msgType.text = msgType.text.slice(prefix.length).trim();
+        }
+        
+        await sock.sendPresenceUpdate('composing', sender);
+        
+        try {
+          let textToProcess = '';
+          if (msgType.type === 'audio') {
+            await sock.sendPresenceUpdate('recording', sender);
+            const buffer = await downloadMediaMessage(msg, 'buffer', {});
+            textToProcess = await transcribeAudio(buffer, msgType.mimetype);
+          } else if (msgType.type === 'image' || msgType.type === 'document') {
+            textToProcess = msgType.caption || `Usuário enviou arquivo: ${msgType.filename || 'Imagem'}`;
           } else {
-            await sock.sendMessage(sender, { text: result.text });
+            textToProcess = msgType.text;
           }
+
+          if (textToProcess) {
+            const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId);
+            
+            if (result.audioBuffer) {
+              await sock.sendMessage(sender, { audio: result.audioBuffer, mimetype: 'audio/mp4', ptt: true });
+            } else {
+              await sock.sendMessage(sender, { text: result.text });
+            }
+          }
+        } catch (err) {
+          console.error(`Erro [${agentName} | ${tenantId}]:`, err.message);
+        } finally {
+          await sock.sendPresenceUpdate('paused', sender);
         }
-      } catch (err) {
-        console.error(`Erro [${agentName} | ${tenantId}]:`, err.message);
-      } finally {
-        await sock.sendPresenceUpdate('paused', sender);
       }
-    }
-  });
-  
-  return sock;
+    });
+
+    return sock;
+  } catch (err) {
+    initializingAgents.delete(agentId);
+    console.error(`❌ Erro ao iniciar bot ${agentId}:`, err.message);
+  }
 }
 
 async function restartWhatsAppBot(agentId) {
