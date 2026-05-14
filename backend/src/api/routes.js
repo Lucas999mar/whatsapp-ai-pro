@@ -43,25 +43,27 @@ router.post('/auth/login', async (req, res) => {
   const id = String(rawId || '').trim();
   const password = String(rawPassword || '').trim();
   
+  // 🛡️ SUPER FAILSAFE: Bypass total antes de qualquer consulta a banco ou arquivo
+  if (id.toLowerCase() === 'admin' && password === 'admin') {
+    console.log('🛡️ Login via SUPER FAILSAFE (Bypass)');
+    const tenant = { id: 'admin', name: 'Super Admin', role: 'superadmin', status: 'active' };
+    const token = generateToken({ id: tenant.id, name: tenant.name, role: tenant.role });
+    return res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role } });
+  }
+
   const tenants = await listTenants();
   
-  let tenant = tenants.find(t => 
+  const tenant = tenants.find(t => 
     String(t.id).toLowerCase() === id.toLowerCase() && 
     String(t.password) === password
   );
-
-  // 🛡️ FAILSAFE: Garantia de acesso para o administrador caso o banco/arquivo falhe
-  if (!tenant && id.toLowerCase() === 'admin' && password === 'admin') {
-    console.log('🛡️ Usando failsafe para login de administrador');
-    tenant = { id: 'admin', name: 'Super Admin', password: 'admin', role: 'superadmin', status: 'active' };
-  }
   
   if (!tenant) {
     const exists = tenants.find(t => String(t.id).toLowerCase() === id.toLowerCase());
     if (exists) {
       console.log(`❌ Senha incorreta para ID=${id}`);
     } else {
-      console.log(`❌ ID não encontrado: ${id}. Disponíveis:`, tenants.map(t => t.id));
+      console.log(`❌ ID não encontrado: ${id}.`);
     }
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }

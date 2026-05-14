@@ -93,7 +93,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center mt-8 text-slate-500 text-sm">
-          Painel Administrativo v2.0 • Protegido por criptografia ponta a ponta
+          Painel Administrativo v2.1 • Protegido por criptografia ponta a ponta
         </p>
       </div>
     </div>
