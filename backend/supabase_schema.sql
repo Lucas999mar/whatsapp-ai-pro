@@ -141,3 +141,15 @@ $$;
 -- ── STORAGE BUCKETS ──────────────────────────────────────────
 -- Execute no painel do Supabase > Storage > Buckets:
 -- Criar bucket "knowledge-files" com acesso público
+
+-- ── WHATSAPP AUTH PERSISTENCE ────────────────────────────────
+-- Tabela para persistência de sessão do WhatsApp (Auth State)
+CREATE TABLE IF NOT EXISTS whatsapp_auth (
+  id TEXT PRIMARY KEY, -- ex: agent_id:creds ou agent_id:sync
+  data JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Habilitar RLS
+ALTER TABLE whatsapp_auth ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for whatsapp_auth" ON whatsapp_auth FOR ALL USING (true);

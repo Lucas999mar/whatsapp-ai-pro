@@ -56,11 +56,10 @@ function getMessageType(msg) {
   return { type: 'unknown' };
 }
 
+const { useSupabaseAuthState } = require('./supabase-auth');
+
 async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Principal', agentSettings = null, tenantId = 'default') {
-  const authDir = `${BASE_AUTH_DIR}_${agentId}`;
-  if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
-  
-  const { state, saveCreds } = await useMultiFileAuthState(authDir);
+  const { state, saveCreds } = await useSupabaseAuthState(agentId);
   const { version } = await fetchLatestBaileysVersion();
   
   const sock = makeWASocket({
@@ -232,13 +231,13 @@ async function restartWhatsAppBot(agentId) {
     if (agentData.sock) agentData.sock.ws.close();
   } catch (e) {}
   
-  const authDir = `${BASE_AUTH_DIR}_${agentId}`;
+  // Limpa estado de autenticação no Supabase
   try {
-    if (fs.existsSync(authDir)) {
-      fs.rmSync(authDir, { recursive: true, force: true });
-    }
+    const supabase = getSupabase();
+    await supabase.from('whatsapp_auth').delete().like('id', `${agentId}:%`);
+    console.log(`🧹 Cache de autenticação limpo para ${agentId}`);
   } catch (e) {
-    console.error('Erro ao deletar auth_info:', e);
+    console.error('Erro ao limpar auth no Supabase:', e);
   }
   
   // Atualiza status no Supabase
@@ -323,8 +322,11 @@ async function removeAgent(agentId) {
   }
   agents.delete(agentId);
   
-  const authDir = `${BASE_AUTH_DIR}_${agentId}`;
-  if (fs.existsSync(authDir)) fs.rmSync(authDir, { recursive: true, force: true });
+  // Limpa estado de autenticação no Supabase
+  try {
+    const supabase = getSupabase();
+    await supabase.from('whatsapp_auth').delete().like('id', `${agentId}:%`);
+  } catch (e) {}
   
   // Remove do Supabase (ignore if not found)
   try {
