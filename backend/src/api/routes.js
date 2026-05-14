@@ -163,21 +163,43 @@ router.put('/company/settings', authMiddleware, async (req, res) => {
   try {
     const supabase = getSupabase();
     const { name, logo } = req.body;
-    const updates = { 
+    
+    // Prepara dados para upsert
+    const updateData = { 
       id: req.user.id,
       updated_at: new Date().toISOString() 
     };
-    if (name) updates.name = name;
-    if (logo) updates.logo = logo;
+    if (name) updateData.name = name;
+    if (logo) updateData.logo = logo;
     
-    // Usa UPSERT para garantir que a configuração seja salva mesmo se for o primeiro acesso
-    const { data, error } = await supabase.from('tenants').upsert(updates).select().single();
+    console.log(`💾 Tentando salvar configs para: ${req.user.id}`);
+
+    const { data, error } = await supabase
+      .from('tenants')
+      .upsert(updateData, { onConflict: 'id' })
+      .select()
+      .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Erro no banco de dados:', error.message);
+      throw error;
+    }
+    
     res.json(data);
   } catch (err) {
-    console.error('❌ Erro ao salvar configurações:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: `Falha ao salvar: ${err.message}` });
+  }
+});
+
+// 🔍 Rota de diagnóstico para verificar conexão com banco
+router.get('/health', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('tenants').select('count', { count: 'exact', head: true });
+    if (error) throw error;
+    res.json({ status: 'OK', database: 'Conectado', message: 'Sistema operacional' });
+  } catch (err) {
+    res.status(500).json({ status: 'ERRO', database: 'Falha na conexão', error: err.message });
   }
 });
 

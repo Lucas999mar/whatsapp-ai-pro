@@ -196,13 +196,14 @@ async function getConversationHistory(threadId, limit = 20) {
  */
 async function listConversations(limit = 100, tenantId = 'default') {
   const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('conversations')
-    .select('*')
-    .like('whatsapp_id', `${tenantId}__%`)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  let query = supabase.from('conversations').select('*').order('created_at', { ascending: false }).limit(limit);
 
+  // Se NÃO for admin, filtra pela empresa. Se for admin, vê tudo.
+  if (tenantId !== 'admin') {
+    query = query.like('whatsapp_id', `${tenantId}__%`);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
