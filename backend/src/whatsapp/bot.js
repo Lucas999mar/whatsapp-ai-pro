@@ -56,13 +56,10 @@ function getMessageType(msg) {
   return { type: 'unknown' };
 }
 
-const { useSupabaseAuthState } = require('./supabase-auth');
-
 // Set to track agents currently initializing to prevent race conditions
 const initializingAgents = new Set();
 
 async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Principal', agentSettings = null, tenantId = 'default') {
-  // 1. Trava de segurança máxima para evitar conexões duplicadas
   if (initializingAgents.has(agentId)) {
     console.log(`⏳ Agente ${agentId} já está inicializando. Aguardando...`);
     return;
@@ -74,7 +71,6 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     return existing.sock;
   }
 
-  // Se houver uma conexão "meio viva" ou tentando, vamos fechar antes de recomeçar
   if (existing && existing.sock) {
     try { 
       existing.sock.ev.removeAllListeners();
@@ -84,6 +80,19 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
   initializingAgents.add(agentId);
   console.log(`🚀 Iniciando conexão única para: ${agentName} (${agentId})`);
+
+  const authDir = path.resolve(`/tmp/auth_${agentId}`);
+  if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
+
+  // 1. Tenta restaurar creds do Supabase para o disco local
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('whatsapp_auth').select('data').eq('id', `${agentId}:creds`).single();
+    if (data && !fs.existsSync(path.join(authDir, 'creds.json'))) {
+      fs.writeFileSync(path.join(authDir, 'creds.json'), JSON.stringify(data.data));
+      console.log(`📥 Sessão restaurada do Supabase para ${agentId}`);
+    }
+  } catch (e) {}
 
   const defaultSettings = {
     bot_name: agentName,
@@ -95,7 +104,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
   };
 
   try {
-    const { state, saveCreds } = await useSupabaseAuthState(agentId);
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
     
     const sock = makeWASocket({
@@ -170,7 +179,23 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       }
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', async () => {
+      await saveCreds();
+      try {
+        const supabase = getSupabase();
+        const credsPath = path.join(authDir, 'creds.json');
+        if (fs.existsSync(credsPath)) {
+          const credsData = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+          await supabase.from('whatsapp_auth').upsert({ 
+            id: `${agentId}:creds`, 
+            data: credsData, 
+            updated_at: new Date().toISOString() 
+          });
+        }
+      } catch (e) {
+        console.error('❌ Erro ao sincronizar credenciais com Supabase:', e.message);
+      }
+    });
     
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
