@@ -7,8 +7,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20
-      - key: PORT
-        value: 3001
       - key: OPENAI_API_KEY
         sync: false
       - key: SUPABASE_URL

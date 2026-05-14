@@ -81,7 +81,10 @@ async function processQueue() {
 }
 
 function syncVault(vaultPath, tenantId = 'default') {
-  if (!fs.existsSync(vaultPath)) throw new Error('Caminho do Vault não encontrado');
+  if (!fs.existsSync(vaultPath)) {
+    console.warn(`⚠️ Vault não encontrado (ignorado em servidor remoto): ${vaultPath}`);
+    return;
+  }
   
   const files = getAllFiles(vaultPath).filter(f => f.endsWith('.md'));
   console.log(`🔄 Sincronizando Vault do Obsidian para ${tenantId}: ${files.length} arquivos...`);
@@ -114,11 +117,25 @@ function startObsidianWatcher() {
   const vaultPaths = config.obsidian.vaultPaths;
   if (!vaultPaths || vaultPaths.length === 0) return;
   
-  vaultPaths.forEach(vaultPath => {
+  // Filtra apenas paths que existem no servidor atual
+  const existingPaths = vaultPaths.filter(p => {
+    if (!fs.existsSync(p)) {
+      console.warn(`⚠️ Vault não encontrado (ignorado): ${p}`);
+      return false;
+    }
+    return true;
+  });
+
+  if (existingPaths.length === 0) {
+    console.log('ℹ️ Nenhum vault local encontrado. Obsidian Watcher desativado neste servidor.');
+    return;
+  }
+
+  existingPaths.forEach(vaultPath => {
     syncVault(vaultPath, 'default');
     
     const watcher = chokidar.watch(vaultPath, {
-      ignored: /(^|[\/\\])\..|attachments|assets|images/,
+      ignored: /(^|[\/\\])\\..|attachments|assets|images/,
       persistent: true,
       ignoreInitial: true,
     });

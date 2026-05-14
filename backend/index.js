@@ -7,17 +7,29 @@ const { startObsidianWatcher } = require('./src/obsidian/watcher');
 async function main() {
   console.log('🚀 Iniciando WhatsApp AI Pro...\n');
   
-  // Inicia API
+  // Inicia API (sempre)
   startServer();
   
   // Inicia Learning Engine (Jobs em background)
-  startLearningEngine();
+  try {
+    startLearningEngine();
+  } catch (e) {
+    console.warn('⚠️ Learning Engine não iniciou:', e.message);
+  }
   
-  // Inicia sincronização em tempo real do Obsidian
-  startObsidianWatcher();
+  // Inicia sincronização do Obsidian (apenas se houver paths configurados e existirem)
+  try {
+    startObsidianWatcher();
+  } catch (e) {
+    console.warn('⚠️ Obsidian Watcher não iniciou:', e.message);
+  }
   
   // Inicia Frota de Bots WhatsApp
-  startFleet();
+  try {
+    await startFleet();
+  } catch (e) {
+    console.error('⚠️ Fleet não iniciou:', e.message);
+  }
 }
 
 process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
