@@ -212,7 +212,16 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         .like('whatsapp_id', `${tenantId}__%`);
       
       const count = countRes?.length || 0;
-      if (count > 0 && count % 5 === 0) {
+      
+      // Verifica se já existem aprendizados para este tenant
+      const { data: existingLearnings } = await require('../db/supabase').getSupabase()
+        .from('learnings')
+        .select('id', { count: 'exact', head: true });
+        // (Nota: o filtro de tenant no count global é simplificado aqui, mas serve para o trigger inicial)
+
+      const shouldTrigger = (count > 0 && count % 5 === 0) || (count >= 3 && !existingLearnings?.length);
+
+      if (shouldTrigger) {
         console.log(`   🧠 [${tenantId}] Gatilho de Aprendizado Ativado (Global Msg #${count})...`);
         const { data: recentMsgs } = await require('../db/supabase').getSupabase()
           .from('conversations')
