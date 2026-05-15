@@ -36,11 +36,13 @@ async function listKnowledgeItems(type = null, agentId = null, tenantId = 'defau
   
   // Filtra por tenantId e agentId no metadata
   results = results.filter(item => {
-    const itemTenantId = item.metadata?.tenantId || 'default';
+    if (tenantId === 'admin') return true;
+    const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+    const itemTenantId = meta?.tenantId || 'default';
     if (itemTenantId !== tenantId) return false;
     
     if (agentId && agentId !== 'all') {
-      const itemAgentId = item.metadata?.agentId || 'global';
+      const itemAgentId = meta?.agentId || 'global';
       return itemAgentId === 'global' || itemAgentId === agentId;
     }
     return true;
@@ -216,12 +218,23 @@ async function getStats(tenantId = 'default') {
 
   const [knowledgeRes, conversationsRes, learnRes] = await Promise.all([
     supabase.from('knowledge_items').select('id, type, metadata'),
-    supabase.from('conversations').select('id, whatsapp_id').like('whatsapp_id', `${tenantId}__%`),
+    tenantId === 'admin' 
+      ? supabase.from('conversations').select('id, whatsapp_id')
+      : supabase.from('conversations').select('id, whatsapp_id').like('whatsapp_id', `${tenantId}__%`),
     supabase.from('learnings').select('id, metadata'),
   ]);
 
-  const knowledgeFiltered = (knowledgeRes.data || []).filter(k => (k.metadata?.tenantId || 'default') === tenantId);
-  const learnFiltered = (learnRes.data || []).filter(l => (l.metadata?.tenantId || 'default') === tenantId);
+  const knowledgeFiltered = (knowledgeRes.data || []).filter(k => {
+    if (tenantId === 'admin') return true;
+    const meta = typeof k.metadata === 'string' ? JSON.parse(k.metadata) : k.metadata;
+    return (meta?.tenantId || 'default') === tenantId;
+  });
+
+  const learnFiltered = (learnRes.data || []).filter(l => {
+    if (tenantId === 'admin') return true;
+    const meta = typeof l.metadata === 'string' ? JSON.parse(l.metadata) : l.metadata;
+    return (meta?.tenantId || 'default') === tenantId;
+  });
 
   const typeCounts = {
     document: 0,
@@ -305,6 +318,7 @@ async function listLearnings(tenantId = 'default') {
 
   // Filtro manual por tenantId
   return (data || []).filter(l => {
+    if (tenantId === 'admin') return true;
     const meta = typeof l.metadata === 'string' ? JSON.parse(l.metadata) : l.metadata;
     return (meta?.tenantId || 'default') === tenantId;
   });
