@@ -303,8 +303,11 @@ async function listLearnings(tenantId = 'default') {
 
   if (error) throw error;
 
-  // Filtro manual por tenantId se não estiver no nível da query
-  return (data || []).filter(l => (l.metadata?.tenantId || 'default') === tenantId);
+  // Filtro manual por tenantId
+  return (data || []).filter(l => {
+    const meta = typeof l.metadata === 'string' ? JSON.parse(l.metadata) : l.metadata;
+    return (meta?.tenantId || 'default') === tenantId;
+  });
 }
 
 /**

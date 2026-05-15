@@ -212,8 +212,8 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         .like('whatsapp_id', `${tenantId}__%`);
       
       const count = countRes?.length || 0;
-      if (count > 0 && count % 10 === 0) {
-        console.log(`   🧠 [${tenantId}] Gatilho de Aprendizado Ativado (Msg #${count})...`);
+      if (count > 0 && count % 5 === 0) {
+        console.log(`   🧠 [${tenantId}] Gatilho de Aprendizado Ativado (Thread: ${threadId}, Msg #${count})...`);
         analyzeAndSaveLearnings(tenantId, [...history, { role: 'user', content: text }, { role: 'assistant', content: answer }]);
       }
     } catch (e) { console.error('Erro no gatilho de aprendizado:', e); }

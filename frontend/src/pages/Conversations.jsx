@@ -53,11 +53,16 @@ export default function Conversations() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
 
-  useEffect(() => {
     const fetchAgents = async () => {
       try {
         const res = await api.get('/whatsapp/status');
-        setAgents(res.data.agents || [{ id: 'default', name: 'Assistente Principal' }]);
+        const agentList = res.data.agents || [];
+        setAgents(agentList.length > 0 ? agentList : [{ id: 'default', name: 'Assistente Principal' }]);
+        
+        // Se estiver no 'default' mas tivermos agentes reais, seleciona o primeiro
+        if (selectedAgent === 'default' && agentList.length > 0 && agentList[0].id !== 'default') {
+          setSelectedAgent(agentList[0].id);
+        }
       } catch (err) {
         console.error('Agents Error:', err);
       }
