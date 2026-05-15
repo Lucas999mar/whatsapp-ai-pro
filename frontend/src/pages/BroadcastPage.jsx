@@ -42,7 +42,8 @@ export default function BroadcastPage() {
       const type = file.type.split('/')[0];
       setMedia({ url: res.data.url, type: type === 'application' ? 'document' : type });
     } catch (err) {
-      alert('Erro ao enviar arquivo.');
+      console.error('Upload error:', err);
+      alert('Erro ao enviar arquivo: ' + (err.response?.data?.error || err.message));
     } finally {
       setUploading(false);
     }
