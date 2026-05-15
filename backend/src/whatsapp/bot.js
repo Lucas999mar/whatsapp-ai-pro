@@ -273,12 +273,27 @@ async function updateAgentSettings(agentId, newSettings) {
   }
 }
 
-async function sendDirectMessage(agentId, number, text) {
+async function sendDirectMessage(agentId, number, text, media = null) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
   
   const jid = number.includes('@') ? number : `${number.replace(/\D/g, '')}@s.whatsapp.net`;
-  await agent.socket.sendMessage(jid, { text });
+  
+  if (media && media.url) {
+    const options = {};
+    if (media.type === 'image') options.image = { url: media.url };
+    else if (media.type === 'video') options.video = { url: media.url };
+    else if (media.type === 'audio') {
+      options.audio = { url: media.url };
+      options.mimetype = 'audio/ogg; codecs=opus';
+      options.ptt = true;
+    }
+    
+    if (text) options.caption = text;
+    await agent.socket.sendMessage(jid, options);
+  } else {
+    await agent.socket.sendMessage(jid, { text });
+  }
 }
 
 module.exports = { startWhatsAppBot, getAgentsStatus, restartWhatsAppBot, startFleet, addAgent, removeAgent, updateAgentSettings, sendDirectMessage };

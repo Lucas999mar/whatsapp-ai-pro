@@ -337,15 +337,15 @@ router.delete('/whatsapp/agents/:id', authMiddleware, async (req, res) => {
 });
 
 router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
-  const { agentId, numbers, message, delay } = req.body;
+  const { agentId, numbers, message, delay, media } = req.body;
   const tenantId = req.user.id;
 
-  if (!agentId || !numbers || !message) {
+  if (!agentId || !numbers || (!message && !media)) {
     return res.status(400).json({ error: 'Faltam parâmetros obrigatórios' });
   }
 
   // Verifica se o agente pertence ao tenant
-  const { listAgents, sendDirectMessage } = require('../whatsapp/bot');
+  const { sendDirectMessage, getAgentsStatus } = require('../whatsapp/bot');
   const userAgents = await getAgentsStatus(tenantId);
   const hasAgent = userAgents.find(a => a.id === agentId);
   
@@ -357,7 +357,7 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
   (async () => {
     for (const number of numbers) {
       try {
-        await sendDirectMessage(agentId, number, message);
+        await sendDirectMessage(agentId, number, message, media);
         console.log(`📢 Broadcast [${tenantId}]: Mensagem enviada para ${number}`);
       } catch (err) {
         console.error(`❌ Broadcast Erro [${number}]:`, err.message);
