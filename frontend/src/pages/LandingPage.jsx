@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2, ArrowRight, Globe, Layers, Cpu } from 'lucide-react';
+import { Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2, ArrowRight, Brain, Search, Cpu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function LandingPage() {
@@ -42,7 +42,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            A única plataforma multi-agente de WhatsApp com Inteligência Artificial Generativa e Base de Conhecimento em tempo real.
+            A única plataforma de WhatsApp que integra **Busca Semântica** e **Aprendizado Contínuo** para transformar conversas em resultados reais.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
@@ -62,10 +62,10 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="glass-panel p-10 space-y-6 hover:border-[#25D366]/50 transition-all group">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                <Globe size={32} />
+                <Brain size={32} />
               </div>
-              <h3 className="text-2xl font-black">Multi-Tenancy</h3>
-              <p className="text-slate-400 leading-relaxed">Crie instâncias isoladas para diferentes empresas em um único painel SaaS profissional.</p>
+              <h3 className="text-2xl font-black">Aprendizado Autônomo</h3>
+              <p className="text-slate-400 leading-relaxed">Nossa IA analisa cada interação para aprender preferências dos clientes, horários e dores, criando um perfil de atendimento único para seu negócio.</p>
             </div>
 
             <div className="glass-panel p-10 space-y-6 hover:border-blue-500/50 transition-all group">
@@ -78,11 +78,39 @@ export default function LandingPage() {
 
             <div className="glass-panel p-10 space-y-6 hover:border-purple-500/50 transition-all group">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                <Layers size={32} />
+                <Search size={32} />
               </div>
-              <h3 className="text-2xl font-black">RAG Inteligente</h3>
-              <p className="text-slate-400 leading-relaxed">Integração nativa com Obsidian e PDFs para que sua IA responda com o conhecimento real da empresa.</p>
+              <h3 className="text-2xl font-black">Busca Semântica (RAG)</h3>
+              <p className="text-slate-400 leading-relaxed">Injete manuais técnicos, PDFs e notas. A IA entende o contexto e responde com precisão absoluta, como um técnico sênior da sua empresa.</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Quality Section */}
+      <section id="ai" className="py-32 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-16">
+          <div className="flex-1 space-y-8">
+            <h2 className="text-5xl font-black tracking-tight">Qualidade que seu cliente <span className="text-[#25D366]">sente na hora.</span></h2>
+            <div className="space-y-4">
+              <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/5">
+                <div className="mt-1 text-[#25D366]"><CheckCircle2 size={20} /></div>
+                <div>
+                  <h4 className="font-bold text-lg">Respostas Multimodais</h4>
+                  <p className="text-slate-400 text-sm">Transcreve áudios recebidos e responde com voz humana nativa (OGG Opus).</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/5">
+                <div className="mt-1 text-[#25D366]"><CheckCircle2 size={20} /></div>
+                <div>
+                  <h4 className="font-bold text-lg">Praticidade Operacional</h4>
+                  <p className="text-slate-400 text-sm">Deixe a IA resolver dúvidas técnicas complexas enquanto você foca no fechamento.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 glass-panel p-2 aspect-video bg-gradient-to-br from-[#25D366]/20 to-blue-500/20 relative">
+             <div className="absolute inset-0 flex items-center justify-center font-black text-white/20 text-4xl uppercase tracking-widest -rotate-12">Visualização da Inteligência</div>
           </div>
         </div>
       </section>
@@ -92,19 +120,19 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
           <div>
             <div className="text-5xl font-black text-[#25D366] mb-2">99.9%</div>
-            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Uptime de Sessão</div>
+            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Acurácia de Resposta</div>
           </div>
           <div>
-            <div className="text-5xl font-black text-[#25D366] mb-2">10ms</div>
-            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Latência de RAG</div>
+            <div className="text-5xl font-black text-[#25D366] mb-2">&lt; 3s</div>
+            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Tempo de Reação</div>
           </div>
           <div>
-            <div className="text-5xl font-black text-[#25D366] mb-2">+1k</div>
-            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Agentes Ativos</div>
+            <div className="text-5xl font-black text-[#25D366] mb-2">+100k</div>
+            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Itens de Conhecimento</div>
           </div>
           <div>
             <div className="text-5xl font-black text-[#25D366] mb-2">∞</div>
-            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Mensagens Ilimitadas</div>
+            <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">Evolução Contínua</div>
           </div>
         </div>
       </section>

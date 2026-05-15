@@ -44,13 +44,22 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedAgentId) return;
+    if (!selectedAgentId || agents.length === 0) return;
+    
     const fetchSettings = async () => {
       setLoading(true);
       try {
+        // Primeiro tenta achar na lista local
         const agent = agents.find(a => a.id === selectedAgentId);
-        if (agent && agent.settings) {
+        if (agent && agent.settings && Object.keys(agent.settings).length > 5) {
           setSettings(agent.settings);
+        } else {
+          // Se não tiver ou for incompleto, busca status fresco do banco
+          const res = await api.get('/whatsapp/status');
+          const freshAgent = (res.data.agents || []).find(a => a.id === selectedAgentId);
+          if (freshAgent && freshAgent.settings) {
+            setSettings(freshAgent.settings);
+          }
         }
       } catch (err) {
         console.error('Erro ao buscar configurações:', err);
