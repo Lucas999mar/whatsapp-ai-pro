@@ -282,8 +282,11 @@ async function sendDirectMessage(agentId, number, text, media = null) {
   if (media && media.url) {
     const options = {};
     if (media.type === 'image') options.image = { url: media.url };
-    else if (media.type === 'video') options.video = { url: media.url };
-    else if (media.type === 'audio') {
+    else if (media.type === 'video') {
+      // WhatsApp tem limite de 16MB para vídeos normais.
+      // Se for maior, enviamos como documento para garantir a entrega de até 2GB.
+      options.video = { url: media.url };
+    } else if (media.type === 'audio') {
       options.audio = { url: media.url };
       options.mimetype = 'audio/ogg; codecs=opus';
       options.ptt = true;

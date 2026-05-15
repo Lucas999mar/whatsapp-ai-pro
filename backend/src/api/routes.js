@@ -13,7 +13,7 @@ const { generateToken, authMiddleware } = require('./auth');
 const router = express.Router();
 const upload = multer({ 
   dest: config.uploadsDir,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+  limits: { fileSize: 1024 * 1024 * 1024 } // 1GB
 });
 
 // ── GENERIC UPLOAD ROUTE ───────────────────────────────────────
@@ -30,7 +30,10 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
       .from('knowledge-files')
       .upload(filePath, fileBuffer, { contentType: req.file.mimetype });
     
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('❌ Supabase Storage Error:', uploadError);
+      throw new Error(`Erro no Supabase Storage: ${uploadError.message}`);
+    }
 
     const { data: { publicUrl } } = supabase.storage.from('knowledge-files').getPublicUrl(filePath);
     
