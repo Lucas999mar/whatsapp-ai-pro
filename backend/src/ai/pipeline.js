@@ -4,6 +4,9 @@ const { searchKnowledge, saveConversationMessage, getConversationHistory, addLea
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
@@ -177,12 +180,16 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
     const ttsVoice = settings.tts_voice || config.openai.ttsVoice;
 
     if (responseMode === 'audio' || (responseMode === 'mirror' && messageType === 'audio')) {
-      const mp3 = await openai.audio.speech.create({
+      const mp3Response = await openai.audio.speech.create({
         model: config.openai.ttsModel,
         voice: ttsVoice,
         input: answer,
       });
-      responseAudioBuffer = Buffer.from(await mp3.arrayBuffer());
+      
+      const mp3Buffer = Buffer.from(await mp3Response.arrayBuffer());
+      
+      // Converte MP3 para OGG Opus (Nativo do WhatsApp)
+      responseAudioBuffer = await convertMp3ToOgg(mp3Buffer);
       finalContentType = 'audio';
     }
 
@@ -292,4 +299,31 @@ async function transcribeAudio(audioBuffer, mimetype = 'audio/ogg') {
   }
 }
 
-module.exports = { processMessage, transcribeAudio };
+/**
+ * Converte Buffer MP3 para OGG Opus usando FFmpeg
+ */
+async function convertMp3ToOgg(mp3Buffer) {
+  const tempMp3 = path.join(config.uploadsDir, `temp_${Date.now()}.mp3`);
+  const tempOgg = path.join(config.uploadsDir, `temp_${Date.now()}.ogg`);
+  
+  if (!fs.existsSync(config.uploadsDir)) fs.mkdirSync(config.uploadsDir, { recursive: true });
+  fs.writeFileSync(tempMp3, mp3Buffer);
+
+  return new Promise((resolve, reject) => {
+    ffmpeg(tempMp3)
+      .toFormat('opus')
+      .on('error', (err) => {
+        if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+        reject(err);
+      })
+      .on('end', () => {
+        const oggBuffer = fs.readFileSync(tempOgg);
+        if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+        if (fs.existsSync(tempOgg)) fs.unlinkSync(tempOgg);
+        resolve(oggBuffer);
+      })
+      .save(tempOgg);
+  });
+}
+
+module.exports = { processMessage, analyzeAndSaveLearnings, transcribeAudio, convertMp3ToOgg };

@@ -194,7 +194,11 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
           const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId);
           
           if (result.audioBuffer) {
-            await sock.sendMessage(sender, { audio: result.audioBuffer, mimetype: 'audio/mp4', ptt: true });
+            await sock.sendMessage(sender, { 
+              audio: result.audioBuffer, 
+              mimetype: 'audio/ogg; codecs=opus', 
+              ptt: true 
+            });
           } else {
             await sock.sendMessage(sender, { text: result.text });
           }
