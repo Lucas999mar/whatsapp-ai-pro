@@ -13,7 +13,31 @@ const { generateToken, authMiddleware } = require('./auth');
 const router = express.Router();
 const upload = multer({ dest: config.uploadsDir });
 
-// ── LOGO UPLOAD ROUTE ─────────────────────────────────────────
+// ── GENERIC UPLOAD ROUTE ───────────────────────────────────────
+
+router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const fileName = `${Date.now()}_${req.file.originalname}`;
+    const supabase = getSupabase();
+    const filePath = `broadcast/${req.user.id}/${fileName}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('knowledge-files')
+      .upload(filePath, fileBuffer, { contentType: req.file.mimetype });
+    
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage.from('knowledge-files').getPublicUrl(filePath);
+    
+    fs.unlinkSync(req.file.path);
+    res.json({ url: publicUrl });
+  } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, res) => {
   try {
