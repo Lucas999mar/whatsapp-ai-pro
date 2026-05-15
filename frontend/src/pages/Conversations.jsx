@@ -53,6 +53,7 @@ export default function Conversations() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
 
+  useEffect(() => {
     const fetchAgents = async () => {
       try {
         const res = await api.get('/whatsapp/status');
