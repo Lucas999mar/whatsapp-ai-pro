@@ -336,4 +336,38 @@ router.delete('/whatsapp/agents/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
+  const { agentId, numbers, message, delay } = req.body;
+  const tenantId = req.user.id;
+
+  if (!agentId || !numbers || !message) {
+    return res.status(400).json({ error: 'Faltam parâmetros obrigatórios' });
+  }
+
+  // Verifica se o agente pertence ao tenant
+  const { listAgents, sendDirectMessage } = require('../whatsapp/bot');
+  const userAgents = await getAgentsStatus(tenantId);
+  const hasAgent = userAgents.find(a => a.id === agentId);
+  
+  if (!hasAgent) return res.status(403).json({ error: 'Acesso negado ao agente' });
+
+  // Inicia o processo em background para não travar a requisição
+  res.json({ status: 'iniciado', total: numbers.length });
+
+  (async () => {
+    for (const number of numbers) {
+      try {
+        await sendDirectMessage(agentId, number, message);
+        console.log(`📢 Broadcast [${tenantId}]: Mensagem enviada para ${number}`);
+      } catch (err) {
+        console.error(`❌ Broadcast Erro [${number}]:`, err.message);
+      }
+      
+      // Delay entre 1 e 5 segundos extras para humanizar se for 0
+      const waitTime = (delay || 5) * 1000 + (Math.random() * 2000);
+      await new Promise(r => setTimeout(r, waitTime));
+    }
+  })().catch(console.error);
+});
+
 module.exports = router;

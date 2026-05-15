@@ -86,12 +86,13 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
   };
 
   agents.set(agentId, { 
-    sock, 
-    status: 'connecting', 
-    qr: null, 
+    id: agentId, 
     name: agentName, 
+    socket: sock,
+    status: 'connecting',
+    qr: null,
+    settings: agentSettings || defaultSettings,
     tenantId: tenantId || 'default',
-    settings: agentSettings || defaultSettings 
   });
 
   sock.ev.on('connection.update', async (update) => {
@@ -207,8 +208,8 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
 async function restartWhatsAppBot(agentId) {
   const agentData = agents.get(agentId);
-  if (agentData && agentData.sock) {
-    try { agentData.sock.ws.close(); } catch (e) {}
+  if (agentData && agentData.socket) {
+    try { agentData.socket.ws.close(); } catch (e) {}
   }
   
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
@@ -252,8 +253,8 @@ async function addAgent(name, tenantId = 'default') {
 
 async function removeAgent(agentId) {
   const agentData = agents.get(agentId);
-  if (agentData && agentData.sock) {
-    try { agentData.sock.ws.close(); } catch (e) {}
+  if (agentData && agentData.socket) {
+    try { agentData.socket.ws.close(); } catch (e) {}
   }
   agents.delete(agentId);
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
@@ -272,4 +273,12 @@ async function updateAgentSettings(agentId, newSettings) {
   }
 }
 
-module.exports = { startWhatsAppBot, getAgentsStatus, restartWhatsAppBot, startFleet, addAgent, removeAgent, updateAgentSettings };
+async function sendDirectMessage(agentId, number, text) {
+  const agent = agents.get(agentId);
+  if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
+  
+  const jid = number.includes('@') ? number : `${number.replace(/\D/g, '')}@s.whatsapp.net`;
+  await agent.socket.sendMessage(jid, { text });
+}
+
+module.exports = { startWhatsAppBot, getAgentsStatus, restartWhatsAppBot, startFleet, addAgent, removeAgent, updateAgentSettings, sendDirectMessage };

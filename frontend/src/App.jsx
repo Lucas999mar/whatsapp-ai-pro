@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Database, MessageSquare, BrainCircuit, 
-  Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X 
+  Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone 
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -11,6 +11,7 @@ import Conversations from './pages/Conversations';
 import LearningPage from './pages/LearningPage';
 import SettingsPage from './pages/SettingsPage';
 import SuperAdmin from './pages/SuperAdmin';
+import BroadcastPage from './pages/BroadcastPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 
@@ -23,6 +24,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
     { path: '/conversations', name: 'Conversas', icon: <MessageSquare size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
+    { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
 
@@ -175,6 +177,7 @@ function AppContent() {
             <Route path="/knowledge" element={<AuthGuard><KnowledgeBase /></AuthGuard>} />
             <Route path="/conversations" element={<AuthGuard><Conversations /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
+            <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard adminOnly><SuperAdmin /></AuthGuard>} />
             <Route path="*" element={<Navigate to="/" />} />
