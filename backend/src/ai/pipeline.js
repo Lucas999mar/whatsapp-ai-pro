@@ -204,17 +204,26 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
       tokensUsed
     });
 
-    // DISPARA APRENDIZADO AUTOMÁTICO (a cada 10 mensagens do tenant)
+    // DISPARA APRENDIZADO AUTOMÁTICO (a cada 5 mensagens do tenant)
     try {
       const { data: countRes } = await require('../db/supabase').getSupabase()
         .from('conversations')
-        .select('id', { count: 'exact' })
+        .select('id')
         .like('whatsapp_id', `${tenantId}__%`);
       
       const count = countRes?.length || 0;
       if (count > 0 && count % 5 === 0) {
-        console.log(`   🧠 [${tenantId}] Gatilho de Aprendizado Ativado (Thread: ${threadId}, Msg #${count})...`);
-        analyzeAndSaveLearnings(tenantId, [...history, { role: 'user', content: text }, { role: 'assistant', content: answer }]);
+        console.log(`   🧠 [${tenantId}] Gatilho de Aprendizado Ativado (Global Msg #${count})...`);
+        const { data: recentMsgs } = await require('../db/supabase').getSupabase()
+          .from('conversations')
+          .select('role, content')
+          .like('whatsapp_id', `${tenantId}__%`)
+          .order('created_at', { ascending: false })
+          .limit(20);
+          
+        if (recentMsgs && recentMsgs.length >= 5) {
+          analyzeAndSaveLearnings(tenantId, recentMsgs.reverse());
+        }
       }
     } catch (e) { console.error('Erro no gatilho de aprendizado:', e); }
 

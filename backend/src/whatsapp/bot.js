@@ -182,15 +182,6 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
         if (textToProcess) {
           const threadId = `${tenantId}__${sender}__${agentId}`;
           
-          // Salva mensagem recebida
-          await saveConversationMessage({
-            whatsappId: threadId,
-            userName: senderName,
-            role: 'user',
-            content: textToProcess,
-            contentType: msgType.type
-          }).catch(e => console.error('Erro ao salvar msg user:', e.message));
-
           const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId);
           
           if (result.audioBuffer) {
@@ -202,15 +193,6 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
           } else {
             await sock.sendMessage(sender, { text: result.text });
           }
-
-          // Salva resposta da IA
-          await saveConversationMessage({
-            whatsappId: threadId,
-            userName: settings.bot_name,
-            role: 'assistant',
-            content: result.text,
-            contentType: result.audioBuffer ? 'audio' : 'text'
-          }).catch(e => console.error('Erro ao salvar msg bot:', e.message));
         }
       } catch (err) {
         console.error(`Erro [${agentName}]:`, err.message);
