@@ -371,16 +371,21 @@ async function listAgents(tenantId = null) {
 async function getBotSettings(agentId = 'default', tenantId = 'default') {
   const agents = await listAgents(tenantId);
   const agent = agents.find(a => a.id === agentId);
-  if (agent && agent.settings) return agent.settings;
-
-  return {
+  
+  const defaultSettings = {
     bot_name: 'Assistente',
     system_prompt: 'Você é um assistente amigável.',
-    response_mode: config.bot.responseMode,
-    tts_voice: config.openai.ttsVoice,
+    response_mode: config.bot.responseMode || 'mirror',
+    tts_voice: config.openai.ttsVoice || 'nova',
     prefix: '!ia',
     respond_all: true
   };
+
+  if (agent && agent.settings) {
+    return { ...defaultSettings, ...agent.settings };
+  }
+
+  return defaultSettings;
 }
 
 module.exports = {

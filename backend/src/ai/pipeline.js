@@ -176,8 +176,8 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
     // TTS Logic
     let responseAudioBuffer = null;
     let finalContentType = 'text';
-    const responseMode = settings.response_mode || config.bot.responseMode;
-    const ttsVoice = settings.tts_voice || config.openai.ttsVoice;
+    const responseMode = settings.response_mode || config.bot.responseMode || 'mirror';
+    const ttsVoice = settings.tts_voice || config.openai.ttsVoice || 'nova';
 
     if (responseMode === 'audio' || (responseMode === 'mirror' && messageType === 'audio')) {
       const mp3Response = await openai.audio.speech.create({
@@ -311,9 +311,13 @@ async function convertMp3ToOgg(mp3Buffer) {
 
   return new Promise((resolve, reject) => {
     ffmpeg(tempMp3)
-      .toFormat('opus')
+      .toFormat('ogg')
+      .audioCodec('libopus')
+      .audioChannels(1)
+      .audioFrequency(16000)
       .on('error', (err) => {
         if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+        if (fs.existsSync(tempOgg)) fs.unlinkSync(tempOgg);
         reject(err);
       })
       .on('end', () => {

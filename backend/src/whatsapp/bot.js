@@ -255,7 +255,14 @@ async function addAgent(name, tenantId = 'default') {
     tenant_id: tenantId,
     name,
     status: 'disconnected',
-    settings: { bot_name: name, system_prompt: 'Você é um assistente amigável.', response_mode: 'mirror', tts_voice: 'nova', prefix: '!ia', respond_all: true }
+    settings: { 
+      bot_name: name, 
+      system_prompt: 'Você é um assistente amigável.', 
+      response_mode: 'mirror', 
+      tts_voice: 'nova', 
+      prefix: '!ia', 
+      respond_all: true 
+    }
   });
   startWhatsAppBot(newId, name, null, tenantId);
   return newId;
