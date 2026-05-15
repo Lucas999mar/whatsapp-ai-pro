@@ -30,7 +30,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await api.get('/api/whatsapp/status');
+        const res = await api.get('/whatsapp/status');
         const agentsList = res.data.agents || [];
         setAgents(agentsList);
         if (agentsList.length > 0 && !selectedAgentId) {
@@ -64,11 +64,11 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.post(`/api/whatsapp/agents/${selectedAgentId}/settings`, {
+      await api.post(`/whatsapp/agents/${selectedAgentId}/settings`, {
         settings
       });
       alert('Configurações salvas com sucesso!');
-      const res = await api.get('/api/whatsapp/status');
+      const res = await api.get('/whatsapp/status');
       setAgents(res.data.agents || []);
     } catch (err) {
       alert('Erro ao salvar configurações: ' + err.message);
@@ -90,7 +90,7 @@ export default function SettingsPage() {
     formData.append('logo', file);
 
     try {
-      const res = await api.post('/api/company/logo', formData, {
+      const res = await api.post('/company/logo', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setCompanyLogo(res.data.logoUrl);
@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const handleSaveCompany = async () => {
     setSavingCompany(true);
     try {
-      await api.put('/api/company/settings', {
+      await api.put('/company/settings', {
         name: companyName,
         logo: companyLogo
       });

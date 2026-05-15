@@ -14,7 +14,7 @@ export default function LearningPage() {
   useEffect(() => {
     const fetchLearnings = async () => {
       try {
-        const res = await api.get('/api/learnings');
+        const res = await api.get('/learnings');
         setLearnings(res.data);
       } catch (err) {
         console.error('Error fetching learnings:', err);

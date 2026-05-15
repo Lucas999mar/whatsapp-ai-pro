@@ -56,7 +56,7 @@ export default function Conversations() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await api.get('/api/whatsapp/status');
+        const res = await api.get('/whatsapp/status');
         setAgents(res.data.agents || [{ id: 'default', name: 'Assistente Principal' }]);
       } catch (err) {
         console.error('Agents Error:', err);
@@ -67,7 +67,7 @@ export default function Conversations() {
 
   const fetchConversations = async () => {
     try {
-      const res = await api.get('/api/conversations');
+      const res = await api.get('/conversations');
       const data = res.data;
       setConversations(data);
 
