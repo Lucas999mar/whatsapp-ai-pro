@@ -11,7 +11,10 @@ const {
 const { generateToken, authMiddleware } = require('./auth');
 
 const router = express.Router();
-const upload = multer({ dest: config.uploadsDir });
+const upload = multer({ 
+  dest: config.uploadsDir,
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+});
 
 // ── GENERIC UPLOAD ROUTE ───────────────────────────────────────
 

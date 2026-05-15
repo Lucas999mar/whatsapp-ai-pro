@@ -287,6 +287,10 @@ async function sendDirectMessage(agentId, number, text, media = null) {
       options.audio = { url: media.url };
       options.mimetype = 'audio/ogg; codecs=opus';
       options.ptt = true;
+    } else if (media.type === 'document') {
+      options.document = { url: media.url };
+      options.mimetype = 'application/pdf'; // Fallback comum
+      options.fileName = 'Arquivo.pdf';
     }
     
     if (text) options.caption = text;
