@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2, ArrowRight, Brain, Search, Cpu } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import heroImage from '../assets/hero.png';
 
 export default function LandingPage() {
   return (
@@ -42,7 +43,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            A única plataforma de WhatsApp que integra **Busca Semântica** e **Aprendizado Contínuo** para transformar conversas em resultados reais.
+            A única plataforma de WhatsApp que integra Busca Semântica e Aprendizado Contínuo para transformar conversas em resultados reais.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
@@ -109,8 +110,8 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 glass-panel p-2 aspect-video bg-gradient-to-br from-[#25D366]/20 to-blue-500/20 relative">
-             <div className="absolute inset-0 flex items-center justify-center font-black text-white/20 text-4xl uppercase tracking-widest -rotate-12">Visualização da Inteligência</div>
+          <div className="flex-1 glass-panel p-2 aspect-video bg-gradient-to-br from-[#25D366]/20 to-blue-500/20 relative overflow-hidden flex items-center justify-center">
+             <img src={heroImage} alt="Biticonia AI Dashboard" className="w-full h-full object-cover rounded-xl opacity-90 hover:opacity-100 transition-opacity duration-300" />
           </div>
         </div>
       </section>
