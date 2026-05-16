@@ -78,6 +78,7 @@ export default function Conversations() {
 
       const groups = {};
       data.forEach(msg => {
+        const parts = msg.whatsapp_id.split('__');
         // Nova lógica de extração: Procura o segmento que contém @s.whatsapp.net ou @g.us
         // Se não encontrar, tenta pegar o maior segmento numérico que não seja o tenantId
         let msgPhone = parts.find(p => p.includes('@')) || parts[1] || parts[0];
