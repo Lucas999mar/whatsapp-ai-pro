@@ -65,7 +65,16 @@ export default function FollowUpPage() {
   const handleAddFollowUp = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/follow-ups', newFollowUp);
+      // Converte a data local do input para uma data real e então para ISO string (UTC)
+      const dateObj = new Date(newFollowUp.scheduledAt);
+      if (isNaN(dateObj.getTime())) throw new Error("Data inválida");
+      
+      const payload = { 
+        ...newFollowUp, 
+        scheduledAt: dateObj.toISOString() 
+      };
+
+      await api.post('/follow-ups', payload);
       setShowModal(false);
       fetchFollowUps();
       setNewFollowUp({
