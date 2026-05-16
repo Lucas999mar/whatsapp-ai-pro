@@ -151,7 +151,7 @@ async function deleteKnowledgeItem(id, tenantId) {
 /**
  * Salva mensagem (com tenantId no whatsappId)
  */
-async function saveConversationMessage({ whatsappId, userName, role, content, contentType = 'text', mediaUrl, knowledgeUsed, tokensUsed }) {
+async function saveConversationMessage({ whatsappId, userName, role, content, contentType = 'text', mediaUrl, userPhoto, knowledgeUsed, tokensUsed }) {
   const supabase = getSupabase();
   
   // whatsappId aqui já deve vir como tenantId__phone__agentId
@@ -162,12 +162,20 @@ async function saveConversationMessage({ whatsappId, userName, role, content, co
     content,
     content_type: contentType,
     media_url: mediaUrl,
+    user_photo: userPhoto,
     knowledge_used: knowledgeUsed,
     tokens_used: tokensUsed || 0,
   };
 
   let { error } = await supabase.from('conversations').insert(insertData);
   
+  if (error && error.message.includes("Could not find the 'user_photo' column")) {
+    console.warn('⚠️ Coluna user_photo não encontrada, salvando sem foto.');
+    delete insertData.user_photo;
+    const retry = await supabase.from('conversations').insert(insertData);
+    error = retry.error;
+  }
+
   if (error && error.message.includes("Could not find the 'user_name' column")) {
     delete insertData.user_name;
     const retry = await supabase.from('conversations').insert(insertData);

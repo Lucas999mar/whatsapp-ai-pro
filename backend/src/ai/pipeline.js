@@ -93,7 +93,7 @@ COMPORTAMENTO:
 /**
  * Pipeline RAG principal
  */
-async function processMessage(whatsappId, userName, text, messageType = 'text', mediaUrl = null, agentName = 'Assistente', agentId = 'default', tenantId = 'default') {
+async function processMessage(whatsappId, userName, text, messageType = 'text', mediaUrl = null, agentName = 'Assistente', agentId = 'default', tenantId = 'default', userPhoto = null) {
   try {
     const threadId = `${tenantId}__${whatsappId}__${agentId}`;
     
@@ -140,7 +140,8 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
       role: 'user',
       content: processedText,
       contentType: messageType,
-      mediaUrl
+      mediaUrl,
+      userPhoto
     });
 
     // 1. Busca contexto

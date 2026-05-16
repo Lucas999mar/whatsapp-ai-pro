@@ -12,23 +12,22 @@ const KANBAN_COLUMNS = [
 ];
 
 function formatWhatsAppId(id) {
-  // O id recebido aqui já é o número limpo ou com @s.whatsapp.net
   let number = String(id).split('@')[0];
-  
-  // Remove qualquer prefixo não numérico se houver
   number = number.replace(/\D/g, '');
 
-  // Padrão Brasil (55 + DDD + Numero)
   if (number.length >= 10 && number.startsWith('55')) {
     const ddd = number.slice(2, 4);
-    if (number.length === 13) { // Com o 9 extra
+    if (number.length === 13) {
       return `+55 (${ddd}) ${number.slice(4, 9)}-${number.slice(9)}`;
-    } else if (number.length === 12) { // Sem o 9 extra
+    } else if (number.length === 12) {
       return `+55 (${ddd}) ${number.slice(4, 8)}-${number.slice(8)}`;
     }
   }
   
-  // Fallback para outros formatos
+  if (number.length > 10) {
+    return `+${number.slice(0, 2)} ${number.slice(2, 5)} ${number.slice(5, 8)}-${number.slice(8)}`;
+  }
+  
   return number.length > 0 ? `+${number}` : number;
 }
 
@@ -81,20 +80,32 @@ export default function Conversations() {
       data.forEach(msg => {
         const parts = msg.whatsapp_id.split('__');
         const msgAgentId = parts[2] || 'default';
-        const msgPhone = parts[1] || parts[0]; // Fallback para compatibilidade
+        const msgPhone = parts[1] || parts[0];
         
-        if (msgAgentId !== selectedAgent) return; // Filtra por agente selecionado
+        if (msgAgentId !== selectedAgent) return;
 
         if (!groups[msg.whatsapp_id]) {
           groups[msg.whatsapp_id] = {
             id: msg.whatsapp_id,
-            originalName: msg.user_name,
+            originalName: null,
             formattedPhone: formatWhatsAppId(msgPhone),
             messages: [],
             lastDate: msg.created_at,
-            lastMessage: msg.content
+            lastMessage: msg.content,
+            userPhoto: null
           };
         }
+
+        // Prioriza o nome e foto que vem da mensagem do USUÁRIO (Cliente)
+        if (msg.role === 'user') {
+          if (msg.user_name && !groups[msg.whatsapp_id].originalName) {
+            groups[msg.whatsapp_id].originalName = msg.user_name;
+          }
+          if (msg.user_photo && !groups[msg.whatsapp_id].userPhoto) {
+            groups[msg.whatsapp_id].userPhoto = msg.user_photo;
+          }
+        }
+
         groups[msg.whatsapp_id].messages.push(msg);
       });
 
@@ -237,37 +248,52 @@ export default function Conversations() {
                         onClick={() => setActiveChat(lead)}
                         className="bg-[#1E293B] hover:bg-[#253247] p-4 rounded-xl border border-white/5 shadow-lg cursor-pointer transition-all hover:scale-[1.02] hover:border-white/10 group"
                       >
-                        <div className="flex justify-between items-start mb-2 gap-2">
-                          <h4 className="font-bold text-white text-sm truncate flex-1">{lead.name}</h4>
-                          <div className="flex items-center gap-1">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const newName = prompt('Novo nome para o contato:', lead.name);
-                                if (newName !== null) {
-                                  const updated = { ...customNames, [lead.id]: newName };
-                                  setCustomNames(updated);
-                                  localStorage.setItem('wa_custom_names', JSON.stringify(updated));
-                                }
-                              }}
-                              className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-[#25D366] transition-colors"
-                              title="Editar Nome"
-                            >
-                              <Edit2 size={12} />
-                            </button>
-                            <GripVertical size={14} className="text-slate-600 cursor-grab" />
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/5">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#25D366]/20 to-[#128C7E]/20 flex items-center justify-center overflow-hidden border border-[#25D366]/20">
+                            {lead.userPhoto ? (
+                              <img src={lead.userPhoto} alt={lead.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[#25D366] font-bold text-sm">
+                                {lead.name?.charAt(0).toUpperCase() || <User size={16} />}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 overflow-hidden">
+                            <div className="flex justify-between items-start gap-2">
+                              <h4 className="font-bold text-white text-sm truncate">{lead.name}</h4>
+                              <div className="flex items-center gap-1">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newName = prompt('Novo nome para o contato:', lead.name);
+                                    if (newName !== null) {
+                                      const updated = { ...customNames, [lead.id]: newName };
+                                      setCustomNames(updated);
+                                      localStorage.setItem('wa_custom_names', JSON.stringify(updated));
+                                    }
+                                  }}
+                                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-[#25D366] transition-colors"
+                                  title="Editar Nome"
+                                >
+                                  <Edit2 size={10} />
+                                </button>
+                                <GripVertical size={12} className="text-slate-600 cursor-grab" />
+                              </div>
+                            </div>
+                            <p className="text-[#25D366] text-[10px] font-bold opacity-80">{lead.formattedPhone}</p>
                           </div>
                         </div>
-                        <p className="text-[#25D366] text-[10px] font-bold mb-2 opacity-80">{lead.formattedPhone}</p>
-                        <p className="text-slate-400 text-xs line-clamp-2 mb-3 leading-relaxed">
-                          {lead.lastMessage}
+
+                        <p className="text-slate-400 text-xs line-clamp-2 mb-3 leading-relaxed italic">
+                          "{lead.lastMessage}"
                         </p>
+
                         <div className="flex items-center justify-between text-[10px] text-slate-500 border-t border-white/5 pt-2">
                           <span className="flex items-center gap-1">
                             <Clock size={10} /> 
-                            {formatDistanceToNow(new Date(lead.lastDate), { locale: ptBR })}
+                            {formatDistanceToNow(new Date(lead.lastDate), { locale: ptBR, addSuffix: true })}
                           </span>
-                          <span>{lead.messages.length} msgs</span>
+                          <span className="bg-white/5 px-1.5 py-0.5 rounded-md">{lead.messages.length} msgs</span>
                         </div>
                       </div>
                     ))
@@ -286,8 +312,12 @@ export default function Conversations() {
             {/* Header */}
             <div className="p-5 border-b border-white/10 bg-[#1E293B] flex justify-between items-center">
               <div className="flex items-center gap-4 flex-1">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center shadow-lg">
-                  <User size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center shadow-lg overflow-hidden">
+                  {activeChat.userPhoto ? (
+                    <img src={activeChat.userPhoto} alt={activeChat.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={24} className="text-white" />
+                  )}
                 </div>
                 <div className="flex-1">
                   {isEditingName ? (

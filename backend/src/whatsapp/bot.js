@@ -157,6 +157,11 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       if (msg.key.fromMe) continue;
       const sender = msg.key.remoteJid;
       const senderName = msg.pushName || sender.split('@')[0];
+      let userPhoto = null;
+      try {
+        userPhoto = await sock.profilePictureUrl(sender, 'image').catch(() => null);
+      } catch (e) {}
+      
       const msgType = getMessageType(msg);
       
       if (msgType.type === 'unknown') continue;
@@ -183,7 +188,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
         if (textToProcess) {
           const threadId = `${tenantId}__${sender}__${agentId}`;
           
-          const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId);
+          const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId, userPhoto);
           
           if (result.audioBuffer) {
             await sock.sendMessage(sender, { 
