@@ -78,21 +78,11 @@ export default function Conversations() {
 
       const groups = {};
       data.forEach(msg => {
-        const parts = msg.whatsapp_id.split('__');
-        let msgPhone = '';
+        // Nova lógica de extração: Procura o segmento que contém @s.whatsapp.net ou @g.us
+        // Se não encontrar, tenta pegar o maior segmento numérico que não seja o tenantId
+        let msgPhone = parts.find(p => p.includes('@')) || parts[1] || parts[0];
         
-        if (parts.length === 3) {
-          // Formato: tenantId__phone__agentId
-          msgPhone = parts[1];
-        } else if (parts.length === 2) {
-          // Formato: tenantId__phone
-          msgPhone = parts[1];
-        } else {
-          // Formato antigo ou simples: phone
-          msgPhone = parts[0];
-        }
-        
-        // Remove sufixo do WhatsApp se existir
+        // Limpa o sufixo
         msgPhone = msgPhone.split('@')[0];
         
         const msgAgentId = parts[2] || 'default';
@@ -103,7 +93,7 @@ export default function Conversations() {
             id: msg.whatsapp_id,
             originalName: null,
             formattedPhone: formatWhatsAppId(msgPhone),
-            rawPhone: msgPhone,
+            rawId: msg.whatsapp_id, // Para debug no title
             messages: [],
             lastDate: msg.created_at,
             lastMessage: msg.content,
@@ -263,7 +253,7 @@ export default function Conversations() {
                         onClick={() => setActiveChat(lead)}
                         className="bg-[#1E293B] hover:bg-[#253247] p-4 rounded-xl border border-white/5 shadow-lg cursor-pointer transition-all hover:scale-[1.02] hover:border-white/10 group"
                       >
-                        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/5">
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/5" title={`ID Interno: ${lead.rawId}`}>
                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#25D366]/20 to-[#128C7E]/20 flex items-center justify-center overflow-hidden border border-[#25D366]/20">
                             {lead.userPhoto ? (
                               <img src={lead.userPhoto} alt={lead.name} className="w-full h-full object-cover" />
