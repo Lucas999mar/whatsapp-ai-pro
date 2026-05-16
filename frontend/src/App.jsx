@@ -2,7 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Database, MessageSquare, BrainCircuit, 
-  Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone 
+  Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';

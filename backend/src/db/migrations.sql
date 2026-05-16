@@ -1,6 +1,6 @@
 -- Tabela de Follow-ups (Agendamentos)
 CREATE TABLE IF NOT EXISTS follow_ups (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
     contact_number TEXT NOT NULL,
