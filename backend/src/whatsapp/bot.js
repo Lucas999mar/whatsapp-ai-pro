@@ -155,13 +155,31 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
     for (const msg of messages) {
       if (msg.key.fromMe) continue;
-      const sender = msg.key.remoteJid;
+      let sender = msg.key.remoteJid;
+      
+      // Tenta resolver LID para Telefone (PN) se for o caso
+      if (sender.endsWith('@lid')) {
+        try {
+          // Alguns eventos trazem o JID alternativo (com o telefone) diretamente
+          if (msg.key.remoteJidAlt) {
+            sender = msg.key.remoteJidAlt;
+          } else {
+            // Tenta buscar no mapeamento interno do Baileys
+            const pn = await sock.signalRepository.lidMapping.getPNForLID(sender);
+            if (pn) sender = pn;
+          }
+        } catch (e) {
+          console.log('⚠️ Não foi possível resolver LID para Telefone:', e.message);
+        }
+      }
+
       const senderName = msg.pushName || sender.split('@')[0];
+      
       let userPhoto = null;
       try {
         userPhoto = await sock.profilePictureUrl(sender, 'image').catch(() => null);
       } catch (e) {}
-      
+
       const msgType = getMessageType(msg);
       
       if (msgType.type === 'unknown') continue;
