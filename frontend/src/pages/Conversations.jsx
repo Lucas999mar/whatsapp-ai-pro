@@ -79,9 +79,23 @@ export default function Conversations() {
       const groups = {};
       data.forEach(msg => {
         const parts = msg.whatsapp_id.split('__');
-        const msgAgentId = parts[2] || 'default';
-        const msgPhone = parts[1] || parts[0];
+        let msgPhone = '';
         
+        if (parts.length === 3) {
+          // Formato: tenantId__phone__agentId
+          msgPhone = parts[1];
+        } else if (parts.length === 2) {
+          // Formato: tenantId__phone
+          msgPhone = parts[1];
+        } else {
+          // Formato antigo ou simples: phone
+          msgPhone = parts[0];
+        }
+        
+        // Remove sufixo do WhatsApp se existir
+        msgPhone = msgPhone.split('@')[0];
+        
+        const msgAgentId = parts[2] || 'default';
         if (msgAgentId !== selectedAgent) return;
 
         if (!groups[msg.whatsapp_id]) {
@@ -89,6 +103,7 @@ export default function Conversations() {
             id: msg.whatsapp_id,
             originalName: null,
             formattedPhone: formatWhatsAppId(msgPhone),
+            rawPhone: msgPhone,
             messages: [],
             lastDate: msg.created_at,
             lastMessage: msg.content,
