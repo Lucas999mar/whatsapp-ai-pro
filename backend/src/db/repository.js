@@ -405,6 +405,70 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
   return defaultSettings;
 }
 
+/**
+ * Lista follow-ups agendados
+ */
+async function listFollowUps(tenantId = 'default') {
+  const supabase = getSupabase();
+  let query = supabase.from('follow_ups').select('*').order('scheduled_at', { ascending: true });
+
+  if (tenantId !== 'admin') {
+    query = query.eq('tenant_id', tenantId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Adiciona um follow-up
+ */
+async function addFollowUp({ tenantId, agentId, contactNumber, contactName, message, scheduledAt }) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('follow_ups')
+    .insert({
+      tenant_id: tenantId,
+      agent_id: agentId,
+      contact_number: contactNumber,
+      contact_name: contactName,
+      message,
+      scheduled_at: scheduledAt,
+      status: 'pending'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Atualiza status do follow-up
+ */
+async function updateFollowUpStatus(id, status, error_message = null) {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('follow_ups')
+    .update({ status, error_message, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * Deleta follow-up
+ */
+async function deleteFollowUp(id, tenantId) {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('follow_ups')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', tenantId);
+  if (error) throw error;
+}
+
 module.exports = {
   generateEmbedding,
   searchKnowledge,
@@ -419,5 +483,9 @@ module.exports = {
   addLearning,
   listLearnings,
   listTenants,
-  listAgents
+  listAgents,
+  listFollowUps,
+  addFollowUp,
+  updateFollowUpStatus,
+  deleteFollowUp
 };

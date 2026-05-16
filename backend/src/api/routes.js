@@ -6,7 +6,8 @@ const config = require('../config/config');
 const { getSupabase } = require('../db/supabase');
 const { 
   listKnowledgeItems, addKnowledgeItem, deleteKnowledgeItem, 
-  listConversations, getStats, listTenants, listAgents 
+  listConversations, getStats, listTenants, listAgents,
+  listFollowUps, addFollowUp, deleteFollowUp
 } = require('../db/repository');
 const { generateToken, authMiddleware } = require('./auth');
 
@@ -398,6 +399,37 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
       await new Promise(r => setTimeout(r, waitTime));
     }
   })().catch(console.error);
+});
+
+// ── FOLLOW-UP ROUTES ──────────────────────────────────────────
+
+router.get('/follow-ups', authMiddleware, async (req, res) => {
+  try {
+    const items = await listFollowUps(req.user.id);
+    res.json(items);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/follow-ups', authMiddleware, async (req, res) => {
+  try {
+    const { agentId, contactNumber, contactName, message, scheduledAt } = req.body;
+    const item = await addFollowUp({
+      tenantId: req.user.id,
+      agentId,
+      contactNumber,
+      contactName,
+      message,
+      scheduledAt
+    });
+    res.json(item);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/follow-ups/:id', authMiddleware, async (req, res) => {
+  try {
+    await deleteFollowUp(req.params.id, req.user.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

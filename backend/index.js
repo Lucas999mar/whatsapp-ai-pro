@@ -3,6 +3,7 @@ const { startServer } = require('./src/api/server');
 const { startFleet } = require('./src/whatsapp/bot');
 const { startLearningEngine } = require('./src/ai/learning');
 const { startObsidianWatcher } = require('./src/obsidian/watcher');
+const { startScheduler } = require('./src/whatsapp/scheduler');
 
 async function main() {
   console.log('🚀 Iniciando WhatsApp AI Pro...\n');
@@ -29,6 +30,13 @@ async function main() {
     await startFleet();
   } catch (e) {
     console.error('⚠️ Fleet não iniciou:', e.message);
+  }
+
+  // Inicia Scheduler de Follow-up
+  try {
+    startScheduler();
+  } catch (e) {
+    console.warn('⚠️ Follow-up Scheduler não iniciou:', e.message);
   }
 }
 
