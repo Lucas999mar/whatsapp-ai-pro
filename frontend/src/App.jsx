@@ -58,11 +58,11 @@ function Sidebar({ isOpen, setIsOpen }) {
           </button>
           
           <div className="flex flex-col items-center gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center shadow-xl shadow-[#25D366]/20 overflow-hidden border border-white/10">
+            <div className="w-20 h-20 flex items-center justify-center overflow-hidden">
               {user?.logo ? (
-                <img src={user.logo} className="w-full h-full object-cover" alt="Logo" />
+                <img src={user.logo} className="w-full h-full object-contain rounded-2xl" alt="Logo" />
               ) : (
-                <img src={logoImage} className="w-full h-full object-cover" alt="Logo" />
+                <img src={logoImage} className="w-full h-full object-contain scale-110 animate-fade-in" alt="Logo" />
               )}
             </div>
             <div className="text-center">
@@ -159,8 +159,8 @@ function AppContent() {
         {/* Mobile Header */}
         <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center overflow-hidden">
-              <img src={logoImage} className="w-full h-full object-cover" alt="Logo" />
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
+              <img src={logoImage} className="w-full h-full object-contain scale-110" alt="Logo" />
             </div>
             <span className="font-black text-white tracking-tight uppercase text-xs">Evoluir Mais</span>
           </div>
