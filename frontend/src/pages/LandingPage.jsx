@@ -129,7 +129,7 @@ export default function LandingPage() {
       
       {/* Dynamic Sticky Header */}
       <nav className="fixed top-0 w-full z-50 bg-[#020617]/85 backdrop-blur-lg border-b border-white/5 transition-all">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 flex items-center justify-center overflow-hidden rounded-full">
               <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Evoluir Mais Logo" />
@@ -147,21 +147,21 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-[#25D366] transition-colors">FAQ</a>
           </div>
 
-          <div className="flex items-center gap-4 ml-auto lg:ml-10">
+          <div className="flex items-center gap-2 sm:gap-4 ml-auto lg:ml-10">
             <Link to="/login" className="hidden sm:inline-flex bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all border border-white/10 text-sm whitespace-nowrap">
               Entrar
             </Link>
-            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] pulse-active whitespace-nowrap">
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] pulse-active whitespace-nowrap">
               Teste Grátis
             </a>
             <Link to="/marketing" className="hidden md:inline-flex bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] whitespace-nowrap">
               Assessoria de Marketing
             </Link>
             <button 
-              className="lg:hidden p-2 text-white hover:text-[#25D366] transition-colors"
+              className="lg:hidden p-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all flex-shrink-0"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
