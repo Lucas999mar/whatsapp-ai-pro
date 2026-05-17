@@ -2,6 +2,7 @@ import React from 'react';
 import { Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2, ArrowRight, Brain, Search, Cpu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import heroImage from '../assets/hero.png';
+import logoImage from '../assets/logo.png';
 
 export default function LandingPage() {
   return (
@@ -10,10 +11,10 @@ export default function LandingPage() {
       <nav className="fixed top-0 w-full z-50 bg-[#020617]/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#25D366] flex items-center justify-center">
-              <Bot size={24} className="text-slate-900" />
+            <div className="w-10 h-10 rounded-xl bg-[#25D366] flex items-center justify-center overflow-hidden">
+              <img src={logoImage} className="w-full h-full object-cover" alt="Logo" />
             </div>
-            <span className="text-2xl font-black tracking-tighter">BITI<span className="text-[#25D366]">CONIA</span></span>
+            <span className="text-2xl font-black tracking-tighter">Evoluir <span className="text-[#25D366]">Mais</span></span>
           </div>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
@@ -111,7 +112,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="flex-1 glass-panel p-2 aspect-video bg-gradient-to-br from-[#25D366]/20 to-blue-500/20 relative overflow-hidden flex items-center justify-center">
-             <img src={heroImage} alt="Biticonia AI Dashboard" className="w-full h-full object-cover rounded-xl opacity-90 hover:opacity-100 transition-opacity duration-300" />
+             <img src={heroImage} alt="Evoluir Mais AI Dashboard" className="w-full h-full object-cover rounded-xl opacity-90 hover:opacity-100 transition-opacity duration-300" />
           </div>
         </div>
       </section>
@@ -142,16 +143,16 @@ export default function LandingPage() {
       <footer className="py-20 px-6 border-t border-white/5 text-center">
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="flex items-center justify-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#25D366] flex items-center justify-center">
-              <Bot size={18} className="text-slate-900" />
+            <div className="w-8 h-8 rounded-lg bg-[#25D366] flex items-center justify-center overflow-hidden">
+              <img src={logoImage} className="w-full h-full object-cover" alt="Logo" />
             </div>
-            <span className="text-xl font-black tracking-tighter uppercase">Biticonia</span>
+            <span className="text-xl font-black tracking-tighter uppercase">Evoluir Mais</span>
           </div>
           <p className="text-slate-500 max-w-md mx-auto">
             Transformando o WhatsApp na ferramenta de inteligência suprema para o seu negócio.
           </p>
           <div className="pt-8 text-xs font-bold text-slate-600 uppercase tracking-widest">
-            © 2026 Biticonia • All Rights Reserved
+            © 2026 Evoluir Mais • All Rights Reserved
           </div>
         </div>
       </footer>

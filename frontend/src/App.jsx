@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import logoImage from './assets/logo.png';
 import { 
   LayoutDashboard, Database, MessageSquare, BrainCircuit, 
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
@@ -61,12 +62,12 @@ function Sidebar({ isOpen, setIsOpen }) {
               {user?.logo ? (
                 <img src={user.logo} className="w-full h-full object-cover" alt="Logo" />
               ) : (
-                <Sparkles className="text-white" size={32} />
+                <img src={logoImage} className="w-full h-full object-cover" alt="Logo" />
               )}
             </div>
             <div className="text-center">
               <h1 className="text-lg font-black tracking-tight text-white leading-tight">
-                {user?.name || 'Biticonia'}
+                {user?.name || 'Evoluir Mais'}
               </h1>
               <span className="text-[10px] text-[#25D366] font-bold uppercase tracking-widest">{user?.role}</span>
             </div>
@@ -158,10 +159,10 @@ function AppContent() {
         {/* Mobile Header */}
         <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center">
-              <Sparkles size={16} className="text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center overflow-hidden">
+              <img src={logoImage} className="w-full h-full object-cover" alt="Logo" />
             </div>
-            <span className="font-black text-white tracking-tight uppercase text-xs">Biticonia</span>
+            <span className="font-black text-white tracking-tight uppercase text-xs">Evoluir Mais</span>
           </div>
           <button 
             onClick={() => setIsSidebarOpen(true)}
