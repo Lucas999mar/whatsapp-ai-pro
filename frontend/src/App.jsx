@@ -17,6 +17,7 @@ import BroadcastPage from './pages/BroadcastPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import FollowUpPage from './pages/FollowUpPage';
+import MarketingPage from './pages/MarketingPage';
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -129,6 +130,8 @@ function AuthGuard({ children, adminOnly = false }) {
 function AppContent() {
   const { token, loading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const location = useLocation();
+  const isPublicPage = location.pathname === '/' || location.pathname === '/marketing';
   
   if (loading) {
     return (
@@ -141,11 +144,12 @@ function AppContent() {
     );
   }
 
-  if (!token) {
+  if (!token || isPublicPage) {
     return (
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/marketing" element={<MarketingPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
