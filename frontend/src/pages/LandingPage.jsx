@@ -150,6 +150,9 @@ export default function LandingPage() {
             <Link to="/login" className="hidden sm:inline-flex bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-xl font-bold transition-all border border-white/10 text-sm">
               Entrar
             </Link>
+            <Link to="/marketing" className="hidden md:inline-flex bg-white/5 hover:bg-white/10 text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all border border-white/10">
+              Assessoria de Marketing
+            </Link>
             <Link to="/login" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] pulse-active">
               Teste Grátis
             </Link>
@@ -341,7 +344,7 @@ export default function LandingPage() {
             </h2>
             
             <p className="text-slate-400 text-base">
-              Selecione uma das especialidades abaixo para simular no painel do celular como o agente de IA da **Evoluir Mais** interage de forma natural, ágil e focada em resultados.
+              Selecione uma das especialidades abaixo para simular no painel do celular como o agente de IA da <strong>Evoluir Mais</strong> interage de forma natural, ágil e focada em resultados.
             </p>
 
             {/* Selector Buttons */}

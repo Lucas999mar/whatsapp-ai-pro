@@ -149,7 +149,10 @@ export default function MarketingPage() {
             <a href="#faq" className="hover:text-[#25D366] transition-colors">Perguntas Frequentes</a>
           </div>
 
-          <div>
+          <div className="flex items-center gap-4">
+            <Link to="/" className="hidden md:inline-flex bg-white/5 hover:bg-white/10 text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all border border-white/10">
+              Inteligência Artificial
+            </Link>
             <a href="#formulario" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)]">
               Diagnóstico Gratuito
             </a>
