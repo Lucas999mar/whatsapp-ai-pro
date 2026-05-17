@@ -100,14 +100,6 @@ export default function LandingPage() {
     setOpenFaq(openFaq === index ? null : index);
   };
 
-  const partners = [
-    { name: 'Lorenzetti Autorizada', category: 'Indústria & Serviços' },
-    { name: 'E-geopolis Urbano', category: 'Tecnologia Pública' },
-    { name: 'Fixcar Premium', category: 'Automotivo' },
-    { name: 'Gustavo Lopes Co.', category: 'Educação & Vendas' },
-    { name: 'Lorenzetti Técnico', category: 'Suporte RAG' }
-  ];
-
   const faqs = [
     {
       q: "O que é o Evoluir Mais e como ele atua na minha empresa?",
@@ -278,26 +270,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Social Proof Banner */}
-      <section className="py-14 border-y border-white/5 bg-[#030712]/60 backdrop-blur-sm relative">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-8">
-            Desenvolvido sob medida para operações de alto rendimento como:
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-12 sm:gap-16">
-            {partners.map((partner, idx) => (
-              <div key={idx} className="flex flex-col items-center group">
-                <span className="text-lg font-black text-slate-300 group-hover:text-white transition-colors tracking-tight">
-                  {partner.name}
-                </span>
-                <span className="text-[9px] text-[#25D366]/70 uppercase font-extrabold tracking-widest mt-0.5">
-                  {partner.category}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* Three Pillars Section (Core Capabilities) */}
       <section id="como-funciona" className="py-24 px-6 bg-[#020617] relative">
