@@ -43,25 +43,57 @@ export default function LandingPage() {
 
   // Run chat typing simulation when tab changes
   useEffect(() => {
+    let isMounted = true;
     setChatMessages([]);
-    setIsTyping(true);
+    setIsTyping(false);
+
     const messages = simulatorConversations[activeTab];
-    let currentIdx = 0;
+    if (!messages) return;
 
-    const interval = setInterval(() => {
-      if (currentIdx < messages.length) {
+    let timeoutIds = [];
+
+    const playSequence = async () => {
+      for (let i = 0; i < messages.length; i++) {
+        if (!isMounted) break;
+
+        // 1. Wait a bit before showing typing indicator
+        await new Promise(resolve => {
+          const id = setTimeout(resolve, 800);
+          timeoutIds.push(id);
+        });
+        if (!isMounted) break;
+
+        // 2. Show typing indicator
         setIsTyping(true);
-        setTimeout(() => {
-          setChatMessages(prev => [...prev, messages[currentIdx]]);
-          setIsTyping(false);
-          currentIdx++;
-        }, 1200);
-      } else {
-        clearInterval(interval);
-      }
-    }, 2800);
 
-    return () => clearInterval(interval);
+        // 3. Keep typing indicator for a realistic duration
+        await new Promise(resolve => {
+          const id = setTimeout(resolve, 1200);
+          timeoutIds.push(id);
+        });
+        if (!isMounted) break;
+
+        // 4. Add the message and hide typing indicator
+        setIsTyping(false);
+        setChatMessages(prev => {
+          if (!messages[i]) return prev;
+          return [...prev, messages[i]];
+        });
+
+        // 5. Wait before the next message
+        await new Promise(resolve => {
+          const id = setTimeout(resolve, 1500);
+          timeoutIds.push(id);
+        });
+      }
+    };
+
+    playSequence();
+
+    return () => {
+      isMounted = false;
+      timeoutIds.forEach(id => clearTimeout(id));
+    };
   }, [activeTab]);
 
   const toggleFaq = (index) => {
@@ -429,19 +461,22 @@ export default function LandingPage() {
 
               {/* Chat Messages Body */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#070A13] flex flex-col justify-end min-h-[300px]">
-                {chatMessages.map((msg, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`max-w-[80%] p-3 rounded-2xl text-xs leading-relaxed animate-fade-in ${
-                      msg.sender === 'user'
-                        ? 'bg-[#1E293B] text-slate-200 self-end rounded-tr-none'
-                        : 'bg-[#25D366]/10 border border-[#25D366]/15 text-[#25D366] self-start rounded-tl-none font-medium'
-                    }`}
-                    style={{ whiteSpace: 'pre-line' }}
-                  >
-                    {msg.text}
-                  </div>
-                ))}
+                {chatMessages.map((msg, idx) => {
+                  if (!msg || !msg.sender) return null;
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`max-w-[80%] p-3 rounded-2xl text-xs leading-relaxed animate-fade-in ${
+                        msg.sender === 'user'
+                          ? 'bg-[#1E293B] text-slate-200 self-end rounded-tr-none'
+                          : 'bg-[#25D366]/10 border border-[#25D366]/15 text-[#25D366] self-start rounded-tl-none font-medium'
+                      }`}
+                      style={{ whiteSpace: 'pre-line' }}
+                    >
+                      {msg.text}
+                    </div>
+                  );
+                })}
 
                 {/* Animated Typing Indicator */}
                 {isTyping && (
@@ -501,7 +536,7 @@ export default function LandingPage() {
             Atendimento Omnichannel <span className="gradient-text">Sem Barreiras</span>.
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base">
-            O seu agente inteligente interage diretamente nos canais que seus clientes já amam usar diariamente, unificando os dados no painel da **Evoluir Mais**.
+            O seu agente inteligente interage diretamente nos canais que seus clientes já amam usar diariamente, unificando os dados no painel da <strong className="font-extrabold text-white">Evoluir Mais</strong>.
           </p>
         </div>
 
