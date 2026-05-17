@@ -139,7 +139,7 @@ export default function LandingPage() {
             </span>
           </div>
           
-          <div className="hidden lg:flex items-center gap-8 text-sm font-semibold text-slate-300">
+          <div className="hidden xl:flex items-center justify-center flex-1 gap-4 lg:gap-6 text-sm font-semibold text-slate-300 whitespace-nowrap px-4">
             <a href="#como-funciona" className="hover:text-[#25D366] transition-colors">Como funciona</a>
             <a href="#recursos" className="hover:text-[#25D366] transition-colors">Recursos IA</a>
             <a href="#integracoes" className="hover:text-[#25D366] transition-colors">Integrações</a>
@@ -147,7 +147,7 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-[#25D366] transition-colors">FAQ</a>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 ml-auto lg:ml-10 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 ml-auto xl:ml-10 flex-shrink-0">
             <Link to="/login" className="hidden sm:inline-flex bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all border border-white/10 text-sm whitespace-nowrap">
               Entrar
             </Link>
@@ -158,7 +158,7 @@ export default function LandingPage() {
               Assessoria de Marketing
             </Link>
             <button 
-              className="lg:hidden p-1.5 sm:p-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all flex-shrink-0 ml-1"
+              className="xl:hidden p-1.5 sm:p-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all flex-shrink-0 ml-1"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -168,7 +168,7 @@ export default function LandingPage() {
 
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-[#020617] border-b border-white/5 absolute top-20 left-0 w-full px-6 py-6 flex flex-col gap-4 shadow-2xl">
+          <div className="xl:hidden bg-[#020617] border-b border-white/5 absolute top-20 left-0 w-full px-6 py-6 flex flex-col gap-4 shadow-2xl">
             <a href="#como-funciona" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Como funciona</a>
             <a href="#recursos" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Recursos IA</a>
             <a href="#integracoes" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Integrações</a>
