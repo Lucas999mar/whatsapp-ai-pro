@@ -131,8 +131,7 @@ function AppContent() {
   const { token, loading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const location = useLocation();
-  const isPublicPage = location.pathname === '/' || location.pathname === '/marketing';
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
@@ -144,12 +143,15 @@ function AppContent() {
     );
   }
 
-  if (!token || isPublicPage) {
+  if (location.pathname === '/marketing') {
+    return <MarketingPage />;
+  }
+
+  if (!token) {
     return (
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/marketing" element={<MarketingPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
