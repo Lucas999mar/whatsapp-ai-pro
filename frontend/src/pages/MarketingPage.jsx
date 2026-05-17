@@ -4,7 +4,7 @@ import logoImage from '../assets/logo.png';
 import { 
   Sparkles, CheckCircle2, ArrowRight, Play, ChevronDown, Check, 
   Target, Cpu, Users, BarChart3, Star, Quote, ShieldCheck, Mail, Phone,
-  User, Globe, Coins, GraduationCap, Laptop, Landmark, CheckSquare
+  User, Globe, Coins, GraduationCap, Laptop, Landmark, CheckSquare, Menu, X
 } from 'lucide-react';
 
 export default function MarketingPage() {
@@ -12,6 +12,7 @@ export default function MarketingPage() {
   const [openFaq, setOpenFaq] = useState(null);
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Lead form state
   const [name, setName] = useState('');
@@ -154,15 +155,35 @@ export default function MarketingPage() {
             <a href="#faq" className="hover:text-[#25D366] transition-colors">Perguntas Frequentes</a>
           </div>
 
-          <div className="flex items-center gap-4">
-            <Link to="/" className="hidden md:inline-flex bg-white/5 hover:bg-white/10 text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all border border-white/10">
+          <div className="flex items-center gap-4 ml-auto lg:ml-10">
+            <Link to="/" className="hidden md:inline-flex bg-white/5 hover:bg-white/10 text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all border border-white/10 whitespace-nowrap">
               Inteligência Artificial
             </Link>
-            <a href="#formulario" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)]">
+            <a href="#formulario" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] whitespace-nowrap">
               Diagnóstico Gratuito
             </a>
+            <button 
+              className="lg:hidden p-2 text-white hover:text-[#25D366] transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-[#020617] border-b border-white/5 absolute top-20 left-0 w-full px-6 py-6 flex flex-col gap-4 shadow-2xl">
+            <a href="#depoimentos" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Depoimentos</a>
+            <a href="#nossa-entrega" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Nossa Entrega</a>
+            <a href="#servicos" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Serviços</a>
+            <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg border-b border-white/10 pb-4">FAQ</a>
+            
+            <Link to="/" className="md:hidden text-[#25D366] font-black text-lg">
+              Sistema de Inteligência Artificial
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}

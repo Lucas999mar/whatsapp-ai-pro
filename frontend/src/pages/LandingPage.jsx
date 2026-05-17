@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2, 
   ArrowRight, Brain, Search, Cpu, Calendar, Clock, ChevronDown, 
-  Play, Check, HelpCircle, Send, Smartphone, Network, Database 
+  Play, Check, HelpCircle, Send, Smartphone, Network, Database, Menu, X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import heroImage from '../assets/hero.png';
@@ -12,6 +12,7 @@ export default function LandingPage() {
   const [activeTab, setActiveTab] = useState('vendas');
   const [isAnnual, setIsAnnual] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
@@ -146,7 +147,7 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-[#25D366] transition-colors">FAQ</a>
           </div>
 
-          <div className="flex items-center gap-4 ml-6 lg:ml-10">
+          <div className="flex items-center gap-4 ml-auto lg:ml-10">
             <Link to="/login" className="hidden sm:inline-flex bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all border border-white/10 text-sm whitespace-nowrap">
               Entrar
             </Link>
@@ -156,8 +157,32 @@ export default function LandingPage() {
             <Link to="/marketing" className="hidden md:inline-flex bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] whitespace-nowrap">
               Assessoria de Marketing
             </Link>
+            <button 
+              className="lg:hidden p-2 text-white hover:text-[#25D366] transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-[#020617] border-b border-white/5 absolute top-20 left-0 w-full px-6 py-6 flex flex-col gap-4 shadow-2xl">
+            <a href="#como-funciona" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Como funciona</a>
+            <a href="#recursos" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Recursos IA</a>
+            <a href="#integracoes" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Integrações</a>
+            <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Planos e Preços</a>
+            <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg border-b border-white/10 pb-4">FAQ</a>
+            
+            <Link to="/login" className="sm:hidden text-white hover:text-[#25D366] font-bold text-lg">
+              Entrar no Painel
+            </Link>
+            <Link to="/marketing" className="md:hidden text-[#25D366] font-black text-lg">
+              Assessoria de Marketing
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}
@@ -206,7 +231,7 @@ export default function LandingPage() {
 
           {/* Right Column: Interactive Dashboard Simulation Mockup */}
           <div className="flex-1 w-full lg:w-auto relative animate-fade-in">
-            <div className="glass-panel p-4 aspect-[4/3] bg-gradient-to-br from-[#25D366]/5 via-[#0F172A]/80 to-blue-500/5 border border-white/10 relative overflow-hidden flex flex-col shadow-2xl">
+            <div className="glass-panel p-4 min-h-[420px] lg:aspect-[4/3] bg-gradient-to-br from-[#25D366]/5 via-[#0F172A]/80 to-blue-500/5 border border-white/10 relative overflow-hidden flex flex-col shadow-2xl">
               
               {/* Header inside mock dashboard */}
               <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4 text-xs font-semibold text-slate-400">
@@ -214,51 +239,51 @@ export default function LandingPage() {
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
                   <div className="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
                   <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
-                  <span className="ml-2 font-mono text-[10px] text-slate-500">evoluir-mais.io/painel</span>
+                  <span className="ml-2 font-mono text-[10px] text-slate-500 hidden sm:inline">evoluir-mais.io/painel</span>
                 </div>
                 <span className="bg-[#25D366]/10 text-[#25D366] px-2 py-0.5 rounded-md font-bold">● Live Dashboard</span>
               </div>
 
               {/* Grid content inside mock dashboard */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-[#0B0F19]/90 border border-white/5 p-3.5 rounded-xl text-left">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                <div className="bg-[#0B0F19]/90 border border-white/5 p-3 rounded-xl text-left">
                   <span className="text-[10px] text-slate-500 font-black uppercase block tracking-wider">Conversas Hoje</span>
-                  <div className="text-xl font-black text-white mt-1">1.482</div>
+                  <div className="text-lg font-black text-white mt-1">1.482</div>
                   <span className="text-[9px] text-[#25D366] font-bold block mt-0.5">↑ 24% vs ontem</span>
                 </div>
-                <div className="bg-[#0B0F19]/90 border border-white/5 p-3.5 rounded-xl text-left">
+                <div className="bg-[#0B0F19]/90 border border-white/5 p-3 rounded-xl text-left">
                   <span className="text-[10px] text-slate-500 font-black uppercase block tracking-wider">Automação IA</span>
-                  <div className="text-xl font-black text-[#25D366] mt-1">94.6%</div>
+                  <div className="text-lg font-black text-[#25D366] mt-1">94.6%</div>
                   <span className="text-[9px] text-slate-400 font-bold block mt-0.5">Sem intervenção</span>
                 </div>
-                <div className="bg-[#0B0F19]/90 border border-white/5 p-3.5 rounded-xl text-left">
+                <div className="bg-[#0B0F19]/90 border border-white/5 p-3 rounded-xl text-left col-span-2 sm:col-span-1">
                   <span className="text-[10px] text-slate-500 font-black uppercase block tracking-wider">Tempo de Reação</span>
-                  <div className="text-xl font-black text-blue-400 mt-1">1.8s</div>
+                  <div className="text-lg font-black text-blue-400 mt-1">1.8s</div>
                   <span className="text-[9px] text-slate-400 font-bold block mt-0.5">Resposta Instantânea</span>
                 </div>
               </div>
 
               {/* RAG file search visualizer representation */}
-              <div className="flex-1 bg-[#0B0F19]/90 border border-white/5 rounded-xl p-4 flex flex-col justify-between">
-                <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-2">
+              <div className="flex-1 bg-[#0B0F19]/90 border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between overflow-hidden">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-white/5 mb-2 gap-2">
                   <div className="flex items-center gap-2.5">
-                    <Database size={16} className="text-[#25D366]" />
-                    <span className="text-xs font-bold text-slate-300">Base de Conhecimento RAG Ativa</span>
+                    <Database size={16} className="text-[#25D366] shrink-0" />
+                    <span className="text-xs font-bold text-slate-300 line-clamp-1">Base de Conhecimento RAG Ativa</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 font-semibold">5 Manuais Carregados</span>
+                  <span className="text-[10px] text-slate-500 font-semibold shrink-0">5 Manuais Carregados</span>
                 </div>
                 
-                <div className="space-y-2 flex-1 overflow-y-auto py-2 text-xs">
-                  <div className="flex items-center justify-between bg-white/5 p-2 rounded-lg border border-white/5">
-                    <span className="font-semibold text-slate-300">📄 manual_pecas_lorenzetti.pdf</span>
-                    <span className="text-[10px] text-[#25D366] font-bold">Processado (148 págs)</span>
+                <div className="space-y-2 flex-1 overflow-y-auto py-2 text-xs pr-1">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white/5 p-2 rounded-lg border border-white/5 gap-1">
+                    <span className="font-semibold text-slate-300 break-all w-full">📄 manual_pecas_lorenzetti.pdf</span>
+                    <span className="text-[10px] text-[#25D366] font-bold whitespace-nowrap w-full text-left sm:text-right">Processado (148 págs)</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white/5 p-2 rounded-lg border border-white/5">
-                    <span className="font-semibold text-slate-300">📄 tabela_precos_maio2026.xlsx</span>
-                    <span className="text-[10px] text-[#25D366] font-bold">Processado (500 itens)</span>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white/5 p-2 rounded-lg border border-white/5 gap-1">
+                    <span className="font-semibold text-slate-300 break-all w-full">📄 tabela_precos_maio2026.xlsx</span>
+                    <span className="text-[10px] text-[#25D366] font-bold whitespace-nowrap w-full text-left sm:text-right">Processado (500 itens)</span>
                   </div>
                   <div className="flex items-center justify-between bg-[#25D366]/5 p-2 rounded-lg border border-[#25D366]/20">
-                    <span className="font-semibold text-slate-200">🤖 AI buscando: "codigo do reparo advanced..."</span>
+                    <span className="font-semibold text-slate-200 line-clamp-1">🤖 AI buscando: "codigo do reparo advanced..."</span>
                     <div className="w-4 h-4 border-2 border-[#25D366]/30 border-t-[#25D366] rounded-full animate-spin"></div>
                   </div>
                 </div>
