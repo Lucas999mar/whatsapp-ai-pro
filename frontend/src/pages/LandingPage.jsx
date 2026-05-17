@@ -130,8 +130,8 @@ export default function LandingPage() {
       <nav className="fixed top-0 w-full z-50 bg-[#020617]/85 backdrop-blur-lg border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 flex items-center justify-center overflow-hidden">
-              <img src={logoImage} className="w-full h-full object-contain scale-110" alt="Evoluir Mais Logo" />
+            <div className="w-14 h-14 flex items-center justify-center overflow-hidden rounded-full">
+              <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Evoluir Mais Logo" />
             </div>
             <span className="text-2xl font-black tracking-tight text-white uppercase">
               Evoluir <span className="gradient-text">Mais</span>
@@ -773,8 +773,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto space-y-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-10 border-b border-white/5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
-                <img src={logoImage} className="w-full h-full object-contain scale-110" alt="Evoluir Mais Logo" />
+              <div className="w-12 h-12 flex items-center justify-center overflow-hidden rounded-full">
+                <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Evoluir Mais Logo" />
               </div>
               <span className="text-xl font-black tracking-tight text-white uppercase">
                 Evoluir <span className="gradient-text">Mais</span>

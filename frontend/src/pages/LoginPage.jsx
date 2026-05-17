@@ -33,8 +33,8 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md z-10">
         <div className="text-center mb-10">
-          <div className="inline-flex w-24 h-24 p-1 rounded-3xl bg-[#25D366]/10 border border-[#25D366]/20 mb-6 overflow-hidden items-center justify-center animate-bounce-slow">
-            <img src={logoImage} className="w-full h-full object-cover rounded-2xl" alt="Logo" />
+          <div className="inline-flex w-24 h-24 p-1 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 mb-6 overflow-hidden items-center justify-center animate-bounce-slow">
+            <img src={logoImage} className="w-full h-full object-cover rounded-full" alt="Logo" />
           </div>
           <h1 className="text-4xl font-black text-white tracking-tight mb-3 uppercase">Evoluir Mais</h1>
           <p className="text-slate-400 text-lg">A plataforma multi-agente definitiva para sua empresa.</p>
