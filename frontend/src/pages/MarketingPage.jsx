@@ -27,11 +27,16 @@ export default function MarketingPage() {
   const handleFormSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API request
+    
+    // Build WhatsApp message with lead details
+    const text = `Olá, gostaria de agendar meu diagnóstico gratuito de marketing na Evoluir Mais!\n\n*Nome:* ${name}\n*E-mail:* ${email}\n*WhatsApp:* ${phone}\n*Faturamento:* ${revenue}${website ? `\n*Site:* ${website}` : ''}`;
+    const url = `https://wa.me/5522999093710?text=${encodeURIComponent(text)}`;
+
     setTimeout(() => {
       setLoading(false);
       setFormSubmitted(true);
-    }, 1500);
+      window.open(url, '_blank');
+    }, 800);
   };
 
   const testimonials = [

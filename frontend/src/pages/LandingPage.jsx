@@ -146,15 +146,15 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-[#25D366] transition-colors">FAQ</a>
           </div>
 
-          <div className="flex items-center gap-4">
-            <Link to="/login" className="hidden sm:inline-flex bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-xl font-bold transition-all border border-white/10 text-sm">
+          <div className="flex items-center gap-4 ml-6 lg:ml-10">
+            <Link to="/login" className="hidden sm:inline-flex bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all border border-white/10 text-sm whitespace-nowrap">
               Entrar
             </Link>
-            <Link to="/marketing" className="hidden md:inline-flex bg-white/5 hover:bg-white/10 text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all border border-white/10">
-              Assessoria de Marketing
-            </Link>
-            <Link to="/login" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] pulse-active">
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] pulse-active whitespace-nowrap">
               Teste Grátis
+            </a>
+            <Link to="/marketing" className="hidden md:inline-flex bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] whitespace-nowrap">
+              Assessoria de Marketing
             </Link>
           </div>
         </div>
@@ -182,9 +182,9 @@ export default function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-4">
-              <Link to="/login" className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-8 py-4.5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(37,211,102,0.4)] hover:shadow-[0_0_50px_rgba(37,211,102,0.6)] transition-all transform hover:-translate-y-1">
+              <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-8 py-4.5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(37,211,102,0.4)] hover:shadow-[0_0_50px_rgba(37,211,102,0.6)] transition-all transform hover:-translate-y-1">
                 Iniciar Teste Grátis <ArrowRight size={22} />
-              </Link>
+              </a>
               <a href="#como-funciona" className="bg-white/5 border border-white/10 text-white px-8 py-4.5 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
                 <Play size={18} className="fill-current text-white" /> Ver Como Funciona
               </a>
@@ -623,9 +623,9 @@ export default function LandingPage() {
               </div>
             </div>
             
-            <Link to="/login" className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all">
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Plano%20Start" target="_blank" rel="noopener noreferrer" className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all">
               Começar Teste Grátis
-            </Link>
+            </a>
           </div>
 
           {/* Card 2: Pro (Recommended) */}
@@ -670,9 +670,9 @@ export default function LandingPage() {
               </div>
             </div>
             
-            <Link to="/login" className="w-full bg-[#25D366] hover:bg-[#1DA851] text-slate-900 font-black h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all shadow-[0_0_20px_rgba(37,211,102,0.3)]">
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Plano%20Pro" target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366] hover:bg-[#1DA851] text-slate-900 font-black h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all shadow-[0_0_20px_rgba(37,211,102,0.3)]">
               Começar Teste Grátis
-            </Link>
+            </a>
           </div>
 
           {/* Card 3: Enterprise */}
