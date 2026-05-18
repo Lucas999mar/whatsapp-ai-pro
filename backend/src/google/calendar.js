@@ -9,13 +9,13 @@ function getOAuth2Client(credentialsJsonStr) {
     const credentials = JSON.parse(credentialsJsonStr);
     const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
     
-    // Forçamos o redirect URI para o nosso backend, mesmo que o usuário tenha configurado outro
-    const redirectUri = process.env.VITE_API_URL || 'http://localhost:3001';
+    // Pega o primeiro endereço de redirecionamento autorizado no JSON do Google
+    const redirectUri = redirect_uris[0];
     
     return new google.auth.OAuth2(
       client_id,
       client_secret,
-      `${redirectUri}/api/google/callback`
+      redirectUri
     );
   } catch (error) {
     throw new Error('JSON de credenciais do Google é inválido. ' + error.message);
