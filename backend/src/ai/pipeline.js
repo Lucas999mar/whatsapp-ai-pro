@@ -425,7 +425,7 @@ ${customInstruction || '- Forneça respostas estratégicas de alto valor.'}
 
     const chatMessages = [
       { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: m.content }))
+      ...messages.map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }))
     ];
 
     const response = await openai.chat.completions.create({
