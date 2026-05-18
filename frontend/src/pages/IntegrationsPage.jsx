@@ -205,6 +205,23 @@ export default function IntegrationsPage() {
                   onChange={(e) => handleChange('google_calendar_key', e.target.value)} 
                   className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors custom-scrollbar resize-none" 
                 />
+                
+                {settings.google_calendar_key && (
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const res = await api.get(`/google/auth/${selectedAgentId}`);
+                        if (res.data.url) window.open(res.data.url, '_blank');
+                      } catch (e) {
+                        alert('Salve as credenciais antes de autorizar. Erro: ' + (e.response?.data?.error || e.message));
+                      }
+                    }}
+                    className="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-[0_0_15px_rgba(37,130,246,0.3)] transition-all flex justify-center items-center gap-2"
+                  >
+                    <Calendar size={18} />
+                    Autorizar Acesso à Agenda
+                  </button>
+                )}
               </div>
               <div className="bg-[#020617]/50 rounded-xl border border-white/5 p-5 flex flex-col justify-center">
                 <div className="flex items-center gap-2 text-slate-300 font-bold mb-2">

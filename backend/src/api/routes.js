@@ -453,4 +453,59 @@ router.post('/creative-chat', authMiddleware, async (req, res) => {
 const instagramRouter = require('../instagram/bot');
 router.use('/instagram', instagramRouter);
 
+// ── GOOGLE CALENDAR ROUTES ────────────────────────────────────
+
+const { getGoogleAuthUrl, exchangeCodeForTokens } = require('../google/calendar');
+
+// 1. O frontend chama essa rota para pegar o link gerado para o Google
+router.get('/google/auth/:agentId', authMiddleware, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { listAgents } = require('../db/repository');
+    
+    const agents = await listAgents();
+    const agent = agents.find(a => a.id === agentId);
+    
+    if (!agent || !agent.settings?.google_calendar_key) {
+      return res.status(400).json({ error: 'Credenciais do Google ausentes neste agente.' });
+    }
+
+    const url = getGoogleAuthUrl(agent.settings.google_calendar_key, agentId);
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. O Google redireciona de volta para esta rota após o usuário autorizar
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code, state: agentId } = req.query;
+    if (!code || !agentId) return res.status(400).send('Dados inválidos do Google.');
+
+    // Busca o Agente para pegar a chave
+    const { listAgents } = require('../db/repository');
+    const { updateAgentSettings } = require('../whatsapp/bot');
+    
+    const agents = await listAgents();
+    const agent = agents.find(a => a.id === agentId);
+    
+    if (!agent) return res.status(404).send('Agente não encontrado.');
+
+    // Troca o código temporário por tokens perenes
+    const tokens = await exchangeCodeForTokens(agent.settings.google_calendar_key, code);
+    
+    // Salva o Token gerado dentro das settings do Agente
+    await updateAgentSettings(agentId, {
+      ...agent.settings,
+      google_calendar_token: tokens
+    });
+
+    // Avisa que deu certo
+    res.send('<h1>✅ Integração Concluída com Sucesso!</h1><p>Você já pode fechar esta janela e voltar ao Painel. O bot agora tem acesso à sua agenda.</p>');
+  } catch (err) {
+    res.status(500).send('❌ Falha na autenticação do Google: ' + err.message);
+  }
+});
+
 module.exports = router;

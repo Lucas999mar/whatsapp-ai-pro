@@ -221,8 +221,25 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
           const args = JSON.parse(toolCall.function.arguments);
           console.log(`📅 [Agendamento] A IA disparou o agendamento para: ${args.data_hora} - Assunto: ${args.assunto}`);
           
-          // AQUI NA FASE FINAL: Dispara API do Google Agenda
-          answer = `Perfeito! Acabei de registrar nossa reunião para ${args.data_hora} sobre ${args.assunto}. Nossa equipe entrará em contato com o link oficial. Há algo mais que eu possa ajudar?`;
+          // Busca o token do Google salvo no Agente
+          const { listAgents } = require('../db/repository');
+          const agents = await listAgents();
+          const agent = agents.find(a => a.id === agentId);
+
+          if (agent && agent.settings?.google_calendar_token) {
+            const { createGoogleEvent } = require('../google/calendar');
+            try {
+              // Tenta marcar no calendário de verdade
+              const link = await createGoogleEvent(agent.settings.google_calendar_key, agent.settings.google_calendar_token, args.assunto, args.data_hora);
+              answer = `Perfeito! Acabei de registrar nossa reunião para ${args.data_hora} sobre ${args.assunto}. O convite oficial já foi gerado na agenda: ${link}\\n\\nHá algo mais que eu possa ajudar?`;
+            } catch (err) {
+              console.error('Erro na API do Google:', err.message);
+              answer = `Tentei agendar nossa reunião, mas o sistema encontrou uma falha de conexão com a agenda. Por favor, solicite suporte humano para confirmar.`;
+            }
+          } else {
+            // Se o usuário colou a chave, mas não autorizou no OAuth ainda
+            answer = `Perfeito! Confirmei o seu interesse em agendar para ${args.data_hora}. (Nota interna: O calendário da empresa ainda precisa ser vinculado pelo Administrador).`;
+          }
         } 
         else if (toolCall.function.name === 'desmarcar_reuniao') {
           console.log(`📅 [Cancelamento] A IA disparou o cancelamento da reunião.`);
