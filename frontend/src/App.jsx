@@ -4,7 +4,7 @@ import logoImage from './assets/logo.png';
 import { 
   LayoutDashboard, Database, MessageSquare, BrainCircuit, 
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon, Blocks
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +19,7 @@ import LandingPage from './pages/LandingPage';
 import FollowUpPage from './pages/FollowUpPage';
 import MarketingPage from './pages/MarketingPage';
 import CreativeCenter from './pages/CreativeCenter';
+import IntegrationsPage from './pages/IntegrationsPage';
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -32,6 +33,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
+    { path: '/integrations', name: 'Integrações', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
 
@@ -192,6 +194,7 @@ function AppContent() {
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
+            <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard adminOnly><SuperAdmin /></AuthGuard>} />
             <Route path="*" element={<Navigate to="/" />} />
