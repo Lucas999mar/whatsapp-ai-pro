@@ -277,9 +277,6 @@ export default function CreativeCenter() {
               <Send size={18} className={input.trim() ? 'ml-1' : ''} />
             </button>
           </div>
-          <div className="text-center mt-3 text-[10px] font-medium text-slate-500 uppercase tracking-widest">
-            Alimentado por GPT-4o Enterprise Edition
-          </div>
         </div>
       </div>
     </div>
