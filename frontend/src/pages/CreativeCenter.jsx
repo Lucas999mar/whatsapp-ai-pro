@@ -5,6 +5,7 @@ import {
   MoreVertical, FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/api';
 
 const NATIVE_AGENTS = [
   {
@@ -112,22 +113,13 @@ export default function CreativeCenter() {
       // Map format for the backend payload (excluding id)
       const payloadMessages = updatedMessages.map(m => ({ role: m.role, content: m.content }));
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/creative-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          messages: payloadMessages,
-          agentRole: activeAgent.name,
-          customInstruction: activeAgent.description
-        })
+      const res = await api.post('/creative-chat', {
+        messages: payloadMessages,
+        agentRole: activeAgent.name,
+        customInstruction: activeAgent.description
       });
 
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error || 'Erro na API');
+      const data = res.data;
 
       setMessages(prev => ({
         ...prev,
@@ -138,11 +130,12 @@ export default function CreativeCenter() {
       }));
     } catch (err) {
       console.error('Erro no Centro Criativo:', err);
+      const errorMsg = err.response?.data?.error || '❌ Ops, ocorreu um erro de conexão com a inteligência. Tente novamente.';
       setMessages(prev => ({
         ...prev,
         [activeAgentId]: [
           ...(prev[activeAgentId] || []),
-          { role: 'agent', content: '❌ Ops, ocorreu um erro de conexão. Tente novamente.', id: Date.now() }
+          { role: 'agent', content: errorMsg, id: Date.now() }
         ]
       }));
     } finally {
