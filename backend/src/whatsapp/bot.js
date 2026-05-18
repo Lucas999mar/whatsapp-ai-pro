@@ -18,6 +18,7 @@ const logger = pino({ level: 'silent' });
 const BASE_AUTH_DIR = path.resolve(__dirname, '../../auth_info');
 
 const agents = new Map();
+const pendingMessages = new Map(); // Buffer para junção de mensagens picotadas
 
 async function getAgentsStatus(tenantId = null) {
   const { listAgents } = require('../db/repository');
@@ -190,7 +191,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
         msgType.text = msgType.text.slice(prefix.length).trim();
       }
       
-      await sock.sendPresenceUpdate('composing', sender);
+      // Não envia 'composing' imediatamente para não bugar durante a espera do debounce
       
       try {
         let textToProcess = '';
@@ -204,24 +205,59 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
         }
 
         if (textToProcess) {
-          const threadId = `${tenantId}__${sender}__${agentId}`;
+          const key = `${tenantId}_${agentId}_${sender}`;
           
-          const result = await processMessage(sender, senderName, textToProcess, msgType.type, null, settings.bot_name, agentId, tenantId, userPhoto);
-          
-          if (result.audioBuffer) {
-            await sock.sendMessage(sender, { 
-              audio: result.audioBuffer, 
-              mimetype: 'audio/ogg; codecs=opus', 
-              ptt: true 
+          if (!pendingMessages.has(key)) {
+            pendingMessages.set(key, { 
+              texts: [], 
+              timer: null,
+              hasAudio: false,
+              userPhoto: userPhoto,
+              senderName: senderName
             });
-          } else {
-            await sock.sendMessage(sender, { text: result.text });
           }
+          
+          const pending = pendingMessages.get(key);
+          pending.texts.push(textToProcess);
+          if (msgType.type === 'audio') pending.hasAudio = true;
+          if (userPhoto) pending.userPhoto = userPhoto;
+          
+          if (pending.timer) clearTimeout(pending.timer);
+          
+          pending.timer = setTimeout(async () => {
+            const finalContext = pending.texts.join(' \\n');
+            const wasAudio = pending.hasAudio;
+            const photo = pending.userPhoto;
+            const name = pending.senderName;
+            
+            pendingMessages.delete(key);
+            
+            // Só avisa que está "digitando/gravando" agora que vai processar de verdade
+            await sock.sendPresenceUpdate(wasAudio ? 'recording' : 'composing', sender);
+            
+            try {
+              const result = await processMessage(
+                sender, name, finalContext, wasAudio ? 'audio' : 'text', null, settings.bot_name, agentId, tenantId, photo
+              );
+              
+              if (result.audioBuffer) {
+                await sock.sendMessage(sender, { 
+                  audio: result.audioBuffer, 
+                  mimetype: 'audio/ogg; codecs=opus', 
+                  ptt: true 
+                });
+              } else {
+                await sock.sendMessage(sender, { text: result.text });
+              }
+            } catch (err) {
+              console.error(`Erro [${agentName}]:`, err.message);
+            } finally {
+              await sock.sendPresenceUpdate('paused', sender);
+            }
+          }, 6000); // Aguarda 6 segundos de silêncio para juntar tudo
         }
       } catch (err) {
-        console.error(`Erro [${agentName}]:`, err.message);
-      } finally {
-        await sock.sendPresenceUpdate('paused', sender);
+        console.error(`Erro extraindo media [${agentName}]:`, err.message);
       }
     }
   });
