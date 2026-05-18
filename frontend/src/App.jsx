@@ -18,6 +18,7 @@ import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import FollowUpPage from './pages/FollowUpPage';
 import MarketingPage from './pages/MarketingPage';
+import CreativeCenter from './pages/CreativeCenter';
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -27,6 +28,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
     { path: '/conversations', name: 'Conversas', icon: <MessageSquare size={20} /> },
+    { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
@@ -186,6 +188,7 @@ function AppContent() {
             <Route path="/" element={<AuthGuard><Dashboard /></AuthGuard>} />
             <Route path="/knowledge" element={<AuthGuard><KnowledgeBase /></AuthGuard>} />
             <Route path="/conversations" element={<AuthGuard><Conversations /></AuthGuard>} />
+            <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
