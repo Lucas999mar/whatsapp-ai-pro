@@ -356,4 +356,36 @@ async function convertMp3ToOgg(mp3Buffer) {
   });
 }
 
-module.exports = { processMessage, analyzeAndSaveLearnings, transcribeAudio, convertMp3ToOgg };
+/**
+ * Chat do Centro Criativo (Agentes Nativos)
+ */
+async function generateCreativeChat(messages, agentRole, customInstruction) {
+  try {
+    const systemPrompt = `Você é um Consultor Nível Enterprise operando como: ${agentRole}.
+DIRETRIZES:
+${customInstruction || '- Forneça respostas estratégicas de alto valor.'}
+- NUNCA mencione que você é uma IA da OpenAI. 
+- Aja e escreva como o maior especialista do mundo nesta área.
+- Entregue frameworks práticos e não seja genérico.
+- O usuário é o dono de um negócio buscando ajuda.`;
+
+    const chatMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role, content: m.content }))
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: config.openai.model || 'gpt-4o',
+      messages: chatMessages,
+      max_tokens: 1500,
+      temperature: 0.8,
+    });
+
+    return stripFormatting(response.choices[0].message.content);
+  } catch (err) {
+    console.error('❌ Erro no generateCreativeChat:', err.message);
+    throw err;
+  }
+}
+
+module.exports = { processMessage, analyzeAndSaveLearnings, transcribeAudio, convertMp3ToOgg, generateCreativeChat };

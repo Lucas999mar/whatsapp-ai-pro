@@ -432,4 +432,20 @@ router.delete('/follow-ups/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── CREATIVE CENTER ROUTES ──────────────────────────────────────
+
+const { generateCreativeChat } = require('../ai/pipeline');
+
+router.post('/creative-chat', authMiddleware, async (req, res) => {
+  try {
+    const { messages, agentRole, customInstruction } = req.body;
+    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Messages array is required' });
+    
+    const reply = await generateCreativeChat(messages, agentRole || 'Consultor', customInstruction);
+    res.json({ reply });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

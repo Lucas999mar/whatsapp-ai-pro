@@ -72,6 +72,7 @@ export default function CreativeCenter() {
   const chatEndRef = useRef(null);
 
   const activeAgent = NATIVE_AGENTS.find(a => a.id === activeAgentId);
+  const prevChatState = messages[activeAgentId] || [];
   const currentChat = messages[activeAgentId] || [];
 
   // Init welcome message
@@ -90,33 +91,63 @@ export default function CreativeCenter() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentChat, isTyping]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    if (!input.trim() || isTyping) return;
     
-    const userMsg = { role: 'user', content: input, id: Date.now() };
+    const userText = input.trim();
+    const userMsg = { role: 'user', content: userText, id: Date.now() };
+    
+    // Save to local UI state
+    const updatedMessages = [...(prevChatState || []), userMsg];
+    
     setMessages(prev => ({
       ...prev,
-      [activeAgentId]: [...(prev[activeAgentId] || []), userMsg]
+      [activeAgentId]: updatedMessages
     }));
     
     setInput('');
     setIsTyping(true);
 
-    // Mock API Response (To be integrated with real backend Phase 2)
-    setTimeout(() => {
-      setIsTyping(false);
+    try {
+      // Map format for the backend payload (excluding id)
+      const payloadMessages = updatedMessages.map(m => ({ role: m.role, content: m.content }));
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/creative-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          messages: payloadMessages,
+          agentRole: activeAgent.name,
+          customInstruction: activeAgent.description
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error || 'Erro na API');
+
       setMessages(prev => ({
         ...prev,
         [activeAgentId]: [
           ...(prev[activeAgentId] || []),
-          { 
-            role: 'agent', 
-            content: `Aqui está um esboço inicial focado em conversão e com base nas melhores práticas do mercado, desenvolvido sob a ótica de um ${activeAgent.name}.\\n\\nPodemos refinar este material. O que achou dessa direção?`, 
-            id: Date.now() + 1 
-          }
+          { role: 'agent', content: data.reply, id: Date.now() }
         ]
       }));
-    }, 2500);
+    } catch (err) {
+      console.error('Erro no Centro Criativo:', err);
+      setMessages(prev => ({
+        ...prev,
+        [activeAgentId]: [
+          ...(prev[activeAgentId] || []),
+          { role: 'agent', content: '❌ Ops, ocorreu um erro de conexão. Tente novamente.', id: Date.now() }
+        ]
+      }));
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
