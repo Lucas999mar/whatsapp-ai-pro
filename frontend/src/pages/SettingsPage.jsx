@@ -21,7 +21,10 @@ export default function SettingsPage() {
     system_prompt: '',
     response_mode: 'mirror',
     tts_voice: 'nova',
-    respond_all: true
+    respond_all: true,
+    telegram_token: '',
+    instagram_token: '',
+    google_calendar_key: ''
   });
   
   const [loading, setLoading] = useState(true);
@@ -274,6 +277,54 @@ export default function SettingsPage() {
                   <input type="checkbox" checked={settings.respond_all} onChange={(e) => handleChange('respond_all', e.target.checked)} className="sr-only peer" />
                   <div className="w-14 h-7 bg-slate-700 rounded-full peer peer-checked:bg-[#25D366] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:after:translate-x-full"></div>
                 </label>
+              </div>
+            </div>
+
+            {/* OMNICHANNEL & INTEGRAÇÕES */}
+            <div className="glass-panel p-8">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                <Bot className="text-[#25D366]" /> Integrações Omnichannel & Agenda
+              </h3>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                Adicione os tokens oficiais para acionar os módulos de integração. O cérebro da Inteligência Artificial será compartilhado automaticamente com estes novos canais.
+              </p>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">Token do Telegram Bot</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: 123456789:ABCdefGHIjklMNO..."
+                    value={settings.telegram_token || ''} 
+                    onChange={(e) => handleChange('telegram_token', e.target.value)} 
+                    className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">Meta Webhook Token (Instagram)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Sua chave secreta para validar o Webhook do Instagram"
+                    value={settings.instagram_token || ''} 
+                    onChange={(e) => handleChange('instagram_token', e.target.value)} 
+                    className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">Google Agenda (API Key / Client Secret)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Cole as credenciais do Google Cloud Console para o Function Calling"
+                    value={settings.google_calendar_key || ''} 
+                    onChange={(e) => handleChange('google_calendar_key', e.target.value)} 
+                    className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors" 
+                  />
+                  <p className="text-xs text-slate-500 mt-2">
+                    Quando preenchido, a IA passará a acionar automaticamente eventos de calendário quando solicitada pelo cliente.
+                  </p>
+                </div>
               </div>
             </div>
 
