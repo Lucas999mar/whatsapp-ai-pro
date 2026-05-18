@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
-import { Blocks, Save, Loader2, Send, Instagram, Calendar, Link2, Info } from 'lucide-react';
+import { Blocks, Save, Loader2, Send, MessageCircle, Calendar, Link2, Info } from 'lucide-react';
 
 export default function IntegrationsPage() {
   const [agents, setAgents] = useState([]);
@@ -152,11 +152,11 @@ export default function IntegrationsPage() {
           {/* INSTAGRAM */}
           <div className="glass-panel p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Instagram size={120} />
+              <MessageCircle size={120} />
             </div>
             <div className="flex items-center gap-4 mb-6">
               <div className="w-12 h-12 bg-gradient-to-tr from-[#f09433] via-[#e6683c] to-[#bc1888] rounded-xl flex items-center justify-center shadow-lg shadow-[#bc1888]/20">
-                <Instagram size={24} className="text-white" />
+                <MessageCircle size={24} className="text-white" />
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Instagram DMs</h3>
