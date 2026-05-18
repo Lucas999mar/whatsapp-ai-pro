@@ -33,7 +33,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
-    { path: '/integrations', name: 'Integrações', icon: <Blocks size={20} /> },
+    { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
 
