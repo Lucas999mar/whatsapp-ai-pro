@@ -448,4 +448,9 @@ router.post('/creative-chat', authMiddleware, async (req, res) => {
   }
 });
 
+// ── INSTAGRAM ROUTES ──────────────────────────────────────────
+
+const instagramRouter = require('../instagram/bot');
+router.use('/instagram', instagramRouter);
+
 module.exports = router;

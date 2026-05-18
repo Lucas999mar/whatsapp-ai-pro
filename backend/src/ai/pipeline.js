@@ -170,15 +170,69 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
       { role: 'user', content: processedText }
     ];
 
-    // 3. Chama OpenAI
-    const response = await openai.chat.completions.create({
+    // 3. Define as Ferramentas (Function Calling - Fase 3)
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "agendar_reuniao",
+          description: "Agenda uma reunião oficial com a empresa. Use APENAS quando o cliente confirmar explicitamente um dia e horário.",
+          parameters: {
+            type: "object",
+            properties: {
+              data_hora: { type: "string", description: "O dia e horário desejado pelo cliente (ex: 'Amanhã às 15h')" },
+              assunto: { type: "string", description: "O motivo principal da reunião." }
+            },
+            required: ["data_hora", "assunto"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "desmarcar_reuniao",
+          description: "Cancela a reunião do cliente se ele pedir para desmarcar.",
+          parameters: {
+            type: "object",
+            properties: { motivo: { type: "string" } },
+            required: []
+          }
+        }
+      }
+    ];
+
+    // 4. Chama OpenAI
+    let response = await openai.chat.completions.create({
       model: config.openai.model,
       messages,
+      tools,
+      tool_choice: "auto",
       max_tokens: 1024,
       temperature: 0.7,
     });
 
-    const answer = stripFormatting(response.choices[0].message.content);
+    const responseMessage = response.choices[0].message;
+    let answer = '';
+
+    // Verifica se a IA decidiu usar uma ferramenta (Function Calling)
+    if (responseMessage.tool_calls) {
+      for (const toolCall of responseMessage.tool_calls) {
+        if (toolCall.function.name === 'agendar_reuniao') {
+          const args = JSON.parse(toolCall.function.arguments);
+          console.log(`📅 [Agendamento] A IA disparou o agendamento para: ${args.data_hora} - Assunto: ${args.assunto}`);
+          
+          // AQUI NA FASE FINAL: Dispara API do Google Agenda
+          answer = `Perfeito! Acabei de registrar nossa reunião para ${args.data_hora} sobre ${args.assunto}. Nossa equipe entrará em contato com o link oficial. Há algo mais que eu possa ajudar?`;
+        } 
+        else if (toolCall.function.name === 'desmarcar_reuniao') {
+          console.log(`📅 [Cancelamento] A IA disparou o cancelamento da reunião.`);
+          answer = `Compreendo. Sua reunião foi desmarcada com sucesso no nosso sistema. Caso queira remarcar depois, é só me chamar!`;
+        }
+      }
+    } else {
+      answer = stripFormatting(responseMessage.content);
+    }
+
     const tokensUsed = response.usage?.total_tokens || 0;
 
     // TTS Logic
