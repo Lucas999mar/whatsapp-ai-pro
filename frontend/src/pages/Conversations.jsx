@@ -12,23 +12,15 @@ const KANBAN_COLUMNS = [
 ];
 
 function formatWhatsAppId(id) {
+  // Remove tudo que vem depois de @ (ex: @s.whatsapp.net, @lid, @g.us)
   let number = String(id).split('@')[0];
+  // Remove qualquer caractere que não seja dígito (limpa : dos LIDs, espaços, etc.)
   number = number.replace(/\D/g, '');
 
-  if (number.length >= 10 && number.startsWith('55')) {
-    const ddd = number.slice(2, 4);
-    if (number.length === 13) {
-      return `+55 (${ddd}) ${number.slice(4, 9)}-${number.slice(9)}`;
-    } else if (number.length === 12) {
-      return `+55 (${ddd}) ${number.slice(4, 8)}-${number.slice(8)}`;
-    }
-  }
-  
-  if (number.length > 10) {
-    return `+${number.slice(0, 2)} ${number.slice(2, 5)} ${number.slice(5, 8)}-${number.slice(8)}`;
-  }
-  
-  return number.length > 0 ? `+${number}` : number;
+  if (!number || number.length === 0) return id;
+
+  // Retorna o número limpo com prefixo + (ex: +55022998755113)
+  return `+${number}`;
 }
 
 export default function Conversations() {
@@ -37,7 +29,7 @@ export default function Conversations() {
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('default');
-  
+
   const [leadStatus, setLeadStatus] = useState(() => {
     const saved = localStorage.getItem('wa_lead_status');
     return saved ? JSON.parse(saved) : {};
@@ -47,7 +39,7 @@ export default function Conversations() {
     return saved ? JSON.parse(saved) : {};
   });
   const [activeChat, setActiveChat] = useState(null);
-  
+
   // States para edição
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
@@ -58,7 +50,7 @@ export default function Conversations() {
         const res = await api.get('/whatsapp/status');
         const agentList = res.data.agents || [];
         setAgents(agentList.length > 0 ? agentList : [{ id: 'default', name: 'Assistente Principal' }]);
-        
+
         // Se estiver no 'default' mas tivermos agentes reais, seleciona o primeiro
         if (selectedAgent === 'default' && agentList.length > 0 && agentList[0].id !== 'default') {
           setSelectedAgent(agentList[0].id);
@@ -82,10 +74,10 @@ export default function Conversations() {
         // Nova lógica de extração: Procura o segmento que contém @s.whatsapp.net ou @g.us
         // Se não encontrar, tenta pegar o maior segmento numérico que não seja o tenantId
         let msgPhone = parts.find(p => p.includes('@')) || parts[1] || parts[0];
-        
+
         // Limpa o sufixo
         msgPhone = msgPhone.split('@')[0];
-        
+
         const msgAgentId = parts[2] || 'default';
         if (msgAgentId !== selectedAgent) return;
 
@@ -120,7 +112,7 @@ export default function Conversations() {
         lead.name = customNames[lead.id] || lead.originalName || lead.formattedPhone;
         return lead;
       }).sort((a, b) => new Date(b.lastDate) - new Date(a.lastDate));
-      
+
       setLeads(leadsArray);
 
       const newStatus = { ...leadStatus };
@@ -198,13 +190,13 @@ export default function Conversations() {
           <h2 className="text-4xl font-bold text-white tracking-tight">CRM / Conversas</h2>
           <p className="text-slate-400 mt-2 text-lg">Gerencie seus leads e atualize os perfis dos contatos.</p>
         </div>
-        
+
         {/* AGENT FILTER */}
         <div className="flex items-center gap-3 bg-[#0F172A] px-4 py-3 rounded-xl border border-white/10 shadow-inner">
           <Bot size={18} className="text-[#25D366]" />
-          <select 
-            className="outline-none bg-transparent text-slate-200 font-medium cursor-pointer" 
-            value={selectedAgent} 
+          <select
+            className="outline-none bg-transparent text-slate-200 font-medium cursor-pointer"
+            value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
           >
             {agents.map(a => (
@@ -225,10 +217,10 @@ export default function Conversations() {
         ) : (
           KANBAN_COLUMNS.map(col => {
             const colLeads = leads.filter(l => leadStatus[l.id] === col.id);
-            
+
             return (
-              <div 
-                key={col.id} 
+              <div
+                key={col.id}
                 className={`flex-none w-80 flex flex-col glass-panel border-t-4 ${col.color} snap-center`}
                 onDrop={(e) => handleDrop(e, col.id)}
                 onDragOver={handleDragOver}
@@ -239,7 +231,7 @@ export default function Conversations() {
                     {colLeads.length}
                   </span>
                 </div>
-                
+
                 <div className="flex-1 p-4 overflow-y-auto space-y-3">
                   {colLeads.length === 0 ? (
                     <div className="h-24 flex flex-col items-center justify-center text-slate-500 border border-dashed border-white/10 rounded-xl">
@@ -247,7 +239,7 @@ export default function Conversations() {
                     </div>
                   ) : (
                     colLeads.map(lead => (
-                      <div 
+                      <div
                         key={lead.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, lead.id)}
@@ -268,7 +260,7 @@ export default function Conversations() {
                             <div className="flex justify-between items-start gap-2">
                               <h4 className="font-bold text-white text-sm truncate">{lead.name}</h4>
                               <div className="flex items-center gap-1">
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     const newName = prompt('Novo nome para o contato:', lead.name);
@@ -296,7 +288,7 @@ export default function Conversations() {
 
                         <div className="flex items-center justify-between text-[10px] text-slate-500 border-t border-white/5 pt-2">
                           <span className="flex items-center gap-1">
-                            <Clock size={10} /> 
+                            <Clock size={10} />
                             {formatDistanceToNow(new Date(lead.lastDate), { locale: ptBR, addSuffix: true })}
                           </span>
                           <span className="bg-white/5 px-1.5 py-0.5 rounded-md">{lead.messages.length} msgs</span>
@@ -328,8 +320,8 @@ export default function Conversations() {
                 <div className="flex-1">
                   {isEditingName ? (
                     <div className="flex items-center gap-2">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         autoFocus
                         value={editNameValue}
                         onChange={(e) => setEditNameValue(e.target.value)}
@@ -355,7 +347,7 @@ export default function Conversations() {
                   <p className="text-sm text-slate-400 mt-0.5">{activeChat.formattedPhone}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setActiveChat(null);
                   setIsEditingName(false);
@@ -369,14 +361,13 @@ export default function Conversations() {
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 relative bg-[#0B0F19]">
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#25D366]/5 blur-[100px] rounded-full pointer-events-none"></div>
-              
+
               {[...activeChat.messages].reverse().map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[80%] rounded-2xl p-5 shadow-lg relative ${
-                    msg.role === 'user' 
-                      ? 'bg-[#1E293B] border border-white/5 rounded-tl-sm' 
+                  <div className={`max-w-[80%] rounded-2xl p-5 shadow-lg relative ${msg.role === 'user'
+                      ? 'bg-[#1E293B] border border-white/5 rounded-tl-sm'
                       : 'bg-gradient-to-br from-[#128C7E]/90 to-[#075E54]/90 border border-[#25D366]/20 rounded-tr-sm text-white'
-                  }`}>
+                    }`}>
                     <div className="flex items-center gap-2 mb-2 border-b border-white/5 pb-2">
                       {msg.role === 'user' ? (
                         <span className="text-xs font-semibold text-slate-400">Mensagem do Cliente</span>
@@ -386,7 +377,7 @@ export default function Conversations() {
                         </span>
                       )}
                     </div>
-                    
+
                     <p className={`text-base whitespace-pre-wrap leading-relaxed ${msg.role === 'user' ? 'text-slate-200' : 'text-white'}`}>
                       {msg.content}
                     </p>
