@@ -280,7 +280,7 @@ export default function AtendimentoPage() {
                                 {activeChat.photo ? <img src={activeChat.photo} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-500" />}
                             </div>
                             <h3 className="text-lg font-black text-white truncate">{activeChat.name}</h3>
-                            <p className="text-xs text-slate-500 font-medium">Desde {new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR')}</p>
+                            <p className="text-xs text-slate-500 font-medium">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Início agora'}</p>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
