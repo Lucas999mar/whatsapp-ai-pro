@@ -216,6 +216,7 @@ router.get('/task-types', authMiddleware, async (req, res) => {
 
 router.post('/task-types', authMiddleware, async (req, res) => {
     try {
+        const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_task_types')
@@ -498,6 +499,7 @@ router.get('/map/tasks', authMiddleware, async (req, res) => {
 
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
+        const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
         const today = new Date().toISOString().split('T')[0];
 
