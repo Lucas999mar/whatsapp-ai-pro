@@ -57,6 +57,15 @@ export default function CRMPage() {
     } catch (err) { alert('Erro ao criar lead'); }
   };
 
+  const formatNumber = (whatsappId) => {
+    const number = whatsappId.split('__')[1]?.split('@')[0] || whatsappId.split('@')[0];
+    let cleaned = number.replace(/\D/g, '');
+    if (cleaned.length > 11 && (cleaned.startsWith('27') || cleaned.startsWith('default'))) {
+      cleaned = cleaned.substring(2);
+    }
+    return cleaned;
+  };
+
   const handleDragStart = (e, cardId) => {
     e.dataTransfer.setData('cardId', cardId);
   };
@@ -144,36 +153,44 @@ export default function CRMPage() {
                       className="bg-[#1E293B] hover:bg-[#253247] p-4 rounded-xl border border-white/5 shadow-xl cursor-grab active:cursor-grabbing transition-all hover:border-[#25D366]/30 group/card relative"
                     >
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10 flex items-center justify-center text-xs font-black text-white">
-                            {(card.name || 'L').charAt(0).toUpperCase()}
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 border-2 border-[#25D366]/20 flex items-center justify-center overflow-hidden shadow-lg shadow-black/40 group-hover:border-[#25D366]/50 transition-all">
+                            {card.contact_photo ? (
+                              <img src={card.contact_photo} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="text-sm font-black text-slate-500 uppercase">
+                                {(card.name || 'L').charAt(0)}
+                              </div>
+                            )}
                           </div>
                           <div>
-                            <h4 className="text-sm font-black text-white truncate max-w-[140px]">
+                            <h4 className="text-sm font-black text-white group-hover:text-[#25D366] transition-colors leading-tight">
                               {(card.name || 'Sem Nome').split('_')[0].trim()}
                             </h4>
-                            <p className="text-[10px] text-[#25D366] font-bold">
-                              +{card.whatsapp_id.split('__')[1]?.split('@')[0] || card.whatsapp_id.split('@')[0]}
+                            <p className="text-[10px] text-[#25D366] font-black tracking-tighter mt-0.5">
+                              +{formatNumber(card.whatsapp_id)}
                             </p>
                           </div>
                         </div>
                         <button className="p-1 hover:bg-white/5 rounded-lg text-slate-500"><MoreHorizontal size={14} /></button>
                       </div>
 
-                      <p className="text-xs text-slate-400 line-clamp-2 italic mb-4">"{card.last_message || 'Nenhuma mensagem recente'}"</p>
+                      <p className="text-[11px] text-slate-400 line-clamp-2 italic mb-4 opacity-70 group-hover:opacity-100 transition-opacity">
+                        "{card.last_message || 'Nenhuma mensagem recente'}"
+                      </p>
 
                       <div className="flex items-center justify-between border-t border-white/5 pt-3">
-                        <div className="flex -space-x-2">
+                        <div className="flex -space-x-1.5">
                           {/* Tags Rendering */}
                           {Array.isArray(card.tags) && card.tags.map((tag, idx) => (
-                            <div key={idx} className="px-2 py-0.5 bg-blue-500/10 text-[8px] text-blue-400 border border-blue-500/20 rounded mr-1 uppercase font-black">
+                            <div key={idx} className="px-2 py-0.5 bg-indigo-500/10 text-[7px] text-indigo-400 border border-indigo-500/20 rounded-md uppercase font-black tracking-tighter mr-1 shadow-[0_0_10px_rgba(99,102,241,0.1)]">
                               {tag}
                             </div>
                           ))}
-                          {!card.tags?.length && <div className="w-5 h-5 rounded-full bg-white/5 border border-white/10"></div>}
+                          {!card.tags?.length && <div className="p-1 bg-white/5 rounded-lg border border-white/10 text-[8px] text-slate-600 font-bold px-2">SEM ETIQUETAS</div>}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
-                          <Calendar size={12} />
+                        <div className="flex items-center gap-1.5 text-[9px] text-slate-500 font-bold group-hover:text-slate-300 transition-colors">
+                          <Calendar size={10} />
                           {formatDistanceToNow(new Date(card.updated_at), { locale: ptBR, addSuffix: true })}
                         </div>
                       </div>

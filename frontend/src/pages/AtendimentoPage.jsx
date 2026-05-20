@@ -61,6 +61,16 @@ export default function AtendimentoPage() {
         }
     }, [activeChat?.id]);
 
+    const formatNumber = (whatsappId) => {
+        const number = whatsappId.split('__')[1]?.split('@')[0] || whatsappId.split('@')[0];
+        let cleaned = number.replace(/\D/g, '');
+        // Se começar com prefixos estranhos mas for Brasil (ex: 2755...), limpamos
+        if (cleaned.length > 11 && (cleaned.startsWith('27') || cleaned.startsWith('default'))) {
+            cleaned = cleaned.substring(2);
+        }
+        return cleaned;
+    };
+
     const fetchMessages = async (whatsappId) => {
         try {
             const res = await api.get('/conversations');
@@ -202,7 +212,10 @@ export default function AtendimentoPage() {
                                             {chat.lastTime ? formatDistanceToNow(new Date(chat.lastTime), { locale: ptBR }) : 'Agora'}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-slate-400 truncate">{chat.lastMessage}</p>
+                                    <p className="text-xs text-slate-400 truncate flex items-center gap-1">
+                                        <Phone size={10} className="text-slate-600" />
+                                        {formatNumber(chat.id)}
+                                    </p>
                                 </div>
                             </button>
                         ))
@@ -331,10 +344,10 @@ export default function AtendimentoPage() {
                                 {activeChat.photo ? <img src={activeChat.photo} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-500" />}
                             </div>
                             <h3 className="text-lg font-black text-white truncate">{activeChat.name}</h3>
-                            <p className="text-xs text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-                                {activeChat.fullName?.split('_')[1] || activeChat.id.split('@')[0]}
+                            <p className="text-sm text-[#25D366] font-black tracking-tight mt-1">
+                                {formatNumber(activeChat.id)}
                             </p>
-                            <p className="text-[10px] text-slate-600 mt-1 uppercase font-bold tracking-widest">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Hoje'}</p>
+                            <p className="text-[10px] text-slate-600 mt-2 uppercase font-bold tracking-widest">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Hoje'}</p>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
