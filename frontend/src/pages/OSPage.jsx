@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api/api';
+import { useAuth } from '../context/AuthContext';
 import {
     Calendar as CalendarIcon, MapPin, Plus, Clock, User, ChevronLeft, ChevronRight,
     Loader2, X, Play, Square, Users, Briefcase, Map as MapIcon, ClipboardList
@@ -83,9 +84,160 @@ function TaskModal({ isOpen, onClose, onSave, task, clients, technicians, taskTy
     );
 }
 
+// ── COMPONENTE: Gerenciamento de Clientes ──────────────────────
+function ClientManager({ clients, onRefresh }) {
+    const [showModal, setShowModal] = useState(false);
+    const [form, setForm] = useState({ name: '', phone: '', address: '', email: '' });
+
+    const handleSave = async () => {
+        await api.post('/os/clients', form);
+        setForm({ name: '', phone: '', address: '', email: '' });
+        setShowModal(false);
+        onRefresh();
+    };
+
+    const handleImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const text = evt.target.result;
+            const rows = text.split('\n').slice(1); // Pula cabeçalho
+            const prepared = rows.map(row => {
+                const [name, phone, email, address] = row.split(',');
+                return { name, phone, email, address };
+            }).filter(c => c.name);
+            await api.post('/os/clients/import', { clients: prepared });
+            onRefresh();
+        };
+        reader.readAsText(file);
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white">Clientes ({clients.length})</h3>
+                <div className="flex gap-2">
+                    <label className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-xl cursor-pointer hover:bg-blue-500/30 transition-all font-bold">
+                        Importar CSV
+                        <input type="file" accept=".csv" className="hidden" onChange={handleImport} />
+                    </label>
+                    <button onClick={() => setShowModal(true)} className="px-6 py-2 bg-[#25D366] text-black font-bold rounded-xl">Novo Cliente</button>
+                </div>
+            </div>
+
+            <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-black/20 text-slate-500 text-xs uppercase">
+                        <tr>
+                            <th className="p-4">Nome</th>
+                            <th className="p-4">Telefone</th>
+                            <th className="p-4">Endereço</th>
+                            <th className="p-4">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {clients.map(c => (
+                            <tr key={c.id} className="hover:bg-white/[0.02]">
+                                <td className="p-4 font-bold text-white">{c.name}</td>
+                                <td className="p-4 text-slate-400">{c.phone}</td>
+                                <td className="p-4 text-slate-400 text-sm truncate max-w-md">{c.address}</td>
+                                <td className="p-4">
+                                    <button onClick={async () => { if (confirm('Excluir?')) { await api.delete(`/os/clients/${c.id}`); onRefresh(); } }} className="text-red-500 hover:scale-110 transition-all"><X size={18} /></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {showModal && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-[#0F172A] p-6 rounded-2xl border border-white/10">
+                        <h4 className="text-xl font-bold text-white mb-4">Cadastrar Cliente</h4>
+                        <div className="space-y-3">
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Nome completo" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="WhatsApp" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Endereço (Rua, Nº, Bairro)" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-white/5 rounded-xl">Cancelar</button>
+                            <button onClick={handleSave} className="flex-1 py-3 bg-[#25D366] text-black font-bold rounded-xl">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── COMPONENTE: Gerenciamento de Técnicos ─────────────────────
+function TechnicianManager({ technicians, onRefresh }) {
+    const [showModal, setShowModal] = useState(false);
+    const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', color: '#25D366' });
+
+    const handleSave = async () => {
+        await api.post('/os/technicians', form);
+        setForm({ name: '', phone: '', email: '', password: '', color: '#25D366' });
+        setShowModal(false);
+        onRefresh();
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white">Técnicos ({technicians.length})</h3>
+                <button onClick={() => setShowModal(true)} className="px-6 py-2 bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20">Novo Técnico</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {technicians.map(t => (
+                    <div key={t.id} className="bg-[#1E293B] p-5 rounded-2xl border border-white/5 flex items-center gap-4 relative group">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg" style={{ backgroundColor: t.color || '#25D366' }}>
+                            {t.name.charAt(0)}
+                        </div>
+                        <div>
+                            <p className="font-bold text-white">{t.name}</p>
+                            <p className="text-xs text-slate-500">{t.email || t.phone}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`w-2 h-2 rounded-full ${t.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}`}></span>
+                                <span className="text-[10px] uppercase font-bold text-slate-400">{t.status || 'offline'}</span>
+                            </div>
+                        </div>
+                        <button onClick={async () => { if (confirm('Excluir?')) { await api.delete(`/os/technicians/${t.id}`); onRefresh(); } }} className="absolute top-4 right-4 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><X size={18} /></button>
+                    </div>
+                ))}
+            </div>
+
+            {showModal && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-[#0F172A] p-6 rounded-2xl border border-white/10">
+                        <h4 className="text-xl font-bold text-white mb-4">Cadastrar Técnico</h4>
+                        <p className="text-xs text-slate-500 mb-4 uppercase font-bold tracking-wider">Acesso ao Sistema</p>
+                        <div className="space-y-3">
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Nome do Técnico" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Login (Email)" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" type="password" placeholder="Senha de Acesso" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+                                <span className="text-sm text-slate-400">Cor no Mapa:</span>
+                                <input type="color" className="bg-transparent border-none w-10 h-10 cursor-pointer" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-white/5 rounded-xl">Cancelar</button>
+                            <button onClick={handleSave} className="flex-1 py-3 bg-blue-500 text-white font-bold rounded-xl">Criar Login</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── COMPONENTE PRINCIPAL ─────────────────────────────────────
 export default function OSPage() {
-    const [view, setView] = useState('calendar');
+    const [view, setView] = useState('calendar'); // calendar, map, clients, technicians
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
     const [tasks, setTasks] = useState([]);
     const [clients, setClients] = useState([]);
@@ -106,73 +258,126 @@ export default function OSPage() {
             setTasks(t.data); setClients(c.data); setTechnicians(te.data); setStats(s.data);
         } catch (e) { console.error(e); } finally { setLoading(false); }
     }, [currentMonth]);
-
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
     if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#25D366]" size={40} /></div>;
 
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div>
-                    <h2 className="text-4xl font-bold text-white flex items-center gap-3"><ClipboardList className="text-[#25D366]" size={36} /> Painel OS</h2>
-                    <p className="text-slate-400">Controle total de serviços e técnicos.</p>
-                </div>
-                <div className="flex gap-3">
-                    <div className="bg-[#1E293B] p-1 rounded-xl flex">
-                        <button onClick={() => setView('calendar')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view === 'calendar' ? 'bg-[#25D366] text-black' : 'text-slate-400'}`}>Calendário</button>
-                        <button onClick={() => setView('map')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view === 'map' ? 'bg-[#25D366] text-black' : 'text-slate-400'}`}>Mapa</button>
-                    </div>
-                    <button onClick={() => setShowTaskModal(true)} className="px-6 py-2 bg-[#25D366] text-black font-extrabold rounded-xl shadow-lg border-2 border-white/10 hover:scale-105 transition-all">NOVA TAREFA</button>
-                </div>
-            </div>
+    const { user } = useAuth();
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[{ l: 'Pendentes', v: stats.pending, c: 'text-white' }, { l: 'Em Execução', v: stats.in_progress, c: 'text-[#25D366]' }, { l: 'Técnicos', v: technicians.length, c: 'text-blue-400' }, { l: 'Concluídas', v: stats.completed, c: 'text-slate-400' }].map((s, i) => (
-                    <div key={i} className="bg-[#1E293B] p-5 rounded-2xl border border-white/5">
-                        <p className="text-xs text-slate-500 font-bold uppercase">{s.l}</p>
-                        <p className={`text-3xl font-black ${s.c} mt-1`}>{s.v || 0}</p>
-                    </div>
-                ))}
-            </div>
-
-            {view === 'calendar' ? (
-                <div className="bg-[#0F172A] border border-white/10 rounded-2xl overflow-hidden">
+    const renderContent = () => {
+        switch (view) {
+            case 'map': return <OSMap technicians={technicians} tasks={tasks} onTaskClick={setDetailTask} />;
+            case 'clients': return <ClientManager clients={clients} onRefresh={fetchAll} />;
+            case 'technicians': return <TechnicianManager technicians={technicians} onRefresh={fetchAll} />;
+            default: return (
+                <div className="bg-[#0F172A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
                     <div className="p-5 border-b border-white/10 flex justify-between items-center bg-[#1E293B]">
-                        <button onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)}><ChevronLeft /></button>
-                        <h3 className="text-xl font-bold text-white">{MONTHS[currentMonth]} 2026</h3>
-                        <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)}><ChevronRight /></button>
+                        <button onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)} className="p-2 hover:bg-white/5 rounded-full transition-all"><ChevronLeft /></button>
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2"><CalendarIcon className="text-[#25D366]" size={20} /> {MONTHS[currentMonth]} 2026</h3>
+                        <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)} className="p-2 hover:bg-white/5 rounded-full transition-all"><ChevronRight /></button>
                     </div>
-                    <div className="grid grid-cols-7">
-                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className="p-3 text-center text-xs font-bold text-slate-600">{d}</div>)}
+                    <div className="grid grid-cols-7 bg-[#0F172A]">
+                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className="p-3 text-center text-xs font-black text-slate-600 uppercase border-b border-white/5">{d}</div>)}
                         {Array.from({ length: 31 }).map((_, i) => (
-                            <div key={i} className="min-h-[100px] border border-white/5 p-2 hover:bg-white/[0.02]">
-                                <div className="text-xs font-bold text-slate-700">{i + 1}</div>
-                                {tasks.filter(t => t.scheduled_date?.endsWith(`-${String(i + 1).padStart(2, '0')}`)).map(t => (
-                                    <div key={t.id} onClick={() => setDetailTask(t)} className="mt-1 px-2 py-1 bg-[#1E293B] border-l-2 border-[#25D366] text-[10px] text-slate-300 rounded cursor-pointer truncate">
-                                        {t.scheduled_time?.slice(0, 5)} {t.client?.name || t.title}
-                                    </div>
-                                ))}
+                            <div key={i} className="min-h-[120px] border-r border-b border-white/5 p-2 hover:bg-white/[0.02] transition-colors">
+                                <div className="text-xs font-bold text-slate-700 mb-1">{i + 1}</div>
+                                <div className="space-y-1">
+                                    {tasks.filter(t => t.scheduled_date?.endsWith(`-${String(i + 1).padStart(2, '0')}`)).map(t => (
+                                        <div key={t.id} onClick={() => setDetailTask(t)} className="px-2 py-1 bg-[#1E293B] border-l-2 border-[#25D366] text-[10px] text-slate-300 rounded cursor-pointer truncate hover:brightness-125 transition-all">
+                                            <span className="font-bold text-white mr-1">{t.scheduled_time?.slice(0, 5)}</span> {t.client?.name || t.title}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
-            ) : (
-                <OSMap technicians={technicians} tasks={tasks} onTaskClick={setDetailTask} />
+            );
+        }
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in pb-20">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                <div>
+                    <h2 className="text-4xl font-black text-white flex items-center gap-4">
+                        <div className="p-3 bg-[#25D366]/10 rounded-2xl"><ClipboardList className="text-[#25D366]" size={36} /></div>
+                        Módulo OS
+                    </h2>
+                    <p className="text-slate-400 mt-1">Gestão inteligente de serviços em campo.</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                    <div className="bg-[#1E293B] p-1.5 rounded-2xl flex border border-white/5">
+                        {[
+                            { id: 'calendar', label: 'Agenda', icon: <CalendarIcon size={16} />, public: true },
+                            { id: 'map', label: 'Mapa', icon: <MapIcon size={16} />, public: true },
+                            { id: 'clients', label: 'Clientes', icon: <Briefcase size={16} />, public: false },
+                            { id: 'technicians', label: 'Técnicos', icon: <Users size={16} />, public: false }
+                        ].filter(t => t.public || user?.role !== 'technician').map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => setView(t.id)}
+                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${view === t.id ? 'bg-[#25D366] text-black shadow-lg shadow-[#25D366]/20' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                {t.icon} {t.label}
+                            </button>
+                        ))}
+                    </div>
+                    {user?.role !== 'technician' && (
+                        <button onClick={() => setShowTaskModal(true)} className="px-8 py-3 bg-[#25D366] text-black font-black rounded-2xl shadow-xl shadow-[#25D366]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                            <Plus size={20} /> NOVA TAREFA
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {view !== 'clients' && view !== 'technicians' && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { l: 'Pendentes', v: stats.pending, c: 'text-white', i: <Clock size={20} /> },
+                        { l: 'Em Execução', v: stats.in_progress, c: 'text-[#25D366]', i: <Play size={20} /> },
+                        { l: 'Técnicos Online', v: stats.online_technicians, c: 'text-blue-400', i: <User size={20} /> },
+                        { l: 'Concluídas Hoje', v: stats.today_completed, c: 'text-slate-400', i: <Square size={20} /> }
+                    ].map((s, i) => (
+                        <div key={i} className="bg-[#1E293B] p-6 rounded-3xl border border-white/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">{s.i}</div>
+                            <p className="text-xs text-slate-500 font-black uppercase tracking-widest">{s.l}</p>
+                            <p className={`text-4xl font-black ${s.c} mt-2`}>{s.v || 0}</p>
+                        </div>
+                    ))}
+                </div>
             )}
 
+            {renderContent()}
+
             {detailTask && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                    <div className="w-full max-w-lg bg-[#1E293B] rounded-2xl p-6 border border-white/10">
-                        <h3 className="text-2xl font-black text-white mb-2">{detailTask.title}</h3>
-                        <p className="text-slate-400 mb-4">{detailTask.address || 'Sem endereço cadastrado'}</p>
-                        <div className="space-y-3">
-                            <div className="flex justify-between p-3 bg-white/5 rounded-xl"><span className="text-slate-500">Status</span><span className="font-bold text-[#25D366]">{detailTask.status}</span></div>
-                            <div className="flex justify-between p-3 bg-white/5 rounded-xl"><span className="text-slate-500">Técnico</span><span className="font-bold">{detailTask.technician?.name || 'Não atribuído'}</span></div>
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+                    <div className="w-full max-w-xl bg-[#0F172A] rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+                        <div className="h-24 bg-gradient-to-r from-blue-600 to-[#25D366] p-6 flex justify-between items-start">
+                            <h3 className="text-2xl font-black text-white leading-tight">{detailTask.title}</h3>
+                            <button onClick={() => setDetailTask(null)} className="p-2 bg-black/20 text-white rounded-full"><X size={20} /></button>
                         </div>
-                        <div className="flex gap-3 mt-8">
-                            <button onClick={() => setDetailTask(null)} className="flex-1 py-3 bg-white/5 font-bold rounded-xl">Fechar</button>
-                            <button className="flex-1 py-3 bg-[#25D366] text-black font-black rounded-xl">Iniciar Serviço</button>
+                        <div className="p-6 space-y-6">
+                            <div className="flex gap-4">
+                                <div className="p-4 bg-white/5 rounded-2xl flex-1">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Cliente</p>
+                                    <p className="font-bold text-white mt-1">{detailTask.client?.name || 'Venda Direta'}</p>
+                                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><MapPin size={12} /> {detailTask.address || 'Sem endereço'}</p>
+                                </div>
+                                <div className="p-4 bg-white/5 rounded-2xl flex-1">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Técnico Atribuído</p>
+                                    <p className="font-bold text-white mt-1">{detailTask.technician?.name || 'Aguardando Técnico'}</p>
+                                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><Clock size={12} /> {detailTask.scheduled_time?.slice(0, 5)}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <p className="text-xs font-bold text-slate-500 uppercase">Ações Rápidas</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button className="py-3 bg-[#25D366] text-black font-black rounded-xl hover:brightness-110 transition-all">Iniciar Check-in</button>
+                                    <button className="py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all">Editar OS</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

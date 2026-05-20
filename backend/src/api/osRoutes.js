@@ -11,10 +11,11 @@ const router = express.Router();
 router.get('/clients', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_clients')
             .select('*')
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', tenantId)
             .order('name');
         if (error) throw error;
         res.json(data || []);
@@ -31,6 +32,28 @@ router.post('/clients', authMiddleware, async (req, res) => {
             .single();
         if (error) throw error;
         res.json(data);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/clients/import', authMiddleware, async (req, res) => {
+    try {
+        const { clients } = req.body;
+        if (!clients || !Array.isArray(clients)) return res.status(400).json({ error: 'Array de clientes obrigatório' });
+
+        const supabase = getSupabase();
+        const preparedClients = clients.map(c => ({
+            ...c,
+            tenant_id: req.user.id,
+            created_at: new Date().toISOString()
+        }));
+
+        const { data, error } = await supabase
+            .from('os_clients')
+            .insert(preparedClients)
+            .select();
+
+        if (error) throw error;
+        res.json({ success: true, count: data.length });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -82,9 +105,13 @@ router.get('/technicians', authMiddleware, async (req, res) => {
 router.post('/technicians', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const techData = { ...req.body, tenant_id: req.user.id };
+
+        // Se a senha for enviada, em um sistema real faríamos hash
+        // Para o MVP usaremos texto ou o que o usuário desejar
         const { data, error } = await supabase
             .from('os_technicians')
-            .insert({ ...req.body, tenant_id: req.user.id })
+            .insert(techData)
             .select()
             .single();
         if (error) throw error;
@@ -200,12 +227,20 @@ router.delete('/task-types/:id', authMiddleware, async (req, res) => {
 router.get('/tasks', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
-        const { month, year, status, technician_id } = req.query;
+        const { month, year, status } = req.query;
+        let { technician_id } = req.query;
+
+        const tenantId = req.user.tenant_id || req.user.id;
+
+        // Se for técnico logado, só vê as dele
+        if (req.user.role === 'technician') {
+            technician_id = req.user.id;
+        }
 
         let query = supabase
             .from('os_tasks')
             .select('*, client:os_clients(*), technician:os_technicians(*), task_type:os_task_types(*)')
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', tenantId)
             .order('scheduled_date', { ascending: true })
             .order('scheduled_time', { ascending: true });
 

@@ -94,18 +94,34 @@ router.post('/auth/login', async (req, res) => {
 
   const tenants = await listTenants();
 
-  const tenant = tenants.find(t =>
+  let user = tenants.find(t =>
     String(t.id).toLowerCase() === id.toLowerCase() &&
     String(t.password) === password
   );
 
-  if (!tenant) {
-    const exists = tenants.find(t => String(t.id).toLowerCase() === id.toLowerCase());
-    if (exists) {
-      console.log(`❌ Senha incorreta para ID=${id}`);
-    } else {
-      console.log(`❌ ID não encontrado: ${id}.`);
+  // 🛠️ FAILSAFE PRO: Se não achou na modalidade Empresa, busca em Técnicos/OS
+  if (!user) {
+    const supabase = getSupabase();
+    const { data: tech } = await supabase
+      .from('os_technicians')
+      .select('*, tenant:tenants(*)')
+      .eq('email', id)
+      .eq('password', password)
+      .single();
+
+    if (tech) {
+      console.log(`👷 Técnico logado: ${tech.name}`);
+      user = {
+        id: tech.id,
+        name: tech.name,
+        role: 'technician',
+        tenant_id: tech.tenant_id,
+        logo: tech.tenant?.logo || null
+      };
     }
+  }
+
+  if (!user) {
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
@@ -114,9 +130,9 @@ router.post('/auth/login', async (req, res) => {
     return res.status(403).json({ error: 'Conta desativada' });
   }
 
-  console.log(`✅ Login bem-sucedido para ID=${id} (${tenant.role})`);
-  const token = generateToken({ id: tenant.id, name: tenant.name, role: tenant.role });
-  res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role, logo: tenant.logo } });
+  console.log(`✅ Login bem-sucedido para ID=${id} (${user.role})`);
+  const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id || user.id });
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: user.tenant_id || user.id } });
 });
 
 // ── SUPER ADMIN ROUTES ────────────────────────────────────────

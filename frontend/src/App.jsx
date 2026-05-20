@@ -26,7 +26,7 @@ function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  const navItems = [
+  let navItems = [
     { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
     { path: '/conversations', name: 'Conversas', icon: <MessageSquare size={20} /> },
@@ -38,6 +38,14 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
+
+  if (user?.role === 'technician') {
+    navItems = [
+      { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
+      { path: '/os', name: 'Minhas Ordens', icon: <ClipboardList size={20} /> },
+      { path: '/settings', name: 'Perfil', icon: <Settings size={20} /> },
+    ];
+  }
 
   if (user?.role === 'superadmin') {
     navItems.push({ path: '/admin', name: 'Super Admin', icon: <ShieldCheck size={20} /> });
@@ -89,8 +97,8 @@ function Sidebar({ isOpen, setIsOpen }) {
                 to={item.path}
                 onClick={() => setIsOpen(false)}
                 className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium ${isActive
-                    ? 'bg-gradient-to-r from-[#25D366]/20 to-transparent text-[#25D366] shadow-[inset_2px_0_0_#25D366]'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-[#25D366]/20 to-transparent text-[#25D366] shadow-[inset_2px_0_0_#25D366]'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
               >
                 <div className={`${isActive ? 'drop-shadow-[0_0_8px_rgba(37,211,102,0.5)]' : ''}`}>
