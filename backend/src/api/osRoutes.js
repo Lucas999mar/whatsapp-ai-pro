@@ -392,8 +392,7 @@ router.post('/tasks/:id/checkin', authMiddleware, async (req, res) => {
             .update({
                 status: 'em_execucao',
                 checkin_at: now,
-                checkin_lat: lat,
-                checkin_lng: lng,
+                location_at_checkin: { lat, lng },
                 updated_at: now
             })
             .eq('id', req.params.id)
@@ -421,8 +420,7 @@ router.post('/tasks/:id/checkout', authMiddleware, async (req, res) => {
         const updateData = {
             status: 'concluida',
             checkout_at: now,
-            checkout_lat: lat,
-            checkout_lng: lng,
+            location_at_checkout: { lat, lng },
             updated_at: now
         };
         if (notes) updateData.notes = notes;
@@ -450,21 +448,27 @@ router.post('/tasks/:id/checkout', authMiddleware, async (req, res) => {
 
 router.post('/tasks/:id/status', authMiddleware, async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, notes, lat, lng } = req.body;
         const supabase = getSupabase();
+        const now = new Date().toISOString();
+
+        const updateData = { status, updated_at: now };
+        if (notes) updateData.notes = notes;
 
         const { data, error } = await supabase
             .from('os_tasks')
-            .update({ status, updated_at: new Date().toISOString() })
+            .update(updateData)
             .eq('id', req.params.id)
             .select()
             .single();
+
         if (error) throw error;
 
         await supabase.from('os_task_events').insert({
             task_id: req.params.id,
             event_type: 'status_change',
-            description: `Status alterado para: ${status}`
+            description: `Status alterado para: ${status}${notes ? ' - Motivo: ' + notes : ''}`,
+            lat, lng
         });
 
         res.json(data);

@@ -63,57 +63,32 @@ export default function Dashboard() {
     }
   };
 
-  if (user?.role === 'technician') {
-    return (
-      <div className="space-y-8 animate-fade-in pb-10">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-4xl font-black text-white tracking-tight">Olá, {user.name} 👋</h2>
-            <p className="text-slate-400 mt-2 text-lg">Aqui estão suas tarefas pendentes para hoje.</p>
-          </div>
-          <Link to="/os" className="bg-[#25D366] text-black px-6 py-3 rounded-2xl font-black shadow-lg shadow-[#25D366]/20 flex items-center gap-2">
-            <ClipboardList size={20} /> VER TODAS
-          </Link>
-        </div>
+  const handleUpdateStatus = async (taskId, status, extra = {}) => {
+    try {
+      if (status === 'em_deslocamento') {
+        await api.post(`/os/tasks/${taskId}/status`, { status });
+      } else if (status === 'em_execucao') {
+        const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej));
+        await api.post(`/os/tasks/${taskId}/checkin`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } else if (status === 'concluida') {
+        const pos = await new Promise((res) => navigator.geolocation.getCurrentPosition(res, () => res({ coords: {} })));
+        await api.post(`/os/tasks/${taskId}/checkout`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+      }
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard icon={<Clock className="text-yellow-400" />} title="Minhas Pendentes" value={myTasks.length} subtext="Aguardando início" />
-          <StatCard icon={<Activity className="text-[#25D366]" />} title="Em Execução" value={myTasks.filter(t => t.status === 'em_execucao').length} subtext="No momento" />
-          <StatCard icon={<CheckCircle className="text-blue-400" />} title="Concluídas" value={stats.os?.completed || 0} subtext="Total acumulado" />
-        </div>
+      // Refresh data
+      const [statsRes, osStatsRes, tasksRes] = await Promise.all([
+        api.get('/stats'),
+        api.get('/os/stats'),
+        api.get('/os/tasks')
+      ]);
+      setStats({ ...statsRes.data, os: osStatsRes.data });
+      setMyTasks(tasksRes.data.filter(t => t.status !== 'concluida'));
+    } catch (err) {
+      alert('Erro ao atualizar status: ' + (err.response?.data?.error || err.message));
+    }
+  };
 
-        <div className="space-y-4">
-          <h3 className="text-xl font-bold text-white">Tarefas Recentes</h3>
-          {myTasks.length === 0 ? (
-            <div className="glass-panel p-10 text-center border-dashed border-2 border-white/5">
-              <p className="text-slate-500">Nenhuma tarefa pendente no momento. Bom descanso!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {myTasks.map(task => (
-                <div key={task.id} className="glass-panel p-6 border border-white/5 hover:border-[#25D366]/30 transition-all group">
-                  <div className="flex justify-between items-start mb-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${task.status === 'pendente' ? 'bg-[#25D366] text-black' : task.status === 'em_deslocamento' ? 'bg-blue-500 text-white' : task.status === 'em_execucao' ? 'bg-yellow-400 text-black' : task.status === 'incompleta' ? 'bg-purple-500 text-white' : 'bg-slate-500 text-white'
-                      }`}>
-                      {task.status.replace('_', ' ')}
-                    </span>
-                    <span className="text-xs text-slate-500 font-bold">{task.scheduled_time?.slice(0, 5)}</span>
-                  </div>
-                  <h4 className="text-xl font-bold text-white mb-1">{task.title}</h4>
-                  <p className="text-sm text-slate-400 flex items-center gap-2 mb-4">
-                    <MapPin size={14} /> {task.address || task.client?.address || 'Sem endereço informado'}
-                  </p>
-                  <Link to="/os" className="w-full block text-center py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-all">
-                    ABRIR DETALHES
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -195,11 +170,25 @@ export default function Dashboard() {
                   <h4 className="text-2xl font-black text-white mb-2">{task.title}</h4>
                   <div className="space-y-2 mb-6">
                     <p className="text-sm text-slate-400 flex items-center gap-2"><MapPin size={16} className="text-[#25D366]" /> {task.address || 'Endereço não informado'}</p>
-                    <p className="text-sm text-slate-400 flex items-center gap-2"><Bot size={16} className="text-blue-400" /> {task.client?.name || 'Cliente Particular'}</p>
+                    <p className="text-sm text-slate-400 flex items-center gap-2"><User size={16} className="text-blue-400" /> {task.client?.name || 'Cliente Particular'}</p>
                   </div>
-                  <Link to="/os" className="w-full block text-center py-4 bg-white/5 hover:bg-[#25D366] hover:text-black rounded-2xl font-black text-sm transition-all shadow-xl">
-                    INICIAR ATENDIMENTO
-                  </Link>
+                  {task.status === 'pendente' || task.status === 'agendada' ? (
+                    <button onClick={() => handleUpdateStatus(task.id, 'em_deslocamento')} className="w-full block text-center py-4 bg-blue-500 text-white hover:bg-blue-600 rounded-2xl font-black text-sm transition-all shadow-xl">
+                      🚀 INICIAR DESLOCAMENTO
+                    </button>
+                  ) : task.status === 'em_deslocamento' ? (
+                    <button onClick={() => handleUpdateStatus(task.id, 'em_execucao')} className="w-full block text-center py-4 bg-yellow-400 text-black hover:bg-yellow-500 rounded-2xl font-black text-sm transition-all shadow-xl">
+                      📍 FAZER CHECK-IN
+                    </button>
+                  ) : task.status === 'em_execucao' ? (
+                    <button onClick={() => handleUpdateStatus(task.id, 'concluida')} className="w-full block text-center py-4 bg-[#25D366] text-black hover:bg-[#25D366]/80 rounded-2xl font-black text-sm transition-all shadow-xl">
+                      ✅ CONCLUIR SERVIÇO
+                    </button>
+                  ) : (
+                    <Link to="/os" className="w-full block text-center py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-sm transition-all">
+                      VER DETALHES
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>

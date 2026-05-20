@@ -486,8 +486,8 @@ export default function OSPage() {
                                                 alert('Endereço ou localização do cliente não encontrados!');
                                             }
 
-                                            // 2. Atualizar Status para "em_deslocamento" sem esperar (para a bolinha já mudar)
-                                            api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' }).then(() => {
+                                            // 2. Atualizar Status para "em_deslocamento" usando endpoint especializado para gravar log
+                                            api.post(`/os/tasks/${detailTask.id}/status`, { status: 'em_deslocamento' }).then(() => {
                                                 setDetailTask(null);
                                                 fetchAll();
                                             }).catch(console.error);
@@ -505,7 +505,7 @@ export default function OSPage() {
                                         <button onClick={() => {
                                             if (!navigator.geolocation) return alert('Geolocalização indisponível.');
                                             navigator.geolocation.getCurrentPosition(async (pos) => {
-                                                await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_execucao', lat: pos.coords.latitude, lng: pos.coords.longitude });
+                                                await api.post(`/os/tasks/${detailTask.id}/checkin`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
                                                 if (user?.role === 'technician') await api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
                                                 setDetailTask(null); fetchAll();
                                             }, () => alert('Permita o acesso à localização para fazer Check-in!'));
@@ -514,12 +514,17 @@ export default function OSPage() {
                                         </button>
                                     ) : detailTask.status === 'em_execucao' || detailTask.status === 'incompleta' ? (
                                         <>
-                                            <button onClick={async () => { await api.put(`/os/tasks/${detailTask.id}`, { status: 'concluida' }); setDetailTask(null); fetchAll(); }} className="py-3 bg-slate-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center">
+                                            <button onClick={async () => {
+                                                const lat = await new Promise(res => navigator.geolocation.getCurrentPosition(p => res(p.coords.latitude), () => res(null)));
+                                                const lng = await new Promise(res => navigator.geolocation.getCurrentPosition(p => res(p.coords.longitude), () => res(null)));
+                                                await api.post(`/os/tasks/${detailTask.id}/checkout`, { lat, lng });
+                                                setDetailTask(null); fetchAll();
+                                            }} className="py-3 bg-slate-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center">
                                                 <Square size={18} /> Concluir OS
                                             </button>
                                             <button onClick={async () => {
                                                 const notes = prompt('Descreva o que faltou ou qual a pendência:');
-                                                if (notes) { await api.put(`/os/tasks/${detailTask.id}`, { status: 'incompleta', notes }); setDetailTask(null); fetchAll(); }
+                                                if (notes) { await api.post(`/os/tasks/${detailTask.id}/status`, { status: 'incompleta', notes }); setDetailTask(null); fetchAll(); }
                                             }} className="py-3 bg-purple-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center">
                                                 <Edit size={18} /> Reportar Pendência
                                             </button>
