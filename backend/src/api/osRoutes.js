@@ -293,7 +293,11 @@ router.get('/tasks/unscheduled', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
         const { data, error } = await supabase
             .from('os_tasks')
-            .select('*, client:os_clients(*), technician:os_technicians(*), task_type:os_task_types(*)')
+            .select(`
+                *,
+                client:os_clients(id, name),
+                technician:os_technicians(id, name, email)
+            `)
             .eq('tenant_id', req.user.id)
             .is('scheduled_date', null)
             .order('created_at', { ascending: false });
@@ -311,7 +315,11 @@ router.post('/tasks', authMiddleware, async (req, res) => {
         const { data, error } = await supabase
             .from('os_tasks')
             .insert(taskData)
-            .select('*, client:os_clients(*), technician:os_technicians(*), task_type:os_task_types(*)')
+            .select(`
+                *,
+                client:os_clients(id, name),
+                technician:os_technicians(id, name, email)
+            `)
             .single();
         if (error) throw error;
 
@@ -335,7 +343,11 @@ router.put('/tasks/:id', authMiddleware, async (req, res) => {
             .update({ ...req.body, updated_at: new Date().toISOString() })
             .eq('id', req.params.id)
             .eq('tenant_id', tenantId)
-            .select('*, client:os_clients(*), technician:os_technicians(*), task_type:os_task_types(*)')
+            .select(`
+                *,
+                client:os_clients(id, name),
+                technician:os_technicians(id, name, email)
+            `)
             .single();
         if (error) throw error;
         res.json(data);

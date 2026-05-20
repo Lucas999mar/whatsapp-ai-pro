@@ -106,9 +106,9 @@ router.post('/auth/login', async (req, res) => {
   if (!user) {
     const supabase = getSupabase();
     // Busca técnico pelo email (case-insensitive)
-    let { data: tech } = await supabase
+    let { data: tech, error: err1 } = await supabase
       .from('os_technicians')
-      .select('*, tenant:tenants(*)')
+      .select('*')
       .ilike('email', loginId)
       .eq('password', password)
       .single();
@@ -117,7 +117,7 @@ router.post('/auth/login', async (req, res) => {
       // Tenta fallback com a coluna 'senha'
       const { data: techSenha } = await supabase
         .from('os_technicians')
-        .select('*, tenant:tenants(*)')
+        .select('*')
         .ilike('email', loginId)
         .eq('senha', password)
         .single();
@@ -130,8 +130,8 @@ router.post('/auth/login', async (req, res) => {
         id: tech.id,
         name: tech.name,
         role: 'technician',
-        tenant_id: tech.tenant_id,
-        logo: tech.tenant?.logo || null
+        tenant_id: tech.tenant_id || tech.id_do_inquilino,
+        logo: null
       };
     }
   }
