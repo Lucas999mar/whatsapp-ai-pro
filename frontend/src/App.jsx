@@ -9,7 +9,6 @@ import {
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import KnowledgeBase from './pages/KnowledgeBase';
-import Conversations from './pages/Conversations';
 import LearningPage from './pages/LearningPage';
 import SettingsPage from './pages/SettingsPage';
 import SuperAdmin from './pages/SuperAdmin';
@@ -21,6 +20,8 @@ import MarketingPage from './pages/MarketingPage';
 import CreativeCenter from './pages/CreativeCenter';
 import IntegrationsPage from './pages/IntegrationsPage';
 import OSPage from './pages/OSPage';
+import AtendimentoPage from './pages/AtendimentoPage';
+import CRMPage from './pages/CRMPage';
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -28,8 +29,9 @@ function Sidebar({ isOpen, setIsOpen }) {
 
   let navItems = [
     { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
+    { path: '/atendimento', name: 'Atendimento', icon: <MessageSquare size={20} /> },
+    { path: '/crm', name: 'CRM Kanban', icon: <LayoutDashboard size={20} /> },
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
-    { path: '/conversations', name: 'Conversas', icon: <MessageSquare size={20} /> },
     { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
@@ -42,6 +44,7 @@ function Sidebar({ isOpen, setIsOpen }) {
   if (user?.role === 'technician') {
     navItems = [
       { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
+      { path: '/atendimento', name: 'Minhas Conversas', icon: <MessageSquare size={20} /> },
       { path: '/os', name: 'Minhas Ordens', icon: <ClipboardList size={20} /> },
       { path: '/settings', name: 'Perfil', icon: <Settings size={20} /> },
     ];
@@ -196,8 +199,9 @@ function AppContent() {
         <div className="relative z-10 max-w-7xl mx-auto">
           <Routes>
             <Route path="/" element={<AuthGuard><Dashboard /></AuthGuard>} />
+            <Route path="/atendimento" element={<AuthGuard><AtendimentoPage /></AuthGuard>} />
+            <Route path="/crm" element={<AuthGuard><CRMPage /></AuthGuard>} />
             <Route path="/knowledge" element={<AuthGuard><KnowledgeBase /></AuthGuard>} />
-            <Route path="/conversations" element={<AuthGuard><Conversations /></AuthGuard>} />
             <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />

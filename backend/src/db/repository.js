@@ -31,23 +31,23 @@ async function listKnowledgeItems(type = null, agentId = null, tenantId = 'defau
 
   const { data, error } = await query;
   if (error) throw error;
-  
+
   let results = data || [];
-  
+
   // Filtra por tenantId e agentId no metadata
   results = results.filter(item => {
     if (tenantId === 'admin') return true;
     const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
     const itemTenantId = meta?.tenantId || 'default';
     if (itemTenantId !== tenantId) return false;
-    
+
     if (agentId && agentId !== 'all') {
       const itemAgentId = meta?.agentId || 'global';
       return itemAgentId === 'global' || itemAgentId === agentId;
     }
     return true;
   });
-  
+
   return results;
 }
 
@@ -56,7 +56,7 @@ async function listKnowledgeItems(type = null, agentId = null, tenantId = 'defau
  */
 async function addKnowledgeItem({ title, type, content, fileUrl, fileName, fileSize, metadata, agentId = 'global', tenantId = 'default' }) {
   const supabase = getSupabase();
-  
+
   let embedding = null;
   if (content && content.trim().length > 10) {
     try {
@@ -98,7 +98,7 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
     .from('knowledge_items')
     .select('id, title, type, content, file_url, metadata, embedding')
     .not('embedding', 'is', null);
-    
+
   if (fetchErr) throw fetchErr;
 
   const dotProduct = (a, b) => a.reduce((sum, val, i) => sum + val * b[i], 0);
@@ -112,16 +112,16 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
       similarity: cosineSimilarity(itemEmbedding, embedding)
     };
   })
-  .filter(item => {
-    const itemTenantId = item.metadata?.tenantId || 'default';
-    if (itemTenantId !== tenantId) return false;
+    .filter(item => {
+      const itemTenantId = item.metadata?.tenantId || 'default';
+      if (itemTenantId !== tenantId) return false;
 
-    const itemAgentId = item.metadata?.agentId || 'global';
-    const isOwner = itemAgentId === 'global' || itemAgentId === agentId;
-    return isOwner && item.similarity > 0.3;
-  })
-  .sort((a, b) => b.similarity - a.similarity)
-  .slice(0, topK);
+      const itemAgentId = item.metadata?.agentId || 'global';
+      const isOwner = itemAgentId === 'global' || itemAgentId === agentId;
+      return isOwner && item.similarity > 0.3;
+    })
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, topK);
 
   return results;
 }
@@ -131,7 +131,7 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
  */
 async function deleteKnowledgeItem(id, tenantId) {
   const supabase = getSupabase();
-  
+
   // Primeiro busca para validar o tenant
   const { data: item } = await supabase
     .from('knowledge_items')
@@ -148,12 +148,9 @@ async function deleteKnowledgeItem(id, tenantId) {
   if (error) throw error;
 }
 
-/**
- * Salva mensagem (com tenantId no whatsappId)
- */
 async function saveConversationMessage({ whatsappId, userName, role, content, contentType = 'text', mediaUrl, userPhoto, knowledgeUsed, tokensUsed }) {
   const supabase = getSupabase();
-  
+
   // whatsappId aqui já deve vir como tenantId__phone__agentId
   const insertData = {
     whatsapp_id: whatsappId,
@@ -168,7 +165,7 @@ async function saveConversationMessage({ whatsappId, userName, role, content, co
   };
 
   let { error } = await supabase.from('conversations').insert(insertData);
-  
+
   if (error && error.message.includes("Could not find the 'user_photo' column")) {
     console.warn('⚠️ Coluna user_photo não encontrada, salvando sem foto.');
     delete insertData.user_photo;
@@ -183,6 +180,37 @@ async function saveConversationMessage({ whatsappId, userName, role, content, co
   }
 
   if (error) console.error('Erro ao salvar conversa:', error.message);
+
+  // 🏥 NOVO: Sincroniza com crm_tickets (O Hub de Atendimento)
+  try {
+    const tenantId = whatsappId.split('__')[0] || 'default';
+    await supabase.from('crm_tickets').upsert({
+      tenant_id: tenantId,
+      whatsapp_id: whatsappId,
+      contact_name: userName || undefined,
+      contact_photo: userPhoto || undefined,
+      last_message: content,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'whatsapp_id' });
+  } catch (e) {
+    console.warn('⚠️ Falha ao sincronizar ticket CRM:', e.message);
+  }
+}
+
+/**
+ * Atualiza status e responsável de um ticket
+ */
+async function updateTicketStatus(ticketId, status, userId = null) {
+  const supabase = getSupabase();
+  const updateData = { status, updated_at: new Date().toISOString() };
+  if (userId) updateData.assigned_user_id = userId;
+
+  const { error } = await supabase
+    .from('crm_tickets')
+    .update(updateData)
+    .eq('id', ticketId);
+
+  if (error) throw error;
 }
 
 /**
@@ -226,7 +254,7 @@ async function getStats(tenantId = 'default') {
 
   const [knowledgeRes, conversationsRes, learnRes] = await Promise.all([
     supabase.from('knowledge_items').select('id, type, metadata'),
-    tenantId === 'admin' 
+    tenantId === 'admin'
       ? supabase.from('conversations').select('id, whatsapp_id')
       : supabase.from('conversations').select('id, whatsapp_id').like('whatsapp_id', `${tenantId}__%`),
     supabase.from('learnings').select('id, metadata'),
@@ -251,7 +279,7 @@ async function getStats(tenantId = 'default') {
     audio: 0,
     video: 0
   };
-  
+
   knowledgeFiltered.forEach(item => {
     typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
   });
@@ -279,7 +307,7 @@ async function getStats(tenantId = 'default') {
 async function addLearning({ title, content, type = 'auto', metadata = {} }) {
   const supabase = getSupabase();
   const tenantId = metadata.tenantId || 'default';
-  
+
   let embedding = null;
   try {
     embedding = await generateEmbedding(content);
@@ -362,9 +390,9 @@ async function listAgents(tenantId = null) {
     const supabase = getSupabase();
     let query = supabase.from('agents').select('*');
     if (tenantId) query = query.eq('tenant_id', tenantId);
-    
+
     const { data, error } = await query;
-    
+
     if (!error && data && data.length > 0) {
       // Mapeia snake_case do banco para camelCase do app
       return data.map(a => ({
@@ -396,7 +424,7 @@ async function listAgents(tenantId = null) {
 async function getBotSettings(agentId = 'default', tenantId = 'default') {
   const agents = await listAgents(tenantId);
   const agent = agents.find(a => a.id === agentId);
-  
+
   const defaultSettings = {
     bot_name: 'Assistente',
     system_prompt: 'Você é um assistente amigável.',
@@ -495,5 +523,6 @@ module.exports = {
   listFollowUps,
   addFollowUp,
   updateFollowUpStatus,
-  deleteFollowUp
+  deleteFollowUp,
+  updateTicketStatus
 };

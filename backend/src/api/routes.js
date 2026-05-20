@@ -549,4 +549,8 @@ router.get('/google/callback', async (req, res) => {
 const osRouter = require('./osRoutes');
 router.use('/os', osRouter);
 
+// ── CRM & KANBAN ROUTES ───────────────────────────────────────
+const crmRouter = require('./crmRoutes');
+router.use('/crm', crmRouter);
+
 module.exports = router;
