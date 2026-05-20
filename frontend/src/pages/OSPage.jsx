@@ -363,12 +363,17 @@ export default function OSPage() {
                                     <div className="text-xs font-bold text-slate-700 mb-1">{day}</div>
                                     <div className="space-y-1">
                                         {dayTasks.map(t => (
-                                            <div key={t.id} onClick={() => setDetailTask(t)} className="px-2 py-1 bg-[#1E293B] border-l-2 border-[#25D366] text-[10px] text-slate-300 rounded cursor-pointer truncate hover:brightness-125 transition-all">
+                                            <div key={t.id} onClick={() => setDetailTask(t)} className={`px-2 py-1 bg-[#1E293B] border-l-2 text-[10px] text-slate-300 rounded cursor-pointer truncate hover:brightness-125 transition-all ${t.status === 'pendente' ? 'border-[#25D366]' : t.status === 'em_deslocamento' ? 'border-blue-500' : t.status === 'em_execucao' ? 'border-yellow-400' : t.status === 'concluida' ? 'border-slate-500' : t.status === 'incompleta' ? 'border-purple-500' : 'border-slate-400'
+                                                }`}>
                                                 <span className="font-bold text-white mr-1">{t.scheduled_time?.slice(0, 5)}</span> {t.client?.name || t.title}
                                             </div>
                                         ))}
                                     </div>
-                                    {dayTasks.length > 0 && <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#25D366] rounded-full shadow-[0_0_5px_#25D366]"></div>}
+                                    {dayTasks.length > 0 && <div className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor] ${dayTasks.some(t => t.status === 'em_execucao') ? 'bg-yellow-400 text-yellow-400' :
+                                            dayTasks.some(t => t.status === 'em_deslocamento') ? 'bg-blue-500 text-blue-500' :
+                                                dayTasks.some(t => t.status === 'incompleta') ? 'bg-purple-500 text-purple-500' :
+                                                    dayTasks.some(t => t.status === 'pendente') ? 'bg-[#25D366] text-[#25D366]' : 'bg-slate-500 text-slate-500'
+                                        }`}></div>}
                                 </div>
                             );
                         })}
@@ -460,12 +465,22 @@ export default function OSPage() {
                                 <p className="text-xs font-bold text-slate-500 uppercase">Ações Rápidas do Técnico</p>
                                 <div className="grid grid-cols-2 gap-3">
                                     {detailTask.status === 'pendente' || detailTask.status === 'agendada' ? (
-                                        <button onClick={async () => {
-                                            await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' });
-                                            const lat = detailTask.lat || detailTask.client?.lat;
-                                            const lng = detailTask.lng || detailTask.client?.lng;
-                                            if (lat && lng) window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
-                                            setDetailTask(null); fetchAll();
+                                        <button onClick={() => {
+                                            const proceedDeslocamento = async () => {
+                                                await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' });
+                                                const lat = detailTask.lat || detailTask.client?.lat;
+                                                const lng = detailTask.lng || detailTask.client?.lng;
+                                                const addr = detailTask.address || detailTask.client?.address;
+                                                if (lat && lng) window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                                                else if (addr) window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`, '_blank');
+                                                setDetailTask(null); fetchAll();
+                                            };
+                                            if (navigator.geolocation) {
+                                                navigator.geolocation.getCurrentPosition(async (pos) => {
+                                                    if (user?.role === 'technician') await api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+                                                    proceedDeslocamento();
+                                                }, () => proceedDeslocamento());
+                                            } else { proceedDeslocamento(); }
                                         }} className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
                                             <MapIcon size={18} /> Iniciar Deslocamento (A Caminho)
                                         </button>
