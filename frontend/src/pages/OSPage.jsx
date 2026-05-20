@@ -324,19 +324,35 @@ export default function OSPage() {
                         <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)} className="p-2 hover:bg-white/5 rounded-full transition-all"><ChevronRight /></button>
                     </div>
                     <div className="grid grid-cols-7 bg-[#0F172A]">
-                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className="p-3 text-center text-xs font-black text-slate-600 uppercase border-b border-white/5">{d}</div>)}
-                        {Array.from({ length: 31 }).map((_, i) => (
-                            <div key={i} className="min-h-[120px] border-r border-b border-white/5 p-2 hover:bg-white/[0.02] transition-colors">
-                                <div className="text-xs font-bold text-slate-700 mb-1">{i + 1}</div>
-                                <div className="space-y-1">
-                                    {tasks.filter(t => t.scheduled_date?.endsWith(`-${String(i + 1).padStart(2, '0')}`)).map(t => (
-                                        <div key={t.id} onClick={() => setDetailTask(t)} className="px-2 py-1 bg-[#1E293B] border-l-2 border-[#25D366] text-[10px] text-slate-300 rounded cursor-pointer truncate hover:brightness-125 transition-all">
-                                            <span className="font-bold text-white mr-1">{t.scheduled_time?.slice(0, 5)}</span> {t.client?.name || t.title}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className="p-3 text-center text-[10px] font-black text-slate-600 uppercase border-b border-white/5">{d}</div>)}
+
+                        {/* Espaços vazios para alinhar o dia 1 */}
+                        {Array.from({ length: new Date(2026, currentMonth, 1).getDay() }).map((_, i) => (
+                            <div key={`empty-${i}`} className="min-h-[120px] border-r border-b border-white/5 bg-black/10"></div>
                         ))}
+
+                        {Array.from({ length: new Date(2026, currentMonth + 1, 0).getDate() }).map((_, i) => {
+                            const day = i + 1;
+                            const dayTasks = tasks.filter(t => {
+                                if (!t.scheduled_date) return false;
+                                const tDate = new Date(t.scheduled_date + 'T00:00:00');
+                                return tDate.getDate() === day && tDate.getMonth() === currentMonth;
+                            });
+
+                            return (
+                                <div key={day} className="min-h-[120px] border-r border-b border-white/5 p-2 hover:bg-white/[0.02] transition-colors relative group">
+                                    <div className="text-xs font-bold text-slate-700 mb-1">{day}</div>
+                                    <div className="space-y-1">
+                                        {dayTasks.map(t => (
+                                            <div key={t.id} onClick={() => setDetailTask(t)} className="px-2 py-1 bg-[#1E293B] border-l-2 border-[#25D366] text-[10px] text-slate-300 rounded cursor-pointer truncate hover:brightness-125 transition-all">
+                                                <span className="font-bold text-white mr-1">{t.scheduled_time?.slice(0, 5)}</span> {t.client?.name || t.title}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {dayTasks.length > 0 && <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#25D366] rounded-full shadow-[0_0_5px_#25D366]"></div>}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             );
