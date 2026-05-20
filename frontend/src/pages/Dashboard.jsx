@@ -93,7 +93,7 @@ export default function Dashboard() {
               {myTasks.map(task => (
                 <div key={task.id} className="glass-panel p-6 border border-white/5 hover:border-[#25D366]/30 transition-all group">
                   <div className="flex justify-between items-start mb-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${task.status === 'em_execucao' ? 'bg-[#25D366] text-black' : 'bg-white/5 text-slate-400'
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${task.status === 'pendente' ? 'bg-[#25D366] text-black' : task.status === 'em_deslocamento' ? 'bg-blue-500 text-white' : task.status === 'em_execucao' ? 'bg-yellow-400 text-black' : task.status === 'incompleta' ? 'bg-purple-500 text-white' : 'bg-slate-500 text-white'
                       }`}>
                       {task.status.replace('_', ' ')}
                     </span>

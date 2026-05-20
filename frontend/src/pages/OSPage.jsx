@@ -15,8 +15,9 @@ let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSiz
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const PRIORITY_COLORS = { baixa: 'bg-blue-500', media: 'bg-yellow-500', alta: 'bg-orange-500', urgente: 'bg-red-500' };
-const STATUS_LABELS = { pendente: 'Pendente', agendada: 'Agendada', em_deslocamento: 'Em Deslocamento', em_execucao: 'Em Execução', concluida: 'Concluída', cancelada: 'Cancelada' };
-const STATUS_COLORS = { pendente: 'text-slate-400', agendada: 'text-blue-400', em_deslocamento: 'text-yellow-400', em_execucao: 'text-orange-400', concluida: 'text-green-400', cancelada: 'text-red-400' };
+const STATUS_LABELS = { pendente: 'Pendente', agendada: 'Agendada', em_deslocamento: 'A Caminho', em_execucao: 'Fazendo', concluida: 'Concluída', cancelada: 'Cancelada', incompleta: 'Pendente/Incompleta' };
+const STATUS_COLORS = { pendente: 'text-[#25D366]', agendada: 'text-[#25D366]', em_deslocamento: 'text-blue-500', em_execucao: 'text-yellow-400', concluida: 'text-slate-500', cancelada: 'text-red-500', incompleta: 'text-purple-500' };
+const STATUS_BG = { pendente: 'bg-[#25D366]', agendada: 'bg-[#25D366]', em_deslocamento: 'bg-blue-500', em_execucao: 'bg-yellow-400', concluida: 'bg-slate-500', cancelada: 'bg-red-500', incompleta: 'bg-purple-500' };
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 // ── COMPONENTE: Mapa ──────────────────────────────────────────
@@ -434,8 +435,11 @@ export default function OSPage() {
             {detailTask && (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
                     <div className="w-full max-w-xl bg-[#0F172A] rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                        <div className="h-24 bg-gradient-to-r from-blue-600 to-[#25D366] p-6 flex justify-between items-start">
-                            <h3 className="text-2xl font-black text-white leading-tight">{detailTask.title}</h3>
+                        <div className={`h-24 bg-gradient-to-r ${detailTask.status === 'incompleta' ? 'from-purple-600 to-purple-400' : detailTask.status === 'em_deslocamento' ? 'from-blue-600 to-blue-400' : detailTask.status === 'em_execucao' ? 'from-yellow-600 to-yellow-400' : detailTask.status === 'concluida' ? 'from-slate-600 to-slate-400' : 'from-[#25D366] to-green-400'} p-6 flex justify-between items-start`}>
+                            <div>
+                                <h3 className={`text-2xl font-black ${detailTask.status === 'em_execucao' ? 'text-black' : 'text-white'} leading-tight`}>{detailTask.title}</h3>
+                                <p className={`text-xs font-bold uppercase mt-1 px-2 py-0.5 rounded-full inline-block ${detailTask.status === 'em_execucao' ? 'bg-black/20 text-black' : 'bg-white/20 text-white'}`}>{STATUS_LABELS[detailTask.status] || 'Pendente'}</p>
+                            </div>
                             <button onClick={() => setDetailTask(null)} className="p-2 bg-black/20 text-white rounded-full"><X size={20} /></button>
                         </div>
                         <div className="p-6 space-y-6">
@@ -453,51 +457,70 @@ export default function OSPage() {
                             </div>
 
                             <div className="space-y-3">
-                                <p className="text-xs font-bold text-slate-500 uppercase">Ações Rápidas</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase">Ações Rápidas do Técnico</p>
                                 <div className="grid grid-cols-2 gap-3">
-                                    {detailTask.status === 'em_execucao' ? (
-                                        <button
-                                            onClick={async () => { await api.put(`/os/tasks/${detailTask.id}`, { status: 'concluida' }); setDetailTask(null); fetchAll(); }}
-                                            className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all flex justify-center gap-2 items-center"
-                                        >
-                                            <Square size={18} /> Finalizar Tarefa
+                                    {detailTask.status === 'pendente' || detailTask.status === 'agendada' ? (
+                                        <button onClick={async () => {
+                                            await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' });
+                                            const lat = detailTask.lat || detailTask.client?.lat;
+                                            const lng = detailTask.lng || detailTask.client?.lng;
+                                            if (lat && lng) window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                                            setDetailTask(null); fetchAll();
+                                        }} className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                                            <MapIcon size={18} /> Iniciar Deslocamento (A Caminho)
                                         </button>
-                                    ) : (
-                                        <button
-                                            onClick={() => {
-                                                if (!navigator.geolocation) return alert('Geolocalização indisponível.');
-                                                navigator.geolocation.getCurrentPosition(async (pos) => {
-                                                    await api.put(`/os/tasks/${detailTask.id}`, {
-                                                        status: 'em_execucao',
-                                                        lat: pos.coords.latitude,
-                                                        lng: pos.coords.longitude
-                                                    });
-                                                    // Update technician's map location
-                                                    if (user?.role === 'technician') {
-                                                        await api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
-                                                    }
-                                                    setDetailTask(null); fetchAll();
-                                                }, () => alert('Permita o acesso à localização para fazer Check-in!'));
-                                            }}
-                                            className="py-3 bg-[#25D366] text-black font-black rounded-xl hover:brightness-110 transition-all flex justify-center gap-2 items-center"
-                                        >
-                                            <MapPin size={18} /> Fazer Check-in (GPS)
+                                    ) : detailTask.status === 'em_deslocamento' ? (
+                                        <button onClick={() => {
+                                            if (!navigator.geolocation) return alert('Geolocalização indisponível.');
+                                            navigator.geolocation.getCurrentPosition(async (pos) => {
+                                                await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_execucao', lat: pos.coords.latitude, lng: pos.coords.longitude });
+                                                if (user?.role === 'technician') await api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+                                                setDetailTask(null); fetchAll();
+                                            }, () => alert('Permita o acesso à localização para fazer Check-in!'));
+                                        }} className="col-span-2 py-3 bg-yellow-400 text-black font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center shadow-[0_0_15px_rgba(250,204,21,0.5)]">
+                                            <MapPin size={18} /> Cheguei no Local (Fazer Check-in)
                                         </button>
-                                    )}
-                                    <button
-                                        onClick={() => { setDetailTask(null); setShowTaskModal(detailTask); }}
-                                        className={`${detailTask.status === 'em_execucao' ? 'hidden' : ''} py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all flex justify-center gap-2 items-center`}
-                                    >
-                                        <Edit size={18} /> Editar OS
-                                    </button>
-                                    {user?.role !== 'technician' && (
-                                        <button
-                                            onClick={async () => { if (confirm('Excluir OS?')) { await api.delete(`/os/tasks/${detailTask.id}`); setDetailTask(null); fetchAll(); } }}
-                                            className="col-span-2 py-3 bg-red-500/10 text-red-500 font-bold rounded-xl hover:bg-red-500/20 transition-all flex justify-center gap-2 items-center"
-                                        >
-                                            <X size={18} /> Excluir OS
+                                    ) : detailTask.status === 'em_execucao' || detailTask.status === 'incompleta' ? (
+                                        <>
+                                            <button onClick={async () => { await api.put(`/os/tasks/${detailTask.id}`, { status: 'concluida' }); setDetailTask(null); fetchAll(); }} className="py-3 bg-slate-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center">
+                                                <Square size={18} /> Concluir OS
+                                            </button>
+                                            <button onClick={async () => {
+                                                const notes = prompt('Descreva o que faltou ou qual a pendência:');
+                                                if (notes) { await api.put(`/os/tasks/${detailTask.id}`, { status: 'incompleta', notes }); setDetailTask(null); fetchAll(); }
+                                            }} className="py-3 bg-purple-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center">
+                                                <Edit size={18} /> Reportar Pendência
+                                            </button>
+                                        </>
+                                    ) : null}
+
+                                    {/* Edição e Exclusão (Admin) */}
+                                    <div className="col-span-2 grid grid-cols-2 gap-3 mt-4 border-t border-white/10 pt-4">
+                                        <button onClick={() => { setDetailTask(null); setShowTaskModal(detailTask); }} className="py-3 bg-white/5 text-slate-300 font-bold rounded-xl hover:bg-white/10 flex justify-center gap-2 items-center">
+                                            <Edit size={18} /> Editar OS Genérica
                                         </button>
-                                    )}
+                                        <button onClick={async () => {
+                                            const fileInput = document.createElement('input');
+                                            fileInput.type = 'file'; fileInput.accept = 'image/*';
+                                            fileInput.onchange = () => alert('Aguardando bucket Storage (Em breve)');
+                                            fileInput.click();
+                                        }} className="py-3 bg-white/5 text-slate-300 font-bold rounded-xl hover:bg-white/10 flex justify-center gap-2 items-center">
+                                            📸 Anexar Foto/Laudo
+                                        </button>
+
+                                        {detailTask.notes && (
+                                            <div className="col-span-2 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl relative">
+                                                <p className="text-[10px] text-purple-400 font-black uppercase mb-1">Motivo da Pendência</p>
+                                                <p className="text-white text-sm">{detailTask.notes}</p>
+                                            </div>
+                                        )}
+
+                                        {user?.role !== 'technician' && (
+                                            <button onClick={async () => { if (confirm('Excluir OS?')) { await api.delete(`/os/tasks/${detailTask.id}`); setDetailTask(null); fetchAll(); } }} className="col-span-2 py-3 bg-red-500/10 text-red-500 font-bold rounded-xl hover:bg-red-500/20 flex justify-center gap-2 items-center">
+                                                <X size={18} /> Excluir Definitivamente
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
