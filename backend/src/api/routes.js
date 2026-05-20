@@ -88,9 +88,9 @@ router.post('/auth/login', async (req, res) => {
   console.log(`🔑 Tentativa de login: ID=${loginId}`);
 
   // 🛡️ SUPER FAILSAFE: Bypass total antes de qualquer consulta a banco ou arquivo
-  if (loginId.toLowerCase() === 'admin' && password === 'admin') {
+  if (loginId.toLowerCase() === 'mathias' && password === '198236') {
     console.log('🛡️ Login via SUPER FAILSAFE (Bypass)');
-    const tenant = { id: 'admin', name: 'Super Admin', role: 'superadmin', status: 'active' };
+    const tenant = { id: 'mathias', name: 'Mathias', role: 'superadmin', status: 'active' };
     const token = generateToken({ id: tenant.id, name: tenant.name, role: tenant.role });
     return res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role } });
   }
