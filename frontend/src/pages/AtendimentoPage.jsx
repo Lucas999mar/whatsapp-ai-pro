@@ -22,7 +22,7 @@ export default function AtendimentoPage() {
 
     useEffect(() => {
         fetchChats();
-        const interval = setInterval(fetchChats, 5000);
+        const interval = setInterval(fetchChats, 3000);
         return () => clearInterval(interval);
     }, [tab]);
 
@@ -54,6 +54,8 @@ export default function AtendimentoPage() {
     useEffect(() => {
         if (activeChat) {
             fetchMessages(activeChat.id);
+            const interval = setInterval(() => fetchMessages(activeChat.id), 3000);
+            return () => clearInterval(interval);
         }
     }, [activeChat?.id]);
 

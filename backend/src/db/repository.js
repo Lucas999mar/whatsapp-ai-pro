@@ -184,12 +184,24 @@ async function saveConversationMessage({ whatsappId, userName, role, content, co
   // 🏥 NOVO: Sincroniza com crm_tickets (O Hub de Atendimento)
   try {
     const tenantId = whatsappId.split('__')[0] || 'default';
+
+    // Busca status atual para não sobrescrever 'atendendo'
+    const { data: currentTicket } = await supabase
+      .from('crm_tickets')
+      .select('status')
+      .eq('whatsapp_id', whatsappId)
+      .single();
+
+    let newStatus = currentTicket?.status || 'aguardando';
+    if (role === 'user' && newStatus === 'resolvido') newStatus = 'aguardando';
+
     await supabase.from('crm_tickets').upsert({
       tenant_id: tenantId,
       whatsapp_id: whatsappId,
       contact_name: userName || undefined,
       contact_photo: userPhoto || undefined,
       last_message: content,
+      status: newStatus,
       updated_at: new Date().toISOString()
     }, { onConflict: 'whatsapp_id' });
   } catch (e) {

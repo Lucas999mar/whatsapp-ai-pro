@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS crm_tickets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE DEFAULT 'default',
-  whatsapp_id TEXT NOT NULL,
+  whatsapp_id TEXT NOT NULL UNIQUE,
   status TEXT DEFAULT 'aguardando' CHECK (status IN ('aguardando', 'atendendo', 'resolvido')),
   assigned_user_id TEXT, -- ID do usuário (atendente) do backend
   last_message TEXT,

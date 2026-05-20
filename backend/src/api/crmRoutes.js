@@ -19,6 +19,24 @@ router.get('/tickets', authMiddleware, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Metricas do CRM para o Dashboard
+router.get('/stats', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const { data, error } = await supabase.from('crm_tickets').select('status, created_at');
+        if (error) throw error;
+
+        const stats = {
+            today: data.filter(t => new Date(t.created_at).toDateString() === new Date().toDateString()).length,
+            aguardando: data.filter(t => t.status === 'aguardando').length,
+            atendendo: data.filter(t => t.status === 'atendendo').length,
+            resolvidos: data.filter(t => t.status === 'resolvido').length
+        };
+
+        res.json(stats);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Criar ou atualizar ticket ao receber mensagem (Mock/Internal use)
 router.post('/tickets/sync', authMiddleware, async (req, res) => {
     try {
