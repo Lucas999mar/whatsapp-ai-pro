@@ -107,16 +107,24 @@ router.post('/technicians', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
         const techData = { ...req.body, tenant_id: req.user.id };
 
-        // Se a senha for enviada, em um sistema real faríamos hash
-        // Para o MVP usaremos texto ou o que o usuário desejar
+        console.log('👷 Tentando criar técnico:', techData);
+
         const { data, error } = await supabase
             .from('os_technicians')
             .insert(techData)
             .select()
             .single();
-        if (error) throw error;
+
+        if (error) {
+            console.error('❌ Erro Supabase (Técnicos):', error);
+            throw error;
+        }
+
         res.json(data);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) {
+        console.error('❌ Erro ao criar técnico:', err.message);
+        res.status(500).json({ error: err.message, details: 'Verifique se a tabela os_technicians possui campos como email e password.' });
+    }
 });
 
 router.put('/technicians/:id', authMiddleware, async (req, res) => {

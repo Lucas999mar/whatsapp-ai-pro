@@ -87,13 +87,46 @@ function TaskModal({ isOpen, onClose, onSave, task, clients, technicians, taskTy
 // ── COMPONENTE: Gerenciamento de Clientes ──────────────────────
 function ClientManager({ clients, onRefresh }) {
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ name: '', phone: '', address: '', email: '' });
+    const [form, setForm] = useState({ name: '', phone: '', address: '', email: '', cep: '', lat: null, lng: null });
+    const [searchingCep, setSearchingCep] = useState(false);
+
+    const handleCepSearch = async (cep) => {
+        const cleanCep = cep.replace(/\D/g, '');
+        setForm(f => ({ ...f, cep: cleanCep }));
+
+        if (cleanCep.length === 8) {
+            setSearchingCep(true);
+            try {
+                // 1. Busca Endereço (ViaCEP)
+                const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+                const data = await res.json();
+
+                if (!data.erro) {
+                    const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
+
+                    // 2. Geocodificação (Nominatim)
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`);
+                    const geoData = await geoRes.json();
+
+                    setForm(f => ({
+                        ...f,
+                        address: fullAddress,
+                        lat: geoData[0]?.lat ? parseFloat(geoData[0].lat) : null,
+                        lng: geoData[0]?.lon ? parseFloat(geoData[0].lon) : null
+                    }));
+                }
+            } catch (e) { console.error("Erro CEP:", e); }
+            finally { setSearchingCep(false); }
+        }
+    };
 
     const handleSave = async () => {
-        await api.post('/os/clients', form);
-        setForm({ name: '', phone: '', address: '', email: '' });
-        setShowModal(false);
-        onRefresh();
+        try {
+            await api.post('/os/clients', form);
+            setForm({ name: '', phone: '', address: '', email: '', cep: '', lat: null, lng: null });
+            setShowModal(false);
+            onRefresh();
+        } catch (e) { alert("Erro ao salvar cliente: " + (e.response?.data?.error || e.message)); }
     };
 
     const handleImport = async (e) => {
@@ -156,10 +189,19 @@ function ClientManager({ clients, onRefresh }) {
                     <div className="w-full max-w-md bg-[#0F172A] p-6 rounded-2xl border border-white/10">
                         <h4 className="text-xl font-bold text-white mb-4">Cadastrar Cliente</h4>
                         <div className="space-y-3">
+                            <div className="relative">
+                                <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="CEP (Busca automática)" value={form.cep} onChange={e => handleCepSearch(e.target.value)} maxLength={8} />
+                                {searchingCep && <Loader2 className="absolute right-3 top-3 animate-spin text-[#25D366]" size={20} />}
+                            </div>
                             <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Nome completo" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
                             <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="WhatsApp" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
                             <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Endereço (Rua, Nº, Bairro)" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+                            <textarea className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white min-h-[80px]" placeholder="Endereço (Rua, Nº, Bairro)" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+                            {form.lat && (
+                                <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] text-green-400 font-mono">
+                                    Localização capturada: {form.lat}, {form.lng}
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-white/5 rounded-xl">Cancelar</button>
@@ -178,10 +220,15 @@ function TechnicianManager({ technicians, onRefresh }) {
     const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', color: '#25D366' });
 
     const handleSave = async () => {
-        await api.post('/os/technicians', form);
-        setForm({ name: '', phone: '', email: '', password: '', color: '#25D366' });
-        setShowModal(false);
-        onRefresh();
+        try {
+            await api.post('/os/technicians', form);
+            setForm({ name: '', phone: '', email: '', password: '', color: '#25D366' });
+            setShowModal(false);
+            onRefresh();
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao criar técnico: " + (e.response?.data?.error || e.message));
+        }
     };
 
     return (
