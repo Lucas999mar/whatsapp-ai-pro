@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getSupabase } = require('../db/supabase');
-const authMiddleware = require('../middleware/authMiddleware');
+const { authMiddleware } = require('./auth');
 
 // ── TICKETS (Atendimento) ──────────────────────────────────────
 
