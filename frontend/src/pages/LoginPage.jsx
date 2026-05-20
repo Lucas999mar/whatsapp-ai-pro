@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Bot, Lock, User, Loader2, Sparkles } from 'lucide-react';
 import logoImage from '../assets/logo.png';
 
+import api from '../api/api';
+
 export default function LoginPage() {
   const { login } = useAuth();
   const [id, setId] = useState('');
@@ -18,8 +20,7 @@ export default function LoginPage() {
       await login(id, password);
     } catch (err) {
       console.error('Login error:', err);
-      const backendUrl = api.defaults.baseURL;
-      setError(`${err.response?.data?.error || 'Erro de conexão'} (API: ${backendUrl})`);
+      setError(err.response?.data?.error || 'Credenciais inválidas ou erro de conexão');
     } finally {
       setLoading(false);
     }
@@ -42,7 +43,7 @@ export default function LoginPage() {
 
         <div className="glass-panel p-8 space-y-6 border border-white/10 shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#25D366] to-transparent opacity-50"></div>
-          
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-2">ID da Empresa</label>
@@ -50,11 +51,11 @@ export default function LoginPage() {
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-[#25D366] transition-colors">
                   <User size={18} />
                 </div>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={id}
                   onChange={(e) => setId(e.target.value)}
-                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-white focus:outline-none focus:border-[#25D366]/50 transition-all placeholder-slate-600" 
+                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-white focus:outline-none focus:border-[#25D366]/50 transition-all placeholder-slate-600"
                   placeholder="empresa_exemplo"
                   required
                 />
@@ -67,11 +68,11 @@ export default function LoginPage() {
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-[#25D366] transition-colors">
                   <Lock size={18} />
                 </div>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-white focus:outline-none focus:border-[#25D366]/50 transition-all placeholder-slate-600" 
+                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-white focus:outline-none focus:border-[#25D366]/50 transition-all placeholder-slate-600"
                   placeholder="••••••••"
                   required
                 />
@@ -84,8 +85,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
               className="w-full bg-[#25D366] hover:bg-[#1DA851] text-slate-900 h-14 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(37,211,102,0.3)] hover:shadow-[0_0_30px_rgba(37,211,102,0.5)] flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1 active:translate-y-0 disabled:opacity-70"
             >
