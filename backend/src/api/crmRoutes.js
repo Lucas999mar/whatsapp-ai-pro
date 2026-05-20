@@ -10,7 +10,7 @@ router.get('/tickets', authMiddleware, async (req, res) => {
     try {
         const { status } = req.query;
         const supabase = getSupabase();
-        let query = supabase.from('crm_tickets').select('*');
+        let query = supabase.from('crm_tickets').select('*').eq('tenant_id', req.user.tenant_id || req.user.id);
         if (status) query = query.eq('status', status);
 
         const { data, error } = await query.order('updated_at', { ascending: false });
@@ -23,7 +23,10 @@ router.get('/tickets', authMiddleware, async (req, res) => {
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
-        const { data, error } = await supabase.from('crm_tickets').select('status, created_at');
+        const { data, error } = await supabase
+            .from('crm_tickets')
+            .select('status, created_at')
+            .eq('tenant_id', req.user.tenant_id || req.user.id);
         if (error) throw error;
 
         const stats = {
@@ -46,6 +49,7 @@ router.post('/tickets/sync', authMiddleware, async (req, res) => {
         const { data, error } = await supabase
             .from('crm_tickets')
             .upsert({
+                tenant_id: req.user.tenant_id || req.user.id,
                 whatsapp_id,
                 last_message,
                 contact_name,
@@ -68,10 +72,11 @@ router.post('/tickets/:id/accept', authMiddleware, async (req, res) => {
             .from('crm_tickets')
             .update({
                 status: 'atendendo',
-                assigned_user_id: req.user.id,
+                assigned_user_id: req.user.tenant_id || req.user.id,
                 updated_at: new Date().toISOString()
             })
             .eq('id', req.params.id)
+            .eq('tenant_id', req.user.tenant_id || req.user.id)
             .select()
             .single();
 
@@ -87,7 +92,8 @@ router.post('/tickets/:id/close', authMiddleware, async (req, res) => {
         const { data, error } = await supabase
             .from('crm_tickets')
             .update({ status: 'resolvido', updated_at: new Date().toISOString() })
-            .eq('id', req.params.id);
+            .eq('id', req.params.id)
+            .eq('tenant_id', req.user.tenant_id || req.user.id);
 
         if (error) throw error;
         res.json({ success: true });
@@ -103,6 +109,7 @@ router.put('/tickets/:id/toggle-ai', authMiddleware, async (req, res) => {
             .from('crm_tickets')
             .update({ ai_enabled: enabled, updated_at: new Date().toISOString() })
             .eq('id', req.params.id)
+            .eq('tenant_id', req.user.tenant_id || req.user.id)
             .select()
             .single();
 
@@ -117,8 +124,12 @@ router.post('/tickets/:id/tags', authMiddleware, async (req, res) => {
         const { tag } = req.body;
         const supabase = getSupabase();
 
-        // Busca o card associado ao ticket
-        const { data: ticket } = await supabase.from('crm_tickets').select('whatsapp_id').eq('id', req.params.id).single();
+        // Busca o card associado ao ticket (Garantindo tenant_id)
+        const { data: ticket } = await supabase.from('crm_tickets')
+            .select('whatsapp_id')
+            .eq('id', req.params.id)
+            .eq('tenant_id', req.user.tenant_id || req.user.id)
+            .single();
         if (!ticket) throw new Error('Ticket não encontrado');
 
         const { data: card } = await supabase.from('crm_kanban_cards').select('id, tags').eq('whatsapp_id', ticket.whatsapp_id).single();
@@ -129,7 +140,9 @@ router.post('/tickets/:id/tags', authMiddleware, async (req, res) => {
                 await supabase.from('crm_kanban_cards').update({
                     tags: [...currentTags, tag],
                     updated_at: new Date().toISOString()
-                }).eq('id', card.id);
+                })
+                    .eq('id', card.id)
+                    .eq('tenant_id', req.user.tenant_id || req.user.id);
             }
         }
 
@@ -144,8 +157,8 @@ router.get('/kanban', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
         const [cols, cards] = await Promise.all([
-            supabase.from('crm_kanban_columns').select('*').order('position'),
-            supabase.from('crm_kanban_cards').select('*').order('position')
+            supabase.from('crm_kanban_columns').select('*').eq('tenant_id', req.user.tenant_id || req.user.id).order('position'),
+            supabase.from('crm_kanban_cards').select('*').eq('tenant_id', req.user.tenant_id || req.user.id).order('position')
         ]);
 
         if (cols.error) throw cols.error;
@@ -163,7 +176,8 @@ router.put('/kanban/cards/:id', authMiddleware, async (req, res) => {
         const { data, error } = await supabase
             .from('crm_kanban_cards')
             .update({ column_id, position, updated_at: new Date().toISOString() })
-            .eq('id', req.params.id);
+            .eq('id', req.params.id)
+            .eq('tenant_id', req.user.tenant_id || req.user.id);
 
         if (error) throw error;
         res.json({ success: true });
@@ -177,7 +191,7 @@ router.post('/kanban/cards', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
 
         // Garante que o whatsapp_id siga o padrão tenant__phone__agent
-        const tenantId = req.user.id;
+        const tenantId = req.user.tenant_id || req.user.id;
         const cleanId = whatsapp_id.includes('__') ? whatsapp_id : `${tenantId}__${whatsapp_id.replace(/\D/g, '')}@s.whatsapp.net__default`;
 
         // Cria o ticket primeiro

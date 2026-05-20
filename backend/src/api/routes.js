@@ -275,7 +275,8 @@ router.get('/health', async (req, res) => {
 router.get('/knowledge', authMiddleware, async (req, res) => {
   try {
     const { type, agentId } = req.query;
-    const items = await listKnowledgeItems(type, agentId, req.user.id);
+    const tenantId = req.user.tenant_id || req.user.id;
+    const items = await listKnowledgeItems(type, agentId, tenantId);
     res.json(items);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -291,7 +292,8 @@ router.post('/knowledge/upload', authMiddleware, upload.single('file'), async (r
     if (storageError) throw storageError;
     const fileUrl = supabase.storage.from('knowledge-files').getPublicUrl(filePath).data.publicUrl;
     let type = req.file.mimetype.startsWith('image/') ? 'image' : req.file.mimetype.startsWith('audio/') ? 'audio' : 'document';
-    const item = await addKnowledgeItem({ title: req.body.title || fileName, type, content: `Conteúdo de ${fileName}`, fileUrl, fileName, fileSize: req.file.size, agentId: req.body.agentId || 'global', tenantId: req.user.id });
+    const tenantId = req.user.tenant_id || req.user.id;
+    const item = await addKnowledgeItem({ title: req.body.title || fileName, type, content: `Conteúdo de ${fileName}`, fileUrl, fileName, fileSize: req.file.size, agentId: req.body.agentId || 'global', tenantId });
     fs.unlinkSync(req.file.path);
     res.json(item);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -323,14 +325,16 @@ router.put('/knowledge/:id/agent', authMiddleware, async (req, res) => {
 
 router.get('/conversations', authMiddleware, async (req, res) => {
   try {
-    const items = await listConversations(100, req.user.id);
+    const tenantId = req.user.tenant_id || req.user.id;
+    const items = await listConversations(100, tenantId);
     res.json(items);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
-    const stats = await getStats(req.user.id);
+    const tenantId = req.user.tenant_id || req.user.id;
+    const stats = await getStats(tenantId);
     res.json(stats);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -338,7 +342,8 @@ router.get('/stats', authMiddleware, async (req, res) => {
 router.get('/learnings', authMiddleware, async (req, res) => {
   try {
     const { listLearnings } = require('../db/repository');
-    const items = await listLearnings(req.user.id);
+    const tenantId = req.user.tenant_id || req.user.id;
+    const items = await listLearnings(tenantId);
     res.json(items);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

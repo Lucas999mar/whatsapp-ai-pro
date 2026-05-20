@@ -51,9 +51,10 @@ router.post('/clients/import', authMiddleware, async (req, res) => {
         if (!clients || !Array.isArray(clients)) return res.status(400).json({ error: 'Array de clientes obrigatório' });
 
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const preparedClients = clients.map(c => ({
             ...c,
-            tenant_id: req.user.id,
+            tenant_id: tenantId,
             created_at: new Date().toISOString()
         }));
 
@@ -157,11 +158,12 @@ router.put('/technicians/:id', authMiddleware, async (req, res) => {
 router.delete('/technicians/:id', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { error } = await supabase
             .from('os_technicians')
             .delete()
             .eq('id', req.params.id)
-            .eq('tenant_id', req.user.id);
+            .eq('tenant_id', tenantId);
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -185,10 +187,11 @@ router.post('/technicians/:id/location', authMiddleware, async (req, res) => {
             .eq('id', req.params.id);
 
         // Registra no log de GPS
+        const tenantId = req.user.tenant_id || req.user.id;
         await supabase
             .from('os_gps_logs')
             .insert({
-                tenant_id: req.user.id,
+                tenant_id: tenantId,
                 technician_id: req.params.id,
                 lat, lng, accuracy, battery_level
             });
@@ -204,10 +207,11 @@ router.post('/technicians/:id/location', authMiddleware, async (req, res) => {
 router.get('/task-types', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_task_types')
             .select('*')
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', tenantId)
             .order('name');
         if (error) throw error;
         res.json(data || []);
@@ -231,11 +235,12 @@ router.post('/task-types', authMiddleware, async (req, res) => {
 router.delete('/task-types/:id', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { error } = await supabase
             .from('os_task_types')
             .delete()
             .eq('id', req.params.id)
-            .eq('tenant_id', req.user.id);
+            .eq('tenant_id', tenantId);
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -298,7 +303,7 @@ router.get('/tasks/unscheduled', authMiddleware, async (req, res) => {
                 client:os_clients(id, name),
                 technician:os_technicians(id, name, email)
             `)
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', req.user.tenant_id || req.user.id)
             .is('scheduled_date', null)
             .order('created_at', { ascending: false });
         if (error) throw error;
@@ -379,14 +384,23 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Helper para validar acesso à OS pelo técnico ou empresa
+async function validateTaskAccess(supabase, taskId, user) {
+    const tenantId = user.tenant_id || user.id;
+    const { data, error } = await supabase.from('os_tasks').select('id').eq('id', taskId).eq('tenant_id', tenantId).single();
+    if (error || !data) throw new Error('Acesso negado à esta Ordem de Serviço');
+    return true;
+}
+
 // ── AÇÕES DA OS (Check-in / Check-out / Status) ──────────────
 
 router.post('/tasks/:id/checkin', authMiddleware, async (req, res) => {
     try {
         const { lat, lng } = req.body;
         const supabase = getSupabase();
-        const now = new Date().toISOString();
+        await validateTaskAccess(supabase, req.params.id, req.user);
 
+        const now = new Date().toISOString();
         const { data, error } = await supabase
             .from('os_tasks')
             .update({
@@ -415,6 +429,8 @@ router.post('/tasks/:id/checkout', authMiddleware, async (req, res) => {
     try {
         const { lat, lng, notes, checklist_answers, photos } = req.body;
         const supabase = getSupabase();
+        await validateTaskAccess(supabase, req.params.id, req.user);
+
         const now = new Date().toISOString();
 
         const updateData = {
@@ -450,6 +466,8 @@ router.post('/tasks/:id/status', authMiddleware, async (req, res) => {
     try {
         const { status, notes, lat, lng } = req.body;
         const supabase = getSupabase();
+        await validateTaskAccess(supabase, req.params.id, req.user);
+
         const now = new Date().toISOString();
 
         const updateData = { status, updated_at: now };
