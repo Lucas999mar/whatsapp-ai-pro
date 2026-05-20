@@ -100,39 +100,49 @@ router.post('/auth/login', async (req, res) => {
   );
 
   // 🛠️ FAILSAFE PRO: Se não achou na modalidade Empresa, busca em Técnicos/OS
-  if (!user) {
-    const supabase = getSupabase();
-    const { data: tech } = await supabase
+  // Tenta primeiro o padrão (password), depois fallback (senha)
+  const supabase = getSupabase();
+  let { data: tech } = await supabase
+    .from('os_technicians')
+    .select('*, tenant:tenants(*)')
+    .eq('email', id)
+    .eq('password', password)
+    .single();
+
+  if (!tech) {
+    const { data: techSenha } = await supabase
       .from('os_technicians')
       .select('*, tenant:tenants(*)')
       .eq('email', id)
-      .eq('password', password)
+      .eq('senha', password)
       .single();
-
-    if (tech) {
-      console.log(`👷 Técnico logado: ${tech.name}`);
-      user = {
-        id: tech.id,
-        name: tech.name,
-        role: 'technician',
-        tenant_id: tech.tenant_id,
-        logo: tech.tenant?.logo || null
-      };
-    }
+    tech = techSenha;
   }
+
+  if (tech) {
+    console.log(`👷 Técnico logado: ${tech.name}`);
+    user = {
+      id: tech.id,
+      name: tech.name,
+      role: 'technician',
+      tenant_id: tech.tenant_id,
+      logo: tech.tenant?.logo || null
+    };
+  }
+}
 
   if (!user) {
-    return res.status(401).json({ error: 'Credenciais inválidas' });
-  }
+  return res.status(401).json({ error: 'Credenciais inválidas' });
+}
 
-  if (user.role === 'company' && user.status !== 'active') {
-    console.log(`⚠️ Conta desativada para ID=${id}`);
-    return res.status(403).json({ error: 'Conta desativada' });
-  }
+if (user.role === 'company' && user.status !== 'active') {
+  console.log(`⚠️ Conta desativada para ID=${id}`);
+  return res.status(403).json({ error: 'Conta desativada' });
+}
 
-  console.log(`✅ Login bem-sucedido para ID=${id} (${user.role})`);
-  const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id || user.id });
-  res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: user.tenant_id || user.id } });
+console.log(`✅ Login bem-sucedido para ID=${id} (${user.role})`);
+const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id || user.id });
+res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: user.tenant_id || user.id } });
 });
 
 // ── SUPER ADMIN ROUTES ────────────────────────────────────────
