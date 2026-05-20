@@ -58,12 +58,12 @@ export default function CRMPage() {
   };
 
   const formatNumber = (whatsappId) => {
-    const number = whatsappId.split('__')[1]?.split('@')[0] || whatsappId.split('@')[0];
+    let number = whatsappId.split('__')[1]?.split('@')[0] || whatsappId.split('@')[0];
     let cleaned = number.replace(/\D/g, '');
-    if (cleaned.length > 11 && (cleaned.startsWith('27') || cleaned.startsWith('default'))) {
-      cleaned = cleaned.substring(2);
-    }
-    return cleaned;
+    if (cleaned.length > 11 && cleaned.startsWith('27')) cleaned = cleaned.substring(2);
+    if (cleaned.length === 11 || cleaned.length === 10) cleaned = '55' + cleaned;
+    if (cleaned.length === 13 && cleaned.startsWith('55')) return '+' + cleaned;
+    return '+' + cleaned;
   };
 
   const handleDragStart = (e, cardId) => {
