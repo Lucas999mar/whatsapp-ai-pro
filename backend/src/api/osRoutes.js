@@ -26,14 +26,23 @@ router.post('/clients', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
+        console.log('👤 Criando cliente:', { ...req.body, tenant_id: tenantId });
+
         const { data, error } = await supabase
             .from('os_clients')
             .insert({ ...req.body, tenant_id: tenantId })
             .select()
             .single();
-        if (error) throw error;
+
+        if (error) {
+            console.error('❌ Erro Supabase (Clientes):', error.message);
+            throw error;
+        }
         res.json(data);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) {
+        console.error('❌ Erro ao salvar cliente:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 router.post('/clients/import', authMiddleware, async (req, res) => {
@@ -106,6 +115,7 @@ router.get('/technicians', authMiddleware, async (req, res) => {
 
 router.post('/technicians', authMiddleware, async (req, res) => {
     try {
+        const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
         const techData = { ...req.body, tenant_id: tenantId };
 
@@ -131,12 +141,12 @@ router.post('/technicians', authMiddleware, async (req, res) => {
 
 router.put('/technicians/:id', authMiddleware, async (req, res) => {
     try {
-        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_technicians')
             .update({ ...req.body, updated_at: new Date().toISOString() })
             .eq('id', req.params.id)
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', tenantId)
             .select()
             .single();
         if (error) throw error;
