@@ -260,7 +260,12 @@ router.get('/tasks', authMiddleware, async (req, res) => {
 
         let query = supabase
             .from('os_tasks')
-            .select('*, client:os_clients(*), technician:os_technicians(*), task_type:os_task_types(*)')
+            .select(`
+                *,
+                client:os_clients(id, name, phone, address),
+                technician:os_technicians(id, name, email, color),
+                task_type:os_task_types(id, name, color)
+            `)
             .eq('tenant_id', tenantId)
             .order('scheduled_date', { ascending: true })
             .order('scheduled_time', { ascending: true });
