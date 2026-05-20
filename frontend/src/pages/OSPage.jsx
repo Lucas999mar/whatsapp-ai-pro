@@ -370,9 +370,9 @@ export default function OSPage() {
                                         ))}
                                     </div>
                                     {dayTasks.length > 0 && <div className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor] ${dayTasks.some(t => t.status === 'em_execucao') ? 'bg-yellow-400 text-yellow-400' :
-                                            dayTasks.some(t => t.status === 'em_deslocamento') ? 'bg-blue-500 text-blue-500' :
-                                                dayTasks.some(t => t.status === 'incompleta') ? 'bg-purple-500 text-purple-500' :
-                                                    dayTasks.some(t => t.status === 'pendente') ? 'bg-[#25D366] text-[#25D366]' : 'bg-slate-500 text-slate-500'
+                                        dayTasks.some(t => t.status === 'em_deslocamento') ? 'bg-blue-500 text-blue-500' :
+                                            dayTasks.some(t => t.status === 'incompleta') ? 'bg-purple-500 text-purple-500' :
+                                                dayTasks.some(t => t.status === 'pendente') ? 'bg-[#25D366] text-[#25D366]' : 'bg-slate-500 text-slate-500'
                                         }`}></div>}
                                 </div>
                             );
@@ -466,21 +466,29 @@ export default function OSPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     {detailTask.status === 'pendente' || detailTask.status === 'agendada' ? (
                                         <button onClick={() => {
-                                            const proceedDeslocamento = async () => {
-                                                await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' });
-                                                const lat = detailTask.lat || detailTask.client?.lat;
-                                                const lng = detailTask.lng || detailTask.client?.lng;
-                                                const addr = detailTask.address || detailTask.client?.address;
-                                                if (lat && lng) window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
-                                                else if (addr) window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`, '_blank');
-                                                setDetailTask(null); fetchAll();
-                                            };
-                                            if (navigator.geolocation) {
-                                                navigator.geolocation.getCurrentPosition(async (pos) => {
-                                                    if (user?.role === 'technician') await api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
-                                                    proceedDeslocamento();
-                                                }, () => proceedDeslocamento());
-                                            } else { proceedDeslocamento(); }
+                                            // 1. Identificar Destino e abrir rota imediatamente (Bypass de Pop-up blocker)
+                                            const lat = detailTask.lat || detailTask.client?.lat;
+                                            const lng = detailTask.lng || detailTask.client?.lng;
+                                            const addr = detailTask.address || detailTask.client?.address;
+                                            let url = null;
+                                            if (lat && lng) url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                                            else if (addr) url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
+
+                                            if (url) window.open(url, '_blank');
+                                            else alert('Endereço ou localização do cliente não encontrados!');
+
+                                            // 2. Atualizar Status para "em_deslocamento" sem esperar (para a bolinha já mudar)
+                                            api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' }).then(() => {
+                                                setDetailTask(null);
+                                                fetchAll();
+                                            }).catch(console.error);
+
+                                            // 3. Capturar rastreio do técnico em Background (Não trava a tela)
+                                            if (navigator.geolocation && user?.role === 'technician') {
+                                                navigator.geolocation.getCurrentPosition((pos) => {
+                                                    api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(console.error);
+                                                }, (err) => console.log('GPS tracking denied or failed', err), { timeout: 10000 });
+                                            }
                                         }} className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
                                             <MapIcon size={18} /> Iniciar Deslocamento (A Caminho)
                                         </button>
