@@ -455,15 +455,38 @@ export default function OSPage() {
                             <div className="space-y-3">
                                 <p className="text-xs font-bold text-slate-500 uppercase">Ações Rápidas</p>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={async () => { await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_execucao' }); setDetailTask(null); fetchAll(); }}
-                                        className="py-3 bg-[#25D366] text-black font-black rounded-xl hover:brightness-110 transition-all flex justify-center gap-2 items-center"
-                                    >
-                                        <Play size={18} /> Iniciar Check-in
-                                    </button>
+                                    {detailTask.status === 'em_execucao' ? (
+                                        <button
+                                            onClick={async () => { await api.put(`/os/tasks/${detailTask.id}`, { status: 'concluida' }); setDetailTask(null); fetchAll(); }}
+                                            className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all flex justify-center gap-2 items-center"
+                                        >
+                                            <Square size={18} /> Finalizar Tarefa
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                if (!navigator.geolocation) return alert('Geolocalização indisponível.');
+                                                navigator.geolocation.getCurrentPosition(async (pos) => {
+                                                    await api.put(`/os/tasks/${detailTask.id}`, {
+                                                        status: 'em_execucao',
+                                                        lat: pos.coords.latitude,
+                                                        lng: pos.coords.longitude
+                                                    });
+                                                    // Update technician's map location
+                                                    if (user?.role === 'technician') {
+                                                        await api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+                                                    }
+                                                    setDetailTask(null); fetchAll();
+                                                }, () => alert('Permita o acesso à localização para fazer Check-in!'));
+                                            }}
+                                            className="py-3 bg-[#25D366] text-black font-black rounded-xl hover:brightness-110 transition-all flex justify-center gap-2 items-center"
+                                        >
+                                            <MapPin size={18} /> Fazer Check-in (GPS)
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => { setDetailTask(null); setShowTaskModal(detailTask); }}
-                                        className="py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all flex justify-center gap-2 items-center"
+                                        className={`${detailTask.status === 'em_execucao' ? 'hidden' : ''} py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all flex justify-center gap-2 items-center`}
                                     >
                                         <Edit size={18} /> Editar OS
                                     </button>
