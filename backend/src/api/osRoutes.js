@@ -312,6 +312,11 @@ router.post('/tasks', authMiddleware, async (req, res) => {
         const tenantId = req.user.tenant_id || req.user.id;
         const taskData = { ...req.body, tenant_id: tenantId };
 
+        // Remove empty strings to avoid UUID cast errors in Supabase
+        ['client_id', 'technician_id', 'task_type_id'].forEach(key => {
+            if (taskData[key] === '') delete taskData[key];
+        });
+
         const { data, error } = await supabase
             .from('os_tasks')
             .insert(taskData)
@@ -338,9 +343,15 @@ router.put('/tasks/:id', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
+
+        const updateData = { ...req.body, updated_at: new Date().toISOString() };
+        ['client_id', 'technician_id', 'task_type_id'].forEach(key => {
+            if (updateData[key] === '') updateData[key] = null;
+        });
+
         const { data, error } = await supabase
             .from('os_tasks')
-            .update({ ...req.body, updated_at: new Date().toISOString() })
+            .update(updateData)
             .eq('id', req.params.id)
             .eq('tenant_id', tenantId)
             .select(`
