@@ -4,7 +4,7 @@ import logoImage from './assets/logo.png';
 import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
-  Calendar as CalendarIcon, Blocks, ClipboardList
+  Calendar as CalendarIcon, Blocks, ClipboardList, Users
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
