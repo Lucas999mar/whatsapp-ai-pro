@@ -5,7 +5,7 @@ import {
     Search, Filter, MoreVertical, Send, Mic, Paperclip,
     Smile, User, Phone, Mail, MapPin, Tag, Clock,
     CheckCircle2, XCircle, ArrowRightCircle, UserPlus,
-    MessageSquare, Hash, BookOpen, AlertCircle
+    MessageSquare, Hash, BookOpen, AlertCircle, Bot
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
