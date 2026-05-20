@@ -94,6 +94,49 @@ router.post('/tickets/:id/close', authMiddleware, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Toggle IA (Ativar/Desativar Agente para um contato)
+router.put('/tickets/:id/toggle-ai', authMiddleware, async (req, res) => {
+    try {
+        const { enabled } = req.body;
+        const supabase = getSupabase();
+        const { data, error } = await supabase
+            .from('crm_tickets')
+            .update({ ai_enabled: enabled, updated_at: new Date().toISOString() })
+            .eq('id', req.params.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Adicionar Etiqueta ao Card/Ticket
+router.post('/tickets/:id/tags', authMiddleware, async (req, res) => {
+    try {
+        const { tag } = req.body;
+        const supabase = getSupabase();
+
+        // Busca o card associado ao ticket
+        const { data: ticket } = await supabase.from('crm_tickets').select('whatsapp_id').eq('id', req.params.id).single();
+        if (!ticket) throw new Error('Ticket não encontrado');
+
+        const { data: card } = await supabase.from('crm_kanban_cards').select('id, tags').eq('whatsapp_id', ticket.whatsapp_id).single();
+
+        if (card) {
+            const currentTags = Array.isArray(card.tags) ? card.tags : [];
+            if (!currentTags.includes(tag)) {
+                await supabase.from('crm_kanban_cards').update({
+                    tags: [...currentTags, tag],
+                    updated_at: new Date().toISOString()
+                }).eq('id', card.id);
+            }
+        }
+
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── KANBAN ───────────────────────────────────────────────────
 
 // Obter quadro Kanban completo
@@ -124,6 +167,39 @@ router.put('/kanban/cards/:id', authMiddleware, async (req, res) => {
 
         if (error) throw error;
         res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Criar Lead Manual no Kanban
+router.post('/kanban/cards', authMiddleware, async (req, res) => {
+    try {
+        const { name, whatsapp_id, column_id } = req.body;
+        const supabase = getSupabase();
+
+        // Garante que o whatsapp_id siga o padrão tenant__phone__agent
+        const tenantId = req.user.id;
+        const cleanId = whatsapp_id.includes('__') ? whatsapp_id : `${tenantId}__${whatsapp_id.replace(/\D/g, '')}@s.whatsapp.net__default`;
+
+        // Cria o ticket primeiro
+        const { data: ticket } = await supabase.from('crm_tickets').upsert({
+            tenant_id: tenantId,
+            whatsapp_id: cleanId,
+            contact_name: name,
+            status: 'aguardando'
+        }, { onConflict: 'whatsapp_id' }).select().single();
+
+        // Cria o card no Kanban
+        const { data, error } = await supabase.from('crm_kanban_cards').insert({
+            tenant_id: tenantId,
+            column_id: column_id,
+            ticket_id: ticket.id,
+            whatsapp_id: cleanId,
+            name: name,
+            position: 0
+        }).select().single();
+
+        if (error) throw error;
+        res.json(data);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

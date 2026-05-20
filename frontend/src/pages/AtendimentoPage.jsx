@@ -39,7 +39,9 @@ export default function AtendimentoPage() {
                 ...t,
                 id: t.whatsapp_id,
                 realId: t.id,
-                name: t.contact_name || t.whatsapp_id.split('__')[1],
+                name: (t.contact_name || t.whatsapp_id.split('__')[1] || 'Sem Nome').split('_')[0].trim(),
+                fullName: t.contact_name || t.whatsapp_id.split('__')[1],
+                aiEnabled: t.ai_enabled !== false,
                 photo: t.contact_photo,
                 lastTime: t.updated_at,
                 messages: [] // Vai buscar histórico ao selecionar
@@ -82,6 +84,26 @@ export default function AtendimentoPage() {
             setActiveChat(null);
             fetchChats();
         } catch (err) { alert('Erro ao encerrar'); }
+    };
+
+    const handleToggleAI = async () => {
+        if (!activeChat) return;
+        const newState = !activeChat.aiEnabled;
+        try {
+            await api.put(`/crm/tickets/${activeChat.realId}/toggle-ai`, { enabled: newState });
+            setActiveChat(prev => ({ ...prev, aiEnabled: newState }));
+            alert(`Robô ${newState ? 'ATIVADO' : 'DESATIVADO'} para este contato.`);
+        } catch (err) { alert('Erro ao alterar status da IA'); }
+    };
+
+    const handleAddTag = async () => {
+        if (!activeChat) return;
+        const tag = window.prompt('Qual etiqueta deseja adicionar? (Ex: Quente, Prioridade)');
+        if (!tag) return;
+        try {
+            await api.post(`/crm/tickets/${activeChat.realId}/tags`, { tag });
+            alert('Etiqueta adicionada ao CRM!');
+        } catch (err) { alert('Erro ao adicionar etiqueta'); }
     };
 
     const handleSendMessage = async () => {
@@ -182,6 +204,14 @@ export default function AtendimentoPage() {
                                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                                         <div className={`w-1.5 h-1.5 rounded-full ${activeChat.status === 'aguardando' ? 'bg-yellow-500' : 'bg-[#25D366]'}`}></div>
                                         <span className="uppercase tracking-widest font-black">{activeChat.status}</span>
+                                        <span className="mx-1">•</span>
+                                        <button
+                                            onClick={handleToggleAI}
+                                            className={`flex items-center gap-1 font-black transition-all ${activeChat.aiEnabled ? 'text-[#25D366]' : 'text-red-500'}`}
+                                        >
+                                            {activeChat.aiEnabled ? <Bot size={12} /> : <XCircle size={12} />}
+                                            ROBÔ {activeChat.aiEnabled ? 'ON' : 'OFF'}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -307,7 +337,12 @@ export default function AtendimentoPage() {
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center border-b border-white/5 pb-2">
                                     <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Etiquetas</h4>
-                                    <button className="text-[10px] text-[#25D366] font-bold">+ ADICIONAR</button>
+                                    <button
+                                        onClick={handleAddTag}
+                                        className="text-[10px] text-[#25D366] font-bold hover:brightness-110 active:scale-95 transition-all"
+                                    >
+                                        + ADICIONAR
+                                    </button>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-black rounded-lg border border-blue-500/20">NOVO LEAD</span>

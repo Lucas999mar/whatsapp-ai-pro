@@ -21,13 +21,40 @@ export default function CRMPage() {
   const fetchData = async () => {
     try {
       const res = await api.get('/crm/kanban');
-      setColumns(res.data.columns);
+      // Garante colunas únicas por título (Prevenção de duplicatas visual)
+      const uniqueCols = [];
+      const titles = new Set();
+      (res.data.columns || []).forEach(col => {
+        if (!titles.has(col.title)) {
+          titles.add(col.title);
+          uniqueCols.push(col);
+        }
+      });
+      setColumns(uniqueCols);
       setCards(res.data.cards);
     } catch (err) {
       console.error('Erro ao carregar Kanban:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddLead = async () => {
+    const name = window.prompt('Nome do Cliente:');
+    if (!name) return;
+    const phone = window.prompt('Número do WhatsApp (com DDD):');
+    if (!phone) return;
+
+    try {
+      const firstCol = columns[0]?.id;
+      await api.post('/crm/kanban/cards', {
+        name,
+        whatsapp_id: phone,
+        column_id: firstCol
+      });
+      fetchData();
+      alert('Lead criado com sucesso!');
+    } catch (err) { alert('Erro ao criar lead'); }
   };
 
   const handleDragStart = (e, cardId) => {
@@ -72,7 +99,10 @@ export default function CRMPage() {
               className="bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:border-[#25D366] outline-none"
             />
           </div>
-          <button className="flex items-center gap-2 bg-[#25D366] text-black px-4 py-2 rounded-xl text-sm font-black hover:brightness-110">
+          <button
+            onClick={handleAddLead}
+            className="flex items-center gap-2 bg-[#25D366] text-black px-4 py-2 rounded-xl text-sm font-black hover:brightness-110 active:scale-95 transition-all"
+          >
             <Plus size={18} /> NOVO LEAD
           </button>
         </div>
@@ -116,11 +146,15 @@ export default function CRMPage() {
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10 flex items-center justify-center text-xs font-black text-white">
-                            {card.name?.charAt(0).toUpperCase() || 'L'}
+                            {(card.name || 'L').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <h4 className="text-sm font-black text-white truncate max-w-[140px]">{card.name || 'Sem Nome'}</h4>
-                            <p className="text-[10px] text-[#25D366] font-bold">+{card.whatsapp_id.split('__')[1] || card.whatsapp_id}</p>
+                            <h4 className="text-sm font-black text-white truncate max-w-[140px]">
+                              {(card.name || 'Sem Nome').split('_')[0].trim()}
+                            </h4>
+                            <p className="text-[10px] text-[#25D366] font-bold">
+                              +{card.whatsapp_id.split('__')[1]?.split('@')[0] || card.whatsapp_id.split('@')[0]}
+                            </p>
                           </div>
                         </div>
                         <button className="p-1 hover:bg-white/5 rounded-lg text-slate-500"><MoreHorizontal size={14} /></button>
@@ -130,9 +164,13 @@ export default function CRMPage() {
 
                       <div className="flex items-center justify-between border-t border-white/5 pt-3">
                         <div className="flex -space-x-2">
-                          {/* Tags Mock */}
-                          <div className="w-5 h-5 rounded-full bg-blue-500/20 border border-blue-500/40" title="Lead Quente"></div>
-                          <div className="w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/40" title="WhatsApp Ativo"></div>
+                          {/* Tags Rendering */}
+                          {Array.isArray(card.tags) && card.tags.map((tag, idx) => (
+                            <div key={idx} className="px-2 py-0.5 bg-blue-500/10 text-[8px] text-blue-400 border border-blue-500/20 rounded mr-1 uppercase font-black">
+                              {tag}
+                            </div>
+                          ))}
+                          {!card.tags?.length && <div className="w-5 h-5 rounded-full bg-white/5 border border-white/10"></div>}
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
                           <Calendar size={12} />

@@ -1,6 +1,6 @@
-const { 
-  makeWASocket, 
-  useMultiFileAuthState, 
+const {
+  makeWASocket,
+  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
   downloadMediaMessage,
@@ -23,7 +23,7 @@ const pendingMessages = new Map(); // Buffer para junção de mensagens picotada
 async function getAgentsStatus(tenantId = null) {
   const { listAgents } = require('../db/repository');
   const savedAgents = await listAgents(tenantId);
-  
+
   return savedAgents.map(saved => {
     const running = agents.get(saved.id);
     return {
@@ -55,17 +55,17 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     console.log(`⏳ Agente ${agentId} já está inicializando. Bloqueando tentativa duplicada.`);
     return;
   }
-  
+
   const existing = agents.get(agentId);
   if (existing && existing.status === 'connected') return existing.sock;
 
   initializingAgents.add(agentId);
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
   if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
-  
+
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
-  
+
   const sock = makeWASocket({
     version,
     logger,
@@ -76,7 +76,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     defaultQueryTimeoutMs: 60000,
     keepAliveIntervalMs: 30000,
   });
-  
+
   const defaultSettings = {
     bot_name: agentName,
     system_prompt: 'Você é um assistente amigável.',
@@ -86,9 +86,9 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     respond_all: true
   };
 
-  agents.set(agentId, { 
-    id: agentId, 
-    name: agentName, 
+  agents.set(agentId, {
+    id: agentId,
+    name: agentName,
     socket: sock,
     status: 'connecting',
     qr: null,
@@ -100,18 +100,18 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     const { connection, lastDisconnect, qr } = update;
     const agentData = agents.get(agentId);
     if (!agentData) return;
-    
+
     if (qr) {
       agentData.qr = qr;
       agentData.status = 'waiting_qr';
       agents.set(agentId, agentData);
-      
+
       try {
         const supabase = getSupabase();
         await supabase.from('agents').update({ qr_code: qr, status: 'waiting_qr' }).eq('id', agentId);
-      } catch (e) {}
+      } catch (e) { }
     }
-    
+
     if (connection === 'close') {
       initializingAgents.delete(agentId);
       agentData.qr = null;
@@ -119,35 +119,35 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       agentData.status = 'disconnected';
       agents.set(agentId, agentData);
-      
+
       try {
         const supabase = getSupabase();
         await supabase.from('agents').update({ qr_code: null, status: 'disconnected' }).eq('id', agentId);
-      } catch (e) {}
+      } catch (e) { }
 
       if (shouldReconnect) {
         const delay = statusCode === DisconnectReason.restartRequired ? 1000 : 10000;
-        console.log(`⚠️ Conexão perdida para [${agentName}]. Tentando reconectar em ${delay/1000}s...`);
+        console.log(`⚠️ Conexão perdida para [${agentName}]. Tentando reconectar em ${delay / 1000}s...`);
         setTimeout(() => startWhatsAppBot(agentId, agentName, agentData.settings, agentData.tenantId), delay);
       }
     }
-    
+
     if (connection === 'open') {
       initializingAgents.delete(agentId);
       agentData.qr = null;
       agentData.status = 'connected';
       agents.set(agentId, agentData);
-      
+
       try {
         const supabase = getSupabase();
         await supabase.from('agents').update({ qr_code: null, status: 'connected' }).eq('id', agentId);
-      } catch (e) {}
+      } catch (e) { }
       console.log(`✅ [${agentName}] WhatsApp Conectado com Sucesso!`);
     }
   });
 
   sock.ev.on('creds.update', saveCreds);
-  
+
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     const agentData = agents.get(agentId);
@@ -157,7 +157,7 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     for (const msg of messages) {
       if (msg.key.fromMe) continue;
       let sender = msg.key.remoteJid;
-      
+
       // Tenta resolver LID para Telefone (PN) se for o caso
       if (sender.endsWith('@lid')) {
         try {
@@ -175,24 +175,24 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       }
 
       const senderName = msg.pushName || sender.split('@')[0];
-      
+
       let userPhoto = null;
       try {
         userPhoto = await sock.profilePictureUrl(sender, 'image').catch(() => null);
-      } catch (e) {}
+      } catch (e) { }
 
       const msgType = getMessageType(msg);
-      
+
       if (msgType.type === 'unknown') continue;
-      
+
       if (!settings.respond_all && msgType.type === 'text') {
         const prefix = settings.prefix || '!ia';
         if (!msgType.text.toLowerCase().startsWith(prefix.toLowerCase())) continue;
         msgType.text = msgType.text.slice(prefix.length).trim();
       }
-      
+
       // Não envia 'composing' imediatamente para não bugar durante a espera do debounce
-      
+
       try {
         let textToProcess = '';
         if (msgType.type === 'audio') {
@@ -206,45 +206,68 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
         if (textToProcess) {
           const key = `${tenantId}_${agentId}_${sender}`;
-          
+
           if (!pendingMessages.has(key)) {
-            pendingMessages.set(key, { 
-              texts: [], 
+            pendingMessages.set(key, {
+              texts: [],
               timer: null,
               hasAudio: false,
               userPhoto: userPhoto,
               senderName: senderName
             });
           }
-          
+
           const pending = pendingMessages.get(key);
           pending.texts.push(textToProcess);
           if (msgType.type === 'audio') pending.hasAudio = true;
           if (userPhoto) pending.userPhoto = userPhoto;
-          
+
           if (pending.timer) clearTimeout(pending.timer);
-          
+
           pending.timer = setTimeout(async () => {
-            const finalContext = pending.texts.join(' \\n');
+            const finalContext = pending.texts.join(' \n');
             const wasAudio = pending.hasAudio;
             const photo = pending.userPhoto;
             const name = pending.senderName;
-            
+
             pendingMessages.delete(key);
-            
+
+            // 🤖 [NOVO] Verifica se a IA está ativada para este ticket
+            try {
+              const threadId = `${tenantId}__${sender}__${agentId}`;
+              const supabase = getSupabase();
+              const { data: ticket } = await supabase.from('crm_tickets').select('ai_enabled').eq('whatsapp_id', threadId).single();
+
+              if (ticket && ticket.ai_enabled === false) {
+                console.log(`🔕 IA Desativada para ${sender}. Apenas registrando mensagem.`);
+                const { saveConversationMessage } = require('../db/repository');
+                await saveConversationMessage({
+                  whatsappId: threadId,
+                  userName: name,
+                  role: 'user',
+                  content: finalContext,
+                  contentType: wasAudio ? 'audio' : 'text',
+                  userPhoto: photo
+                });
+                return;
+              }
+            } catch (e) {
+              console.warn('⚠️ Erro ao verificar status da IA, procedendo normalmente:', e.message);
+            }
+
             // Só avisa que está "digitando/gravando" agora que vai processar de verdade
             await sock.sendPresenceUpdate(wasAudio ? 'recording' : 'composing', sender);
-            
+
             try {
               const result = await processMessage(
                 sender, name, finalContext, wasAudio ? 'audio' : 'text', null, settings.bot_name, agentId, tenantId, photo
               );
-              
+
               if (result.audioBuffer) {
-                await sock.sendMessage(sender, { 
-                  audio: result.audioBuffer, 
-                  mimetype: 'audio/ogg; codecs=opus', 
-                  ptt: true 
+                await sock.sendMessage(sender, {
+                  audio: result.audioBuffer,
+                  mimetype: 'audio/ogg; codecs=opus',
+                  ptt: true
                 });
               } else {
                 await sock.sendMessage(sender, { text: result.text });
@@ -261,21 +284,21 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
       }
     }
   });
-  
+
   return sock;
 }
 
 async function restartWhatsAppBot(agentId) {
   const agentData = agents.get(agentId);
   if (agentData && agentData.socket) {
-    try { agentData.socket.ws.close(); } catch (e) {}
+    try { agentData.socket.ws.close(); } catch (e) { }
   }
-  
+
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
   if (fs.existsSync(authDir)) {
-    try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) {}
+    try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) { }
   }
-  
+
   setTimeout(() => {
     if (agentData) startWhatsAppBot(agentId, agentData.name, agentData.settings, agentData.tenantId);
   }, 2000);
@@ -297,13 +320,13 @@ async function addAgent(name, tenantId = 'default') {
     tenant_id: tenantId,
     name,
     status: 'disconnected',
-    settings: { 
-      bot_name: name, 
-      system_prompt: 'Você é um assistente amigável.', 
-      response_mode: 'mirror', 
-      tts_voice: 'nova', 
-      prefix: '!ia', 
-      respond_all: true 
+    settings: {
+      bot_name: name,
+      system_prompt: 'Você é um assistente amigável.',
+      response_mode: 'mirror',
+      tts_voice: 'nova',
+      prefix: '!ia',
+      respond_all: true
     }
   });
   startWhatsAppBot(newId, name, null, tenantId);
@@ -313,7 +336,7 @@ async function addAgent(name, tenantId = 'default') {
 async function removeAgent(agentId) {
   const agentData = agents.get(agentId);
   if (agentData && agentData.socket) {
-    try { agentData.socket.ws.close(); } catch (e) {}
+    try { agentData.socket.ws.close(); } catch (e) { }
   }
   agents.delete(agentId);
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
@@ -335,30 +358,45 @@ async function updateAgentSettings(agentId, newSettings) {
 async function sendDirectMessage(agentId, number, text, media = null) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
-  
+
   const jid = number.includes('@') ? number : `${number.replace(/\D/g, '')}@s.whatsapp.net`;
-  
+  const tenantId = agent.tenantId || 'default';
+  const whatsappId = `${tenantId}__${jid}__${agentId}`;
+
+  // Envia a mensagem
   if (media && media.url) {
     const options = {};
     if (media.type === 'image') options.image = { url: media.url };
-    else if (media.type === 'video') {
-      // WhatsApp tem limite de 16MB para vídeos normais.
-      // Se for maior, enviamos como documento para garantir a entrega de até 2GB.
-      options.video = { url: media.url };
-    } else if (media.type === 'audio') {
+    else if (media.type === 'video') options.video = { url: media.url };
+    else if (media.type === 'audio') {
       options.audio = { url: media.url };
       options.mimetype = 'audio/ogg; codecs=opus';
       options.ptt = true;
     } else if (media.type === 'document') {
       options.document = { url: media.url };
-      options.mimetype = 'application/pdf'; // Fallback comum
+      options.mimetype = 'application/pdf';
       options.fileName = 'Arquivo.pdf';
     }
-    
+
     if (text) options.caption = text;
     await agent.socket.sendMessage(jid, options);
   } else {
     await agent.socket.sendMessage(jid, { text });
+  }
+
+  // 💾 [NOVO] Salva no histórico do CRM para aparecer no painel
+  try {
+    const { saveConversationMessage } = require('../db/repository');
+    await saveConversationMessage({
+      whatsappId,
+      userName: agent.settings?.bot_name || agent.name,
+      role: 'assistant',
+      content: text || (media ? `Arquivo ${media.type}` : ''),
+      contentType: media ? media.type : 'text',
+      mediaUrl: media?.url
+    });
+  } catch (e) {
+    console.error('⚠️ Erro ao salvar mensagem manual no histórico:', e.message);
   }
 }
 
