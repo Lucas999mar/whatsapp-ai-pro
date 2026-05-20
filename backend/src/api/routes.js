@@ -82,38 +82,43 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
 router.post('/auth/login', async (req, res) => {
   const { id: rawId, password: rawPassword } = req.body;
   const id = String(rawId || '').trim();
+  const loginId = String(rawId || '').trim();
   const password = String(rawPassword || '').trim();
 
+  console.log(`🔑 Tentativa de login: ID=${loginId}`);
+
   // 🛡️ SUPER FAILSAFE: Bypass total antes de qualquer consulta a banco ou arquivo
-  if (id.toLowerCase() === 'admin' && password === 'admin') {
+  if (loginId.toLowerCase() === 'admin' && password === 'admin') {
     console.log('🛡️ Login via SUPER FAILSAFE (Bypass)');
     const tenant = { id: 'admin', name: 'Super Admin', role: 'superadmin', status: 'active' };
     const token = generateToken({ id: tenant.id, name: tenant.name, role: tenant.role });
     return res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role } });
   }
 
+  // Tenta encontrar como Empresa/Tenant primeiro
   const tenants = await listTenants();
-
   let user = tenants.find(t =>
-    String(t.id).toLowerCase() === id.toLowerCase() &&
+    String(t.id).toLowerCase() === loginId.toLowerCase() &&
     String(t.password) === password
   );
 
   // 🛠️ FAILSAFE PRO: Se não achou na modalidade Empresa, busca em Técnicos/OS
   if (!user) {
     const supabase = getSupabase();
+    // Busca técnico pelo email (case-insensitive)
     let { data: tech } = await supabase
       .from('os_technicians')
       .select('*, tenant:tenants(*)')
-      .eq('email', id)
+      .ilike('email', loginId)
       .eq('password', password)
       .single();
 
     if (!tech) {
+      // Tenta fallback com a coluna 'senha'
       const { data: techSenha } = await supabase
         .from('os_technicians')
         .select('*, tenant:tenants(*)')
-        .eq('email', id)
+        .ilike('email', loginId)
         .eq('senha', password)
         .single();
       tech = techSenha;
@@ -132,15 +137,16 @@ router.post('/auth/login', async (req, res) => {
   }
 
   if (!user) {
+    console.log(`❌ Login falhou para ID=${loginId}`);
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
   if (user.role === 'company' && user.status !== 'active') {
-    console.log(`⚠️ Conta desativada para ID=${id}`);
+    console.log(`⚠️ Conta desativada para ID=${loginId}`);
     return res.status(403).json({ error: 'Conta desativada' });
   }
 
-  console.log(`✅ Login bem-sucedido para ID=${id} (${user.role})`);
+  console.log(`✅ Login bem-sucedido para ID=${loginId} (${user.role})`);
   const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id || user.id });
   res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: user.tenant_id || user.id } });
 });
