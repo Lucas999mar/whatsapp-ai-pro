@@ -471,11 +471,20 @@ export default function OSPage() {
                                             const lng = detailTask.lng || detailTask.client?.lng;
                                             const addr = detailTask.address || detailTask.client?.address;
                                             let url = null;
-                                            if (lat && lng) url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                                            else if (addr) url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
+                                            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-                                            if (url) window.open(url, '_blank');
-                                            else alert('Endereço ou localização do cliente não encontrados!');
+                                            if (lat && lng) {
+                                                url = isMobile ? `google.navigation:q=${lat},${lng}` : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                                            } else if (addr) {
+                                                url = isMobile ? `google.navigation:q=${encodeURIComponent(addr)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
+                                            }
+
+                                            if (url) {
+                                                if (isMobile) window.location.href = url;
+                                                else window.open(url, '_blank');
+                                            } else {
+                                                alert('Endereço ou localização do cliente não encontrados!');
+                                            }
 
                                             // 2. Atualizar Status para "em_deslocamento" sem esperar (para a bolinha já mudar)
                                             api.put(`/os/tasks/${detailTask.id}`, { status: 'em_deslocamento' }).then(() => {
