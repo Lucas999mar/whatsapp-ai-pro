@@ -106,6 +106,25 @@ export default function AtendimentoPage() {
         } catch (err) { alert('Erro ao adicionar etiqueta'); }
     };
 
+    const handleAddToKanban = async () => {
+        if (!activeChat) return;
+        try {
+            // Busca as colunas para saber qual a primeira (Geralmente "Novo Lead")
+            const res = await api.get('/crm/kanban');
+            const firstCol = res.data.columns[0]?.id;
+
+            await api.post('/crm/kanban/cards', {
+                name: activeChat.name,
+                whatsapp_id: activeChat.id,
+                column_id: firstCol
+            });
+            alert('Cliente adicionado ao Kanban com sucesso!');
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao adicionar ao Kanban ou cliente já existe lá.');
+        }
+    };
+
     const handleSendMessage = async () => {
         if (!message.trim() || !activeChat) return;
         try {
@@ -312,7 +331,10 @@ export default function AtendimentoPage() {
                                 {activeChat.photo ? <img src={activeChat.photo} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-500" />}
                             </div>
                             <h3 className="text-lg font-black text-white truncate">{activeChat.name}</h3>
-                            <p className="text-xs text-slate-500 font-medium">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Início agora'}</p>
+                            <p className="text-xs text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                                {activeChat.fullName?.split('_')[1] || activeChat.id.split('@')[0]}
+                            </p>
+                            <p className="text-[10px] text-slate-600 mt-1 uppercase font-bold tracking-widest">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Hoje'}</p>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
@@ -380,8 +402,11 @@ export default function AtendimentoPage() {
                         </div>
 
                         <div className="p-4 bg-black/20">
-                            <button className="w-full py-3 bg-[#25D366]/10 text-[#25D366] text-xs font-black rounded-xl hover:bg-[#25D366] hover:text-black transition-all">
-                                ABRIR NO CRM (KANBAN)
+                            <button
+                                onClick={handleAddToKanban}
+                                className="w-full py-3 bg-[#25D366] text-black text-xs font-black rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#25D366]/10"
+                            >
+                                ADICIONAR AO KANBAN
                             </button>
                         </div>
                     </div>
