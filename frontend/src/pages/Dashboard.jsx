@@ -100,7 +100,9 @@ export default function Dashboard() {
                     <span className="text-xs text-slate-500 font-bold">{task.scheduled_time?.slice(0, 5)}</span>
                   </div>
                   <h4 className="text-xl font-bold text-white mb-1">{task.title}</h4>
-                  <p className="text-sm text-slate-400 flex items-center gap-2 mb-4"><MapPin size={14} /> {task.address || 'Endereço não informado'}</p>
+                  <p className="text-sm text-slate-400 flex items-center gap-2 mb-4">
+                    <MapPin size={14} /> {task.address || task.client?.address || 'Sem endereço informado'}
+                  </p>
                   <Link to="/os" className="w-full block text-center py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-all">
                     ABRIR DETALHES
                   </Link>

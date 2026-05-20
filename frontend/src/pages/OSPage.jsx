@@ -3,7 +3,7 @@ import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import {
     Calendar as CalendarIcon, MapPin, Plus, Clock, User, ChevronLeft, ChevronRight,
-    Loader2, X, Play, Square, Users, Briefcase, Map as MapIcon, ClipboardList
+    Loader2, X, Play, Square, Users, Briefcase, Map as MapIcon, ClipboardList, Edit
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -122,8 +122,12 @@ function ClientManager({ clients, onRefresh }) {
 
     const handleSave = async () => {
         try {
-            await api.post('/os/clients', form);
-            setForm({ name: '', phone: '', address: '', email: '', cep: '', lat: null, lng: null });
+            if (form.id) {
+                await api.put(`/os/clients/${form.id}`, form);
+            } else {
+                await api.post('/os/clients', form);
+            }
+            setForm({ id: null, name: '', phone: '', address: '', email: '', cep: '', lat: null, lng: null });
             setShowModal(false);
             onRefresh();
         } catch (e) { alert("Erro ao salvar cliente: " + (e.response?.data?.error || e.message)); }
@@ -175,7 +179,8 @@ function ClientManager({ clients, onRefresh }) {
                                 <td className="p-4 font-bold text-white">{c.name}</td>
                                 <td className="p-4 text-slate-400">{c.phone}</td>
                                 <td className="p-4 text-slate-400 text-sm truncate max-w-md">{c.address}</td>
-                                <td className="p-4">
+                                <td className="p-4 flex gap-2">
+                                    <button onClick={() => { setForm(c); setShowModal(true); }} className="text-blue-500 hover:scale-110 transition-all"><Edit size={18} /></button>
                                     <button onClick={async () => { if (confirm('Excluir?')) { await api.delete(`/os/clients/${c.id}`); onRefresh(); } }} className="text-red-500 hover:scale-110 transition-all"><X size={18} /></button>
                                 </td>
                             </tr>
@@ -221,13 +226,17 @@ function TechnicianManager({ technicians, onRefresh }) {
 
     const handleSave = async () => {
         try {
-            await api.post('/os/technicians', form);
-            setForm({ name: '', phone: '', email: '', password: '', color: '#25D366' });
+            if (form.id) {
+                await api.put(`/os/technicians/${form.id}`, form);
+            } else {
+                await api.post('/os/technicians', form);
+            }
+            setForm({ id: null, name: '', phone: '', email: '', password: '', color: '#25D366' });
             setShowModal(false);
             onRefresh();
         } catch (e) {
             console.error(e);
-            alert("Erro ao criar técnico: " + (e.response?.data?.error || e.message));
+            alert("Erro ao salvar técnico: " + (e.response?.data?.error || e.message));
         }
     };
 
@@ -252,7 +261,10 @@ function TechnicianManager({ technicians, onRefresh }) {
                                 <span className="text-[10px] uppercase font-bold text-slate-400">{t.status || 'offline'}</span>
                             </div>
                         </div>
-                        <button onClick={async () => { if (confirm('Excluir?')) { await api.delete(`/os/technicians/${t.id}`); onRefresh(); } }} className="absolute top-4 right-4 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><X size={18} /></button>
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => { setForm(t); setShowModal(true); }} className="text-slate-600 hover:text-blue-500"><Edit size={18} /></button>
+                            <button onClick={async () => { if (confirm('Excluir?')) { await api.delete(`/os/technicians/${t.id}`); onRefresh(); } }} className="text-slate-600 hover:text-red-500"><X size={18} /></button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -306,6 +318,12 @@ export default function OSPage() {
         } catch (e) { console.error(e); } finally { setLoading(false); }
     }, [currentMonth]);
     useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    const handleSaveTask = async (f) => {
+        if (f.id) await api.put(`/os/tasks/${f.id}`, f);
+        else await api.post('/os/tasks', f);
+        fetchAll();
+    };
 
     if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#25D366]" size={40} /></div>;
 
@@ -425,7 +443,7 @@ export default function OSPage() {
                                 <div className="p-4 bg-white/5 rounded-2xl flex-1">
                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Cliente</p>
                                     <p className="font-bold text-white mt-1">{detailTask.client?.name || 'Venda Direta'}</p>
-                                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><MapPin size={12} /> {detailTask.address || 'Sem endereço'}</p>
+                                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><MapPin size={12} /> {detailTask.address || detailTask.client?.address || 'Sem endereço informado'}</p>
                                 </div>
                                 <div className="p-4 bg-white/5 rounded-2xl flex-1">
                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Técnico Atribuído</p>
@@ -437,8 +455,26 @@ export default function OSPage() {
                             <div className="space-y-3">
                                 <p className="text-xs font-bold text-slate-500 uppercase">Ações Rápidas</p>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <button className="py-3 bg-[#25D366] text-black font-black rounded-xl hover:brightness-110 transition-all">Iniciar Check-in</button>
-                                    <button className="py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all">Editar OS</button>
+                                    <button
+                                        onClick={async () => { await api.put(`/os/tasks/${detailTask.id}`, { status: 'em_execucao' }); setDetailTask(null); fetchAll(); }}
+                                        className="py-3 bg-[#25D366] text-black font-black rounded-xl hover:brightness-110 transition-all flex justify-center gap-2 items-center"
+                                    >
+                                        <Play size={18} /> Iniciar Check-in
+                                    </button>
+                                    <button
+                                        onClick={() => { setDetailTask(null); setShowTaskModal(detailTask); }}
+                                        className="py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all flex justify-center gap-2 items-center"
+                                    >
+                                        <Edit size={18} /> Editar OS
+                                    </button>
+                                    {user?.role !== 'technician' && (
+                                        <button
+                                            onClick={async () => { if (confirm('Excluir OS?')) { await api.delete(`/os/tasks/${detailTask.id}`); setDetailTask(null); fetchAll(); } }}
+                                            className="col-span-2 py-3 bg-red-500/10 text-red-500 font-bold rounded-xl hover:bg-red-500/20 transition-all flex justify-center gap-2 items-center"
+                                        >
+                                            <X size={18} /> Excluir OS
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -446,7 +482,7 @@ export default function OSPage() {
                 </div>
             )}
 
-            <TaskModal isOpen={showTaskModal} onClose={() => setShowTaskModal(false)} onSave={async (f) => { await api.post('/os/tasks', f); fetchAll(); }} clients={clients} technicians={technicians} />
+            <TaskModal isOpen={!!showTaskModal} task={typeof showTaskModal === 'object' ? showTaskModal : null} onClose={() => setShowTaskModal(false)} onSave={handleSaveTask} clients={clients} technicians={technicians} />
         </div>
     );
 }

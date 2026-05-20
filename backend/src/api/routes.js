@@ -126,6 +126,10 @@ router.post('/auth/login', async (req, res) => {
 
     if (tech) {
       console.log(`👷 Técnico logado: ${tech.name}`);
+
+      // Update status to online
+      await supabase.from('os_technicians').update({ status: 'online' }).eq('id', tech.id);
+
       user = {
         id: tech.id,
         name: tech.name,
