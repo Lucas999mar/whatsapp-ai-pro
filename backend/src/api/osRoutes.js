@@ -25,9 +25,10 @@ router.get('/clients', authMiddleware, async (req, res) => {
 router.post('/clients', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_clients')
-            .insert({ ...req.body, tenant_id: req.user.id })
+            .insert({ ...req.body, tenant_id: tenantId })
             .select()
             .single();
         if (error) throw error;
@@ -92,10 +93,11 @@ router.delete('/clients/:id', authMiddleware, async (req, res) => {
 router.get('/technicians', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_technicians')
             .select('*')
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', tenantId)
             .order('name');
         if (error) throw error;
         res.json(data || []);
@@ -104,8 +106,8 @@ router.get('/technicians', authMiddleware, async (req, res) => {
 
 router.post('/technicians', authMiddleware, async (req, res) => {
     try {
-        const supabase = getSupabase();
-        const techData = { ...req.body, tenant_id: req.user.id };
+        const tenantId = req.user.tenant_id || req.user.id;
+        const techData = { ...req.body, tenant_id: tenantId };
 
         console.log('👷 Tentando criar técnico:', techData);
 
@@ -204,10 +206,10 @@ router.get('/task-types', authMiddleware, async (req, res) => {
 
 router.post('/task-types', authMiddleware, async (req, res) => {
     try {
-        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_task_types')
-            .insert({ ...req.body, tenant_id: req.user.id })
+            .insert({ ...req.body, tenant_id: tenantId })
             .select()
             .single();
         if (error) throw error;
@@ -287,7 +289,8 @@ router.get('/tasks/unscheduled', authMiddleware, async (req, res) => {
 router.post('/tasks', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
-        const taskData = { ...req.body, tenant_id: req.user.id };
+        const tenantId = req.user.tenant_id || req.user.id;
+        const taskData = { ...req.body, tenant_id: tenantId };
 
         const { data, error } = await supabase
             .from('os_tasks')
@@ -310,11 +313,12 @@ router.post('/tasks', authMiddleware, async (req, res) => {
 router.put('/tasks/:id', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { data, error } = await supabase
             .from('os_tasks')
             .update({ ...req.body, updated_at: new Date().toISOString() })
             .eq('id', req.params.id)
-            .eq('tenant_id', req.user.id)
+            .eq('tenant_id', tenantId)
             .select('*, client:os_clients(*), technician:os_technicians(*), task_type:os_task_types(*)')
             .single();
         if (error) throw error;
@@ -325,11 +329,12 @@ router.put('/tasks/:id', authMiddleware, async (req, res) => {
 router.delete('/tasks/:id', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
         const { error } = await supabase
             .from('os_tasks')
             .delete()
             .eq('id', req.params.id)
-            .eq('tenant_id', req.user.id);
+            .eq('tenant_id', tenantId);
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -483,8 +488,7 @@ router.get('/map/tasks', authMiddleware, async (req, res) => {
 
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
-        const supabase = getSupabase();
-        const tenantId = req.user.id;
+        const tenantId = req.user.tenant_id || req.user.id;
         const today = new Date().toISOString().split('T')[0];
 
         const [tasksRes, clientsRes, techsRes, todayRes] = await Promise.all([
