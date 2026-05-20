@@ -179,7 +179,9 @@ export default function AtendimentoPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start mb-1">
                                         <h4 className="text-sm font-black text-white truncate">{chat.name}</h4>
-                                        <span className="text-[10px] text-slate-500">{formatDistanceToNow(new Date(chat.lastTime), { locale: ptBR })}</span>
+                                        <span className="text-[10px] text-slate-500">
+                                            {chat.lastTime ? formatDistanceToNow(new Date(chat.lastTime), { locale: ptBR }) : 'Agora'}
+                                        </span>
                                     </div>
                                     <p className="text-xs text-slate-400 truncate">{chat.lastMessage}</p>
                                 </div>
@@ -237,7 +239,7 @@ export default function AtendimentoPage() {
                             ref={scrollRef}
                             className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed"
                         >
-                            {[...activeChat.messages].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((msg, i) => (
+                            {[...(activeChat.messages || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((msg, i) => (
                                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end animate-slide-up'}`}>
                                     <div className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-lg relative ${msg.role === 'user'
                                         ? 'bg-[#1E293B] text-slate-200 border border-white/5 rounded-tl-none'
@@ -245,7 +247,7 @@ export default function AtendimentoPage() {
                                         }`}>
                                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                                         <span className={`text-[9px] block text-right mt-1 opacity-50 ${msg.role === 'user' ? 'text-slate-400' : 'text-slate-800'}`}>
-                                            {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            {msg.created_at ? new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
                                         </span>
                                     </div>
                                 </div>
@@ -360,7 +362,9 @@ export default function AtendimentoPage() {
                                         </div>
                                         <div>
                                             <p className="text-xs text-slate-300 font-bold">Iniciou conversa</p>
-                                            <p className="text-[10px] text-slate-500">{formatDistanceToNow(new Date(activeChat.lastTime), { locale: ptBR, addSuffix: true })}</p>
+                                            <p className="text-[10px] text-slate-500">
+                                                {activeChat.lastTime ? formatDistanceToNow(new Date(activeChat.lastTime), { locale: ptBR, addSuffix: true }) : 'Recentemente'}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex gap-4 relative">
