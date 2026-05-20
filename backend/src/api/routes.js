@@ -125,7 +125,7 @@ router.post('/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
-  if (tenant.status !== 'active') {
+  if (user.role === 'company' && user.status !== 'active') {
     console.log(`⚠️ Conta desativada para ID=${id}`);
     return res.status(403).json({ error: 'Conta desativada' });
   }
