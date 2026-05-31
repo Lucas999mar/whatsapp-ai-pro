@@ -190,33 +190,50 @@ function AppContent() {
     );
   }
 
+  // Layout otimizado para Motoboy (Tela Cheia)
+  if (user?.role === 'motoboy') {
+    return (
+      <div className="min-h-screen bg-[#0B0F19] text-white font-sans">
+        <Routes>
+          <Route path="/" element={<AuthGuard><MotoboyApp initialMode="overview" /></AuthGuard>} />
+          <Route path="/motoboy" element={<AuthGuard><MotoboyApp initialMode="deliveries" /></AuthGuard>} />
+          <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
+          <Route path="/track/:code" element={<TrackingPage />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0F19] flex text-slate-200 font-sans selection:bg-[#25D366]/30">
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       <main className="flex-1 lg:ml-64 p-4 md:p-8 relative overflow-x-hidden min-h-screen">
-        {/* Mobile Header */}
-        <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full">
-              <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Logo" />
+        {/* Mobile Header (Admin) */}
+        {!user?.role && (
+          <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full">
+                <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Logo" />
+              </div>
+              <span className="font-black text-white tracking-tight uppercase text-xs">Evoluir Mais</span>
             </div>
-            <span className="font-black text-white tracking-tight uppercase text-xs">Evoluir Mais</span>
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 bg-white/5 rounded-xl text-white"
+            >
+              <Menu size={24} />
+            </button>
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 bg-white/5 rounded-xl text-white"
-          >
-            <Menu size={24} />
-          </button>
-        </div>
+        )}
 
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#25D366]/5 blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
 
         <div className="relative z-10 max-w-7xl mx-auto">
           <Routes>
-            <Route path="/" element={<AuthGuard>{user?.role === 'motoboy' ? <MotoboyApp initialMode="overview" /> : <Dashboard />}</AuthGuard>} />
+            <Route path="/" element={<AuthGuard><Dashboard /></AuthGuard>} />
             <Route path="/atendimento" element={<AuthGuard><AtendimentoPage /></AuthGuard>} />
             <Route path="/crm" element={<AuthGuard><CRMPage /></AuthGuard>} />
             <Route path="/contacts" element={<AuthGuard><ContatosPage /></AuthGuard>} />
@@ -226,9 +243,7 @@ function AppContent() {
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
-            <Route path="/motoboy" element={<AuthGuard><MotoboyApp initialMode="deliveries" /></AuthGuard>} />
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
-            <Route path="/motoboy/register" element={<MotoboyRegister />} />
             <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />

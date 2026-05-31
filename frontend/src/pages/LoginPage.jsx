@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Bot, Lock, User, Loader2, Sparkles } from 'lucide-react';
+import { Bot, Lock, User, Loader2, Sparkles, Bike } from 'lucide-react';
 import logoImage from '../assets/logo.png';
 
 import api from '../api/api';

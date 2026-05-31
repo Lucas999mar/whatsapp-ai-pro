@@ -235,7 +235,7 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
             <div className="bg-[#1E293B] p-4 border-b border-white/10 sticky top-0 z-50 flex items-center justify-between">
                 <div
                     className="flex items-center gap-3 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
-                    onClick={() => setShowProfile(true)}
+                    onClick={() => setActiveTab('profile')}
                 >
                     <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-[#25D366]/10 flex items-center justify-center bg-slate-700">
                         {user?.photo_url ? (
