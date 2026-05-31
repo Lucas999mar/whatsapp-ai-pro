@@ -130,7 +130,7 @@ export default function DeliveryDashboard() {
                 status: 'aguardando_motoboy'
             });
             setShowModal(false);
-            setNewDelivery({ customer_name: '', delivery_address: '', estimated_price: '', cep: '' });
+            setNewDelivery({ customer_name: '', pickup_address: '', delivery_address: '', estimated_price: '', cep: '' });
             fetchData();
         } catch (e) { alert('Erro ao criar entrega.'); }
     };
@@ -237,6 +237,24 @@ export default function DeliveryDashboard() {
                             <div className="bg-[#1E293B] rounded-[60px] overflow-hidden border border-white/5 shadow-2xl h-[600px] relative z-[1]">
                                 <MapContainer center={[-23.5505, -46.6333]} zoom={12} style={{ height: '100%', width: '100%' }}>
                                     <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+
+                                    {/* Rotas das Entregas Ativas */}
+                                    {deliveries.filter(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status)).map(d => (
+                                        <React.Fragment key={d.id}>
+                                            {d.pickup_lat && <Marker position={[d.pickup_lat, d.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:4px;background:#3b82f6;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5)"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg></div>` })} />}
+                                            {d.delivery_lat && <Marker position={[d.delivery_lat, d.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:4px;background:#25D366;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5)"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg></div>` })} />}
+                                            {d.route_polyline && d.route_polyline.length > 0 && (
+                                                <Polyline
+                                                    positions={d.route_polyline.map(p => [p.lat, p.lng])}
+                                                    color="#25D366"
+                                                    weight={2}
+                                                    opacity={0.5}
+                                                    dashArray="5, 5"
+                                                />
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+
                                     {motoboys.map(tech => tech.lat && (
                                         <Marker key={tech.id} position={[tech.lat, tech.lng]} icon={L.divIcon({
                                             className: 'bg-none',
@@ -513,9 +531,10 @@ export default function DeliveryDashboard() {
                         <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 p-3 bg-white/5 rounded-full text-slate-400"><X size={28} /></button>
                         <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="md:col-span-2"><input required className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-black" placeholder="NOME DO CLIENTE" value={newDelivery.customer_name} onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })} /></div>
-                            <div><input className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-mono font-black" placeholder="CEP" value={newDelivery.cep} onChange={e => { setNewDelivery({ ...newDelivery, cep: e.target.value }); handleCepSearch(e.target.value); }} /></div>
+                            <div className="md:col-span-2"><input required className="w-full bg-black/30 border border-blue-500/20 rounded-[25px] p-6 text-white font-bold" placeholder="ENDEREÇO DE COLETA (EMPRESA)" value={newDelivery.pickup_address} onChange={e => setNewDelivery({ ...newDelivery, pickup_address: e.target.value })} /></div>
+                            <div><input className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-mono font-black" placeholder="CEP DESTINO" value={newDelivery.cep} onChange={e => { setNewDelivery({ ...newDelivery, cep: e.target.value }); handleCepSearch(e.target.value); }} /></div>
                             <div><input type="number" step="0.01" className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-[#25D366] font-black" placeholder="PREÇO MANUAL" value={newDelivery.estimated_price} onChange={e => setNewDelivery({ ...newDelivery, estimated_price: e.target.value })} /></div>
-                            <div className="md:col-span-2"><textarea required rows="3" className="w-full bg-black/30 border border-white/5 rounded-[35px] p-6 text-white font-bold" placeholder="ENDEREÇO..." value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} /></div>
+                            <div className="md:col-span-2"><textarea required rows="3" className="w-full bg-black/30 border border-white/5 rounded-[35px] p-6 text-white font-bold" placeholder="ENDEREÇO DE ENTREGA (CLIENTE)..." value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} /></div>
                             <button type="submit" className="md:col-span-2 py-8 bg-[#25D366] text-black font-black rounded-[30px] text-xl tracking-tighter uppercase">SOLICITAR ENTREGA AGORA</button>
                         </form>
                     </div>

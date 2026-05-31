@@ -369,8 +369,28 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                         <div className="h-[300px] rounded-[40px] overflow-hidden border border-white/10 shadow-2xl relative z-10">
                             <MapContainer center={myPos ? [myPos.lat, myPos.lng] : [-23.55, -46.63]} zoom={15} style={{ height: '100%', width: '100%' }}>
                                 <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-                                {myPos && <Marker position={[myPos.lat, myPos.lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="width:20px;height:20px;border-radius:50%;background:#25D366;border:3px solid white;box-shadow:0 0 15px #25D366"></div>` })} />}
-                                {activeDelivery.delivery_lat && <Marker position={[activeDelivery.delivery_lat, activeDelivery.delivery_lng]} />}
+                                {myPos && (
+                                    <Marker
+                                        position={[myPos.lat, myPos.lng]}
+                                        icon={L.divIcon({
+                                            className: 'bg-none',
+                                            html: `<div style="width:20px;height:20px;border-radius:50%;background:#25D366;border:3px solid white;box-shadow:0 0 15px #25D366"></div>`
+                                        })}
+                                    />
+                                )}
+                                {activeDelivery.pickup_lat && <Marker position={[activeDelivery.pickup_lat, activeDelivery.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:5px;background:#3b82f6;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>` })} />}
+                                {activeDelivery.delivery_lat && <Marker position={[activeDelivery.delivery_lat, activeDelivery.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:5px;background:#25D366;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>` })} />}
+
+                                {activeDelivery.route_polyline && activeDelivery.route_polyline.length > 0 && (
+                                    <Polyline
+                                        positions={activeDelivery.route_polyline.map(p => [p.lat, p.lng])}
+                                        color="#25D366"
+                                        weight={4}
+                                        opacity={0.8}
+                                        dashArray="10, 10"
+                                    />
+                                )}
+
                                 {myPos && <ChangeView center={[myPos.lat, myPos.lng]} zoom={15} />}
                             </MapContainer>
                             <div className="absolute bottom-6 left-6 right-6 z-20 flex gap-2">

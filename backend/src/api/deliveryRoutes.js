@@ -44,6 +44,22 @@ async function getOSRMRoute(fromLat, fromLng, toLat, toLng) {
     }
 }
 
+// Helper: Geocodificação via Nominatim (Gratuito)
+async function geocodeAddress(address) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'WhatsAppAIPro/1.0' } });
+        const data = await res.json();
+        if (data && data.length > 0) {
+            return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        }
+        return null;
+    } catch (err) {
+        console.error('❌ Geocode Error:', err.message);
+        return null;
+    }
+}
+
 // ══════════════════════════════════════════════════════════════
 // ── MOTOBOY AUTH (Auto-cadastro + Login)
 // ══════════════════════════════════════════════════════════════
@@ -321,6 +337,16 @@ router.post('/create', authMiddleware, async (req, res) => {
         const basePrice = tenant?.delivery_base_price || 7.00;
         const kmPrice = tenant?.delivery_km_price || 1.50;
 
+        // Geocodificar endereços se não fornecer coordenadas
+        if (pickup_address && !pickup_lat) {
+            const geo = await geocodeAddress(pickup_address);
+            if (geo) { pickup_lat = geo.lat; pickup_lng = geo.lng; }
+        }
+        if (delivery_address && !delivery_lat) {
+            const geo = await geocodeAddress(delivery_address);
+            if (geo) { delivery_lat = geo.lat; delivery_lng = geo.lng; }
+        }
+
         // Calcula km estimado e rota
         let estimated_km = null;
         let route_polyline = [];
@@ -432,13 +458,22 @@ router.post('/accept/:id', authMiddleware, async (req, res) => {
 
         if (!delivery) return res.status(409).json({ error: 'Esta entrega já foi aceita por outro motoboy' });
 
+        // Tenta calcular a rota do motoboy até a coleta
+        let routePolyline = [];
+        const { data: tech } = await supabase.from('os_technicians').select('lat, lng').eq('id', req.user.id).single();
+        if (tech?.lat && delivery.pickup_lat) {
+            const routeData = await getOSRMRoute(tech.lat, tech.lng, delivery.pickup_lat, delivery.pickup_lng);
+            if (routeData) routePolyline = routeData.geometry;
+        }
+
         const { data, error } = await supabase
             .from('os_tasks')
             .update({
                 technician_id: req.user.id,
                 status: 'aceita',
                 accepted_at: now,
-                updated_at: now
+                updated_at: now,
+                route_polyline: routePolyline
             })
             .eq('id', req.params.id)
             .select(`*, technician:os_technicians(id, name, phone, vehicle_type, vehicle_plate, photo_url)`)
@@ -472,6 +507,16 @@ router.post('/pickup/:id', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
         const now = new Date().toISOString();
 
+        const { data: delivery } = await supabase.from('os_tasks').select('*').eq('id', req.params.id).single();
+        if (!delivery) return res.status(404).json({ error: 'Entrega não encontrada' });
+
+        // Calcula a rota da coleta até o destino
+        let routePolyline = delivery.route_polyline || [];
+        if (delivery.pickup_lat && delivery.delivery_lat) {
+            const routeData = await getOSRMRoute(delivery.pickup_lat, delivery.pickup_lng, delivery.delivery_lat, delivery.delivery_lng);
+            if (routeData) routePolyline = routeData.geometry;
+        }
+
         const { data, error } = await supabase
             .from('os_tasks')
             .update({
@@ -479,7 +524,8 @@ router.post('/pickup/:id', authMiddleware, async (req, res) => {
                 picked_up_at: now,
                 checkin_at: now,
                 location_at_checkin: { lat, lng },
-                updated_at: now
+                updated_at: now,
+                route_polyline: routePolyline
             })
             .eq('id', req.params.id)
             .eq('technician_id', req.user.id)
