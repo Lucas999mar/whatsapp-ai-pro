@@ -95,9 +95,18 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center mt-8 text-slate-500 text-sm">
-          Painel Administrativo v2.1 • Protegido por criptografia ponta a ponta
-        </p>
+        <div className="flex flex-col gap-4 mt-8">
+          <p className="text-center text-slate-500 text-sm">
+            Painel Administrativo v2.1 • Protegido por criptografia
+          </p>
+          <div className="h-px bg-white/5 w-full"></div>
+          <button
+            onClick={() => window.location.href = '/motoboy/register'}
+            className="text-[#25D366] text-xs font-black uppercase tracking-[0.2em] hover:opacity-80 transition-all flex items-center justify-center gap-2"
+          >
+            <Bike size={14} /> É um entregador? Cadastre-se aqui
+          </button>
+        </div>
       </div>
     </div>
   );

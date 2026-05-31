@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Bike, MapPin, Navigation, Package, Clock, DollarSign,
     Users, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
-    Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart
+    Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart, ExternalLink
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -163,7 +163,7 @@ export default function DeliveryDashboard() {
 
     return (
         <div className="min-h-screen bg-[#0B0F19] text-white p-4 lg:p-8 lg:pl-72 focus:outline-none selection:bg-[#25D366]/30">
-            {/* Header */}
+            {/* Header Moderno */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                 <div>
                     <h1 className="text-4xl font-black flex items-center gap-4 tracking-tighter">
@@ -183,7 +183,7 @@ export default function DeliveryDashboard() {
                     <div className="flex bg-[#1E293B] p-1.5 rounded-[24px] border border-white/5 shadow-inner shrink-0">
                         {[
                             { id: 'monitor', icon: <MapIcon size={16} />, label: 'Monitor' },
-                            { id: 'fleet', icon: <Users size={16} />, label: 'Frota' },
+                            { id: 'fleet', icon: <Users size={16} />, label: 'Entregadores' },
                             { id: 'reports', icon: <BarChart3 size={16} />, label: 'Relatórios' },
                             { id: 'config', icon: <Settings size={16} />, label: 'Preços' }
                         ].map(t => (
@@ -201,6 +201,20 @@ export default function DeliveryDashboard() {
 
             {activeTab === 'monitor' && (
                 <>
+                    {/* Botão de Cadastro Rápido se não houver motoboys */}
+                    {motoboys.length === 0 && (
+                        <div className="mb-12 p-10 bg-gradient-to-r from-blue-600/20 to-transparent rounded-[50px] border border-blue-500/20 flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-6 text-center md:text-left">
+                                <div className="p-5 bg-blue-500 rounded-3xl shadow-xl"><UserPlus className="text-white" size={32} /></div>
+                                <div>
+                                    <h4 className="text-2xl font-black italic tracking-tighter">Precisa de Entregadores?</h4>
+                                    <p className="text-slate-400 font-medium">Você ainda não tem motoboys cadastrados. Clique no botão ao lado para ver como recrutá-los.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setActiveTab('fleet')} className="px-10 py-5 bg-white text-black font-black rounded-3xl shadow-2xl hover:scale-105 transition-all text-xs tracking-widest uppercase">IR PARA RECRUTAMENTO</button>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                         {[
                             { label: 'Entregas Hoje', val: stats?.today_total || 0, icon: <Package />, color: 'from-blue-500 to-blue-700' },
@@ -209,7 +223,7 @@ export default function DeliveryDashboard() {
                             { label: 'Faturamento', val: `R$ ${stats?.total_revenue || 0}`, icon: <DollarSign />, color: 'from-purple-500 to-pink-700' }
                         ].map((s, i) => (
                             <div key={i} className="bg-[#1E293B] p-8 rounded-[40px] border border-white/5 shadow-2xl relative overflow-hidden group">
-                                <div className={`absolute -top-4 -right-4 p-8 opacity-10 group-hover:scale-150 group-hover:rotate-12 transition-all duration-700 bg-gradient-to-br ${s.color} rounded-full`}>
+                                <div className={`absolute -top-4 -right-4 p-8 opacity-10 group-hover:scale-150 transition-all duration-700 bg-gradient-to-br ${s.color} rounded-full`}>
                                     {React.cloneElement(s.icon, { size: 64 })}
                                 </div>
                                 <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-2">{s.label}</p>
@@ -220,7 +234,7 @@ export default function DeliveryDashboard() {
 
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                         <div className="xl:col-span-2 space-y-8">
-                            <div className="bg-[#1E293B] rounded-[60px] overflow-hidden border border-white/5 shadow-2xl h-[600px] relative z-[1] group">
+                            <div className="bg-[#1E293B] rounded-[60px] overflow-hidden border border-white/5 shadow-2xl h-[600px] relative z-[1]">
                                 <MapContainer center={[-23.5505, -46.6333]} zoom={12} style={{ height: '100%', width: '100%' }}>
                                     <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
                                     {motoboys.map(tech => tech.lat && (
@@ -238,7 +252,7 @@ export default function DeliveryDashboard() {
                                             `,
                                             iconSize: [44, 44], iconAnchor: [22, 22]
                                         })}>
-                                            <Popup className="custom-popup">
+                                            <Popup>
                                                 <div className="p-3 text-center">
                                                     <p className="font-black text-slate-800 uppercase tracking-tighter text-sm mb-1">{tech.name}</p>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase">{getTechStatus(tech).label}</p>
@@ -274,12 +288,13 @@ export default function DeliveryDashboard() {
                             </div>
                         </div>
 
+                        {/* Sidebar de Fluxo */}
                         <div className="bg-[#1E293B] rounded-[60px] p-8 border border-white/5 flex flex-col h-[820px] shadow-2xl">
                             <div className="flex items-center justify-between mb-8 px-2">
                                 <h3 className="text-2xl font-black tracking-tighter">Pedidos</h3>
                                 <div className="flex bg-black/40 p-1.5 rounded-[20px] border border-white/5">
-                                    <button onClick={() => setDeliveryTab('active')} className={`px-5 py-2 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all ${deliveryTab === 'active' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-slate-500'}`}>Ativos</button>
-                                    <button onClick={() => setDeliveryTab('completed')} className={`px-5 py-2 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all ${deliveryTab === 'completed' ? 'bg-[#25D366] text-black shadow-lg shadow-[#25D366]/20' : 'text-slate-500'}`}>Fritos</button>
+                                    <button onClick={() => setDeliveryTab('active')} className={`px-5 py-2 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all ${deliveryTab === 'active' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500'}`}>Ativos</button>
+                                    <button onClick={() => setDeliveryTab('completed')} className={`px-5 py-2 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all ${deliveryTab === 'completed' ? 'bg-[#25D366] text-black shadow-lg' : 'text-slate-500'}`}>Fritos</button>
                                 </div>
                             </div>
 
@@ -314,6 +329,87 @@ export default function DeliveryDashboard() {
                         </div>
                     </div>
                 </>
+            )}
+
+            {activeTab === 'fleet' && (
+                /* ABA DE ENTREGADORES / RECRUTAMENTO */
+                <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-700">
+                    <div className="bg-gradient-to-br from-[#1E293B] to-[#0B0F19] p-12 rounded-[70px] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-12 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                        <div className="max-w-xl relative z-10">
+                            <h2 className="text-5xl font-black mb-6 tracking-tighter italic">Recrutamento de Elite</h2>
+                            <p className="text-slate-400 text-lg font-medium leading-relaxed">Sua plataforma é multi-empresa. Compartilhe seu **Código Exclusivo** abaixo para que novos entregadores se cadastrem diretamente na sua frota.</p>
+
+                            <div className="mt-10 p-8 bg-black/40 rounded-[40px] border-2 border-dashed border-[#25D366]/30 flex items-center justify-between gap-6 group hover:border-[#25D366] transition-all">
+                                <div>
+                                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-3">Enterprise Key (Sua Chave)</p>
+                                    <p className="text-4xl font-mono font-black text-[#25D366] tracking-widest">{user?.tenant_id || user?.id}</p>
+                                </div>
+                                <button onClick={copyTenantId} className="p-6 bg-[#25D366] text-black rounded-3xl hover:scale-110 active:scale-95 transition-all shadow-2xl shadow-[#25D366]/30 flex flex-col items-center gap-2">
+                                    <Copy size={32} strokeWidth={3} />
+                                    <span className="text-[8px] font-black uppercase">Copiar Chave</span>
+                                </button>
+                            </div>
+
+                            <div className="mt-6 flex flex-col gap-3">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-4">Link para Cadastro do Motoboy:</p>
+                                <div className="bg-white/5 p-5 rounded-[25px] border border-white/10 flex items-center justify-between">
+                                    <code className="text-blue-400 font-bold truncate text-sm">{window.location.origin}/motoboy/register</code>
+                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/motoboy/register`); alert('Link copiado!'); }} className="text-white hover:text-blue-400 transition-all p-2"><ExternalLink size={20} /></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex-1 grid grid-cols-2 gap-6 w-full relative z-10">
+                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl group hover:bg-[#25D366]/10 transition-all">
+                                <h4 className="text-5xl font-black text-blue-500 mb-2 tracking-tighter">{motoboys.length}</h4>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Squad</p>
+                            </div>
+                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl group hover:bg-[#25D366]/10 transition-all">
+                                <h4 className="text-5xl font-black text-[#25D366] mb-2 tracking-tighter">{motoboys.filter(m => m.is_available).length}</h4>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Prontos / Online</p>
+                            </div>
+                            <div className="col-span-2 bg-[#25D366]/10 p-8 rounded-[40px] border border-[#25D366]/20 flex items-center gap-6">
+                                <div className="p-4 bg-[#25D366] text-black rounded-3xl"><UserPlus size={28} /></div>
+                                <div className="flex-1">
+                                    <p className="text-xs font-black text-white uppercase tracking-widest mb-1 italic">Dica de Gestão</p>
+                                    <p className="text-[11px] text-[#25D366] font-medium leading-relaxed">Envie o Link de Cadastro + Sua Chave para os entregadores que você deseja recrutar. Eles farão o cadastro sozinhos e aparecerão aqui instantaneamente.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-[#1E293B] rounded-[60px] p-10 border border-white/5">
+                        <div className="flex items-center justify-between mb-12 px-4">
+                            <h3 className="text-3xl font-black tracking-tighter flex items-center gap-4"><Users className="text-[#25D366]" size={32} /> Squad de Atendimento</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+                            {motoboys.map(m => (
+                                <div key={m.id} className="bg-black/30 p-8 rounded-[50px] border border-white/5 flex flex-col items-center group relative hover:border-[#25D366]/30 transition-all duration-500">
+                                    <div className="absolute top-6 right-6">
+                                        <div className={`w-3 h-3 rounded-full ${m.is_available ? 'bg-[#25D366]' : 'bg-slate-600'}`}></div>
+                                    </div>
+                                    <div className="w-24 h-24 rounded-[35px] bg-slate-800 mb-6 overflow-hidden relative border-[6px] border-white/5 group-hover:border-[#25D366]/20 transition-all shadow-2xl">
+                                        {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-600" />}
+                                    </div>
+                                    <h4 className="font-black text-xl tracking-tighter uppercase text-center mb-1">{m.name}</h4>
+                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mb-6">{m.email}</p>
+
+                                    <div className="grid grid-cols-2 gap-3 w-full">
+                                        <div className="bg-white/5 p-4 rounded-3xl text-center border border-white/5">
+                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Carga</p>
+                                            <p className="text-xs font-black uppercase text-[#25D366]">{m.vehicle_type || 'Moto'}</p>
+                                        </div>
+                                        <div className="bg-white/5 p-4 rounded-3xl text-center border border-white/5">
+                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Viagens</p>
+                                            <p className="text-xs font-black text-blue-500">{m.total_deliveries || 0}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {activeTab === 'reports' && (
@@ -386,56 +482,7 @@ export default function DeliveryDashboard() {
                                     </div>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="py-20 text-center opacity-20">
-                                <BarChart3 className="mx-auto mb-4" size={64} />
-                                <p className="font-black">Sem dados para este período.</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'fleet' && (
-                <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-700">
-                    <div className="bg-gradient-to-br from-[#1E293B] to-[#0B0F19] p-12 rounded-[70px] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-12 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                        <div className="max-w-xl relative z-10">
-                            <h2 className="text-5xl font-black mb-6 tracking-tighter italic">Expanda sua Rede</h2>
-                            <div className="mt-10 p-8 bg-black/40 rounded-[40px] border-2 border-dashed border-[#25D366]/30 flex items-center justify-between gap-6 group hover:border-[#25D366] transition-all">
-                                <div>
-                                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-3">Enterprise Key</p>
-                                    <p className="text-4xl font-mono font-black text-[#25D366] tracking-widest">{user?.tenant_id || user?.id}</p>
-                                </div>
-                                <button onClick={copyTenantId} className="p-6 bg-[#25D366] text-black rounded-3xl hover:scale-110 active:scale-95 transition-all shadow-2xl shadow-[#25D366]/30">
-                                    <Copy size={32} strokeWidth={3} />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="flex-1 grid grid-cols-2 gap-6 w-full relative z-10">
-                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl">
-                                <h4 className="text-5xl font-black text-blue-500 mb-2">{motoboys.length}</h4>
-                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Registrados</p>
-                            </div>
-                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl">
-                                <h4 className="text-5xl font-black text-[#25D366] mb-2">{motoboys.filter(m => m.is_available).length}</h4>
-                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Em Serviço</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-[#1E293B] rounded-[60px] p-10 border border-white/5 shadow-2xl">
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-                            {motoboys.map(m => (
-                                <div key={m.id} className="bg-black/30 p-8 rounded-[50px] border border-white/5 flex flex-col items-center group relative hover:border-[#25D366]/30 transition-all duration-500">
-                                    <div className="w-24 h-24 rounded-[35px] bg-slate-800 mb-6 overflow-hidden relative border-[6px] border-white/5 group-hover:border-[#25D366]/20 transition-all shadow-2xl">
-                                        {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-600" />}
-                                    </div>
-                                    <h4 className="font-black text-xl tracking-tighter uppercase text-center mb-1">{m.name}</h4>
-                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mb-6">{m.email}</p>
-                                </div>
-                            ))}
-                        </div>
+                        ) : null}
                     </div>
                 </div>
             )}
