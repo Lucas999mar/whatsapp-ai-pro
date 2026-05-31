@@ -28,6 +28,7 @@ import ContatosPage from './pages/ContatosPage';
 import TrackingPage from './pages/TrackingPage';
 import MotoboyApp from './pages/MotoboyApp';
 import MotoboyRegister from './pages/MotoboyRegister';
+import DeliveryDashboard from './pages/DeliveryDashboard';
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -44,7 +45,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
-    { path: '/motoboy', name: 'Entregas / Motoboy', icon: <Bike size={20} /> },
+    { path: '/delivery-dashboard', name: 'Monitor Delivery (Uber)', icon: <Bike size={20} /> },
     { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
@@ -220,6 +221,8 @@ function AppContent() {
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
             <Route path="/motoboy" element={<AuthGuard><MotoboyApp /></AuthGuard>} />
+            <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
+            <Route path="/motoboy/register" element={<MotoboyRegister />} />
             <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
