@@ -259,11 +259,14 @@ router.get('/motoboy/stats', authMiddleware, async (req, res) => {
         const all = deliveries || [];
         const completed = all.filter(d => d.status === 'entregue' || d.status === 'concluida');
 
+        const { data: tech } = await supabase.from('os_technicians').select('balance').eq('id', req.user.id).single();
+
         res.json({
             total: all.length,
             completed: completed.length,
             total_km: +(completed.reduce((s, d) => s + (d.actual_km || d.estimated_km || 0), 0)).toFixed(1),
             total_earnings: +(completed.reduce((s, d) => s + (parseFloat(d.estimated_price) || 0), 0)).toFixed(2),
+            balance: tech?.balance || 0,
             active: all.filter(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento', 'em_execucao'].includes(d.status)).length
         });
     } catch (err) {
@@ -574,7 +577,7 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
             lat, lng
         });
 
-        // Credit logic: Adiciona o valor à carteira do motoboy
+        // Credit logic: Adiciona o valor à carteira do motoboy e atualiza saldo
         if (delivery.estimated_price > 0) {
             await supabase.from('os_transactions').insert({
                 tenant_id: delivery.tenant_id,
@@ -584,6 +587,12 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
                 description: `Entrega concluída: #${delivery.tracking_code}`,
                 task_id: delivery.id
             });
+
+            // Atualiza saldo real na tabela do motoboy
+            const { data: tech } = await supabase.from('os_technicians').select('balance').eq('id', req.user.id).single();
+            await supabase.from('os_technicians')
+                .update({ balance: (parseFloat(tech?.balance || 0) + parseFloat(delivery.estimated_price)).toFixed(2) })
+                .eq('id', req.user.id);
         }
 
         emitDeliveryEvent('delivery:status_change', {

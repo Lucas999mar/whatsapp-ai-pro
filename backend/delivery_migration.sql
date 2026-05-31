@@ -45,6 +45,56 @@ ALTER TABLE os_tasks ADD CONSTRAINT os_tasks_status_check
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS delivery_base_price NUMERIC(10,2) DEFAULT 7.00;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS delivery_km_price NUMERIC(10,2) DEFAULT 1.50;
 
+ALTER TABLE os_tasks ADD COLUMN IF NOT EXISTS checkin_at TIMESTAMPTZ;
+ALTER TABLE os_tasks ADD COLUMN IF NOT EXISTS checkout_at TIMESTAMPTZ;
+ALTER TABLE os_tasks ADD COLUMN IF NOT EXISTS location_at_checkin JSONB;
+ALTER TABLE os_tasks ADD COLUMN IF NOT EXISTS location_at_checkout JSONB;
+
+-- 5. Tabela de Eventos (Histórico da Entrega)
+CREATE TABLE IF NOT EXISTS os_task_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id UUID REFERENCES os_tasks(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    description TEXT,
+    lat FLOAT8,
+    lng FLOAT8,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 6. Tabela de Logs GPS
+CREATE TABLE IF NOT EXISTS os_gps_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id TEXT,
+    technician_id UUID REFERENCES os_technicians(id) ON DELETE CASCADE,
+    lat FLOAT8 NOT NULL,
+    lng FLOAT8 NOT NULL,
+    accuracy FLOAT8,
+    battery_level FLOAT8,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 7. Tabela de Transações Financeiras (Carteira)
+CREATE TABLE IF NOT EXISTS os_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id TEXT,
+    technician_id UUID REFERENCES os_technicians(id) ON DELETE CASCADE,
+    task_id UUID REFERENCES os_tasks(id) ON DELETE SET NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    type TEXT CHECK (type IN ('credit', 'debit', 'withdrawal')),
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 8. Função para incrementar contador de entregas (RPC)
+CREATE OR REPLACE FUNCTION increment_delivery_count(motoboy_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE os_technicians 
+  SET total_deliveries = COALESCE(total_deliveries, 0) + 1
+  WHERE id = motoboy_id;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 4. Índices para performance
 CREATE INDEX IF NOT EXISTS idx_tasks_tracking ON os_tasks(tracking_code);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON os_tasks(status, tenant_id);
