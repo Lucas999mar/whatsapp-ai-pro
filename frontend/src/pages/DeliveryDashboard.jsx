@@ -202,7 +202,7 @@ export default function DeliveryDashboard() {
                             { id: 'monitor', icon: <MapIcon size={16} />, label: 'Monitor' },
                             { id: 'fleet', icon: <Users size={16} />, label: 'Entregadores' },
                             { id: 'reports', icon: <BarChart3 size={16} />, label: 'Relatórios' },
-                            { id: 'config', icon: <Settings size={16} />, label: 'Preços' }
+                            { id: 'config', icon: <Settings size={16} />, label: 'Configurações' }
                         ].map(t => (
                             <button
                                 key={t.id}

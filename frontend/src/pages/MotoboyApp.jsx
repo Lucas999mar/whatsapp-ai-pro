@@ -19,9 +19,13 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-function ChangeView({ center, zoom }) {
+function ChangeView({ center, zoom, active }) {
     const map = useMap();
-    if (center) map.setView(center, zoom);
+    useEffect(() => {
+        if (center && active) {
+            map.setView(center, zoom, { animate: true, duration: 1 });
+        }
+    }, [center, zoom, active, map]);
     return null;
 }
 
@@ -205,9 +209,18 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
 
     const openNavigation = (lat, lng, address) => {
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        let url = lat && lng
-            ? (isMobile ? `google.navigation:q=${lat},${lng}` : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`)
-            : (isMobile ? `google.navigation:q=${encodeURIComponent(address)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`);
+        const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+        let url;
+        if (isiOS) {
+            url = lat && lng ? `maps://?q=${lat},${lng}` : `maps://?q=${encodeURIComponent(address)}`;
+        } else if (isMobile) {
+            url = lat && lng ? `google.navigation:q=${lat},${lng}` : `google.navigation:q=${encodeURIComponent(address)}`;
+        } else {
+            url = `https://www.google.com/maps/dir/?api=1&destination=${lat && lng ? `${lat},${lng}` : encodeURIComponent(address)}`;
+        }
+
+        // No mobile, usamos _self para disparar o Deep Link do App nativo sem abrir aba
         window.open(url, isMobile ? '_self' : '_blank');
     };
 
@@ -318,87 +331,108 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                 </div>
             </div>
 
-            <div className="p-4 grid grid-cols-3 gap-3">
-                <div className="bg-[#1E293B] p-3 rounded-2xl border border-white/5 text-center">
-                    <Clock className="mx-auto text-blue-400 mb-1" size={18} />
-                    <p className="text-xl font-black">{stats.completed}</p>
-                    <p className="text-[9px] text-slate-500 uppercase font-black">Entregas</p>
+            {!activeDelivery && (
+                <div className="p-4 grid grid-cols-3 gap-3">
+                    <div className="bg-[#1E293B] p-3 rounded-2xl border border-white/5 text-center">
+                        <Clock className="mx-auto text-blue-400 mb-1" size={18} />
+                        <p className="text-xl font-black">{stats.completed}</p>
+                        <p className="text-[9px] text-slate-500 uppercase font-black">Entregas</p>
+                    </div>
+                    <div className="bg-[#1E293B] p-3 rounded-2xl border border-white/5 text-center">
+                        <Navigation className="mx-auto text-[#25D366] mb-1" size={18} />
+                        <p className="text-xl font-black">{stats.total_km}</p>
+                        <p className="text-[9px] text-slate-500 uppercase font-black">KM Totais</p>
+                    </div>
+                    <div className="bg-[#1E293B] p-3 rounded-2xl border border-white/5 text-center">
+                        <DollarSign className="mx-auto text-yellow-500 mb-1" size={18} />
+                        <p className="text-xl font-black">R${stats.total_earnings}</p>
+                        <p className="text-[9px] text-slate-500 uppercase font-black">Ganhos</p>
+                    </div>
                 </div>
-                <div className="bg-[#1E293B] p-3 rounded-2xl border border-white/5 text-center">
-                    <Navigation className="mx-auto text-[#25D366] mb-1" size={18} />
-                    <p className="text-xl font-black">{stats.total_km}</p>
-                    <p className="text-[9px] text-slate-500 uppercase font-black">KM Totais</p>
-                </div>
-                <div className="bg-[#1E293B] p-3 rounded-2xl border border-white/5 text-center">
-                    <DollarSign className="mx-auto text-yellow-500 mb-1" size={18} />
-                    <p className="text-xl font-black">R${stats.total_earnings}</p>
-                    <p className="text-[9px] text-slate-500 uppercase font-black">Ganhos</p>
-                </div>
-            </div>
+            )}
 
-            <div className="flex-1 p-4 space-y-6">
+            <div className="flex-1 relative">
                 {activeDelivery ? (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="bg-[#25D366] text-black p-4 rounded-3xl shadow-xl shadow-[#25D366]/10 relative overflow-hidden">
-                            <h3 className="text-lg font-black flex items-center gap-2 mb-1 uppercase tracking-tighter">
-                                {activeDelivery.status === 'aceita' ? '🚀 Vá para a Coleta' :
-                                    activeDelivery.status === 'coletando' ? '📦 Coletando Pedido' :
-                                        '🏁 Vá para o Destino'}
-                            </h3>
-                            <p className="text-sm font-bold opacity-70">Pedido #{activeDelivery.tracking_code}</p>
-                            <div className="mt-4 space-y-3">
-                                <div className="flex items-center gap-3 bg-black/5 p-3 rounded-2xl">
-                                    <div className="w-8 h-8 bg-black/10 rounded-full flex items-center justify-center font-bold text-xs">1</div>
-                                    <div className="flex-1 overflow-hidden">
-                                        <p className="text-[9px] text-black/50 font-black uppercase">Coleta:</p>
-                                        <p className="text-xs font-bold truncate leading-tight">{activeDelivery.pickup_address}</p>
+                    <div className="h-full w-full fixed inset-0 z-0">
+                        <MapContainer
+                            center={myPos ? [myPos.lat, myPos.lng] : [-23.55, -46.63]}
+                            zoom={16}
+                            zoomControl={false}
+                            style={{ height: '100%', width: '100%' }}
+                        >
+                            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                            {myPos && (
+                                <Marker
+                                    position={[myPos.lat, myPos.lng]}
+                                    icon={L.divIcon({
+                                        className: 'bg-none',
+                                        html: `<div style="width:24px;height:24px;border-radius:50%;background:#25D366;border:4px solid white;box-shadow:0 0 20px #25D366;position:relative"><div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid #25D366"></div></div>`
+                                    })}
+                                />
+                            )}
+                            {activeDelivery.pickup_lat && <Marker position={[activeDelivery.pickup_lat, activeDelivery.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:8px;background:#3b82f6;color:white;border-radius:20px;border:2px solid white;box-shadow:0 0 15px rgba(0,0,0,0.5);font-weight:bold;font-size:10px;white-space:nowrap;display:flex;items-center:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg> PONTO DE COLETA</div>` })} />}
+                            {activeDelivery.delivery_lat && <Marker position={[activeDelivery.delivery_lat, activeDelivery.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:8px;background:#25D366;color:white;border-radius:20px;border:2px solid white;box-shadow:0 0 15px rgba(0,0,0,0.5);font-weight:bold;font-size:10px;white-space:nowrap;display:flex;items-center:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg> CLIENTE</div>` })} />}
+
+                            {activeDelivery.route_polyline && activeDelivery.route_polyline.length > 0 && (
+                                <Polyline
+                                    positions={activeDelivery.route_polyline.map(p => [p.lat, p.lng])}
+                                    color="#25D366"
+                                    weight={6}
+                                    opacity={0.6}
+                                />
+                            )}
+
+                            <ChangeView center={myPos ? [myPos.lat, myPos.lng] : null} zoom={16} active={!!activeDelivery} />
+                        </MapContainer>
+
+                        {/* UI Overlays */}
+                        <div className="absolute top-24 left-4 right-4 z-10">
+                            <div className="glass-panel p-4 bg-black/80 backdrop-blur-xl border-white/10 rounded-[28px] shadow-2xl flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-2xl ${activeDelivery.status === 'aceita' ? 'bg-blue-500' : 'bg-[#25D366]'} text-white`}>
+                                        {activeDelivery.status === 'aceita' ? <Package size={24} /> : <Navigation size={24} />}
                                     </div>
-                                    <button onClick={() => openNavigation(activeDelivery.pickup_lat, activeDelivery.pickup_lng, activeDelivery.pickup_address)} className="p-2 bg-black/10 rounded-xl"><Navigation size={16} /></button>
-                                </div>
-                                <div className="flex items-center gap-3 bg-black/5 p-3 rounded-2xl">
-                                    <div className="w-8 h-8 bg-black/10 rounded-full flex items-center justify-center font-bold text-xs">2</div>
-                                    <div className="flex-1 overflow-hidden">
-                                        <p className="text-[9px] text-black/50 font-black uppercase">Entrega:</p>
-                                        <p className="text-xs font-bold truncate leading-tight">{activeDelivery.delivery_address}</p>
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tighter text-white">
+                                            {activeDelivery.status === 'aceita' ? 'Siga para a Coleta' : 'Siga para a Entrega'}
+                                        </h4>
+                                        <p className="text-[11px] text-slate-400 font-bold truncate max-w-[180px]">
+                                            {activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address}
+                                        </p>
                                     </div>
-                                    <button onClick={() => openNavigation(activeDelivery.delivery_lat, activeDelivery.delivery_lng, activeDelivery.delivery_address)} className="p-2 bg-black/10 rounded-xl"><Navigation size={16} /></button>
                                 </div>
+                                <button
+                                    onClick={() => openNavigation(
+                                        activeDelivery.status === 'aceita' ? activeDelivery.pickup_lat : activeDelivery.delivery_lat,
+                                        activeDelivery.status === 'aceita' ? activeDelivery.pickup_lng : activeDelivery.delivery_lng,
+                                        activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address
+                                    )}
+                                    className="p-4 bg-white text-black rounded-2xl shadow-xl active:scale-90 transition-all"
+                                >
+                                    <Navigation size={20} />
+                                </button>
                             </div>
                         </div>
 
-                        <div className="h-[300px] rounded-[40px] overflow-hidden border border-white/10 shadow-2xl relative z-10">
-                            <MapContainer center={myPos ? [myPos.lat, myPos.lng] : [-23.55, -46.63]} zoom={15} style={{ height: '100%', width: '100%' }}>
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-                                {myPos && (
-                                    <Marker
-                                        position={[myPos.lat, myPos.lng]}
-                                        icon={L.divIcon({
-                                            className: 'bg-none',
-                                            html: `<div style="width:20px;height:20px;border-radius:50%;background:#25D366;border:3px solid white;box-shadow:0 0 15px #25D366"></div>`
-                                        })}
-                                    />
-                                )}
-                                {activeDelivery.pickup_lat && <Marker position={[activeDelivery.pickup_lat, activeDelivery.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:5px;background:#3b82f6;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>` })} />}
-                                {activeDelivery.delivery_lat && <Marker position={[activeDelivery.delivery_lat, activeDelivery.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:5px;background:#25D366;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>` })} />}
-
-                                {activeDelivery.route_polyline && activeDelivery.route_polyline.length > 0 && (
-                                    <Polyline
-                                        positions={activeDelivery.route_polyline.map(p => [p.lat, p.lng])}
-                                        color="#25D366"
-                                        weight={4}
-                                        opacity={0.8}
-                                        dashArray="10, 10"
-                                    />
-                                )}
-
-                                {myPos && <ChangeView center={[myPos.lat, myPos.lng]} zoom={15} />}
-                            </MapContainer>
-                            <div className="absolute bottom-6 left-6 right-6 z-20 flex gap-2">
-                                {activeDelivery.status === 'aceita' ? (
-                                    <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase text-sm tracking-widest"><Package size={20} /> Coletei</button>
-                                ) : (
-                                    <button onClick={confirmDelivery} className="flex-1 bg-green-600 text-white font-black py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase text-sm tracking-widest"><Square size={20} /> Entreguei</button>
-                                )}
+                        <div className="absolute bottom-24 left-4 right-4 z-10 space-y-3">
+                            <div className="bg-white p-6 rounded-[35px] text-black shadow-2xl animate-in slide-in-from-bottom-10">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase opacity-40">Pedido #{activeDelivery.tracking_code}</p>
+                                        <h3 className="text-xl font-black tracking-tighter">{activeDelivery.customer_name}</h3>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black uppercase opacity-40">Valor</p>
+                                        <h3 className="text-xl font-black text-[#128C7E]">R$ {activeDelivery.estimated_price}</h3>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {activeDelivery.status === 'aceita' ? (
+                                        <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black py-5 rounded-[22px] shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-widest"><Package size={18} /> CONFIRMAR COLETA</button>
+                                    ) : (
+                                        <button onClick={confirmDelivery} className="flex-1 bg-[#25D366] text-black font-black py-5 rounded-[22px] shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-widest"><Square size={18} /> FINALIZAR ENTREGA</button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
