@@ -3,7 +3,8 @@ import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import {
     Calendar as CalendarIcon, MapPin, Plus, Clock, User, ChevronLeft, ChevronRight,
-    Loader2, X, Play, Square, Users, Briefcase, Map as MapIcon, ClipboardList, Edit
+    Loader2, X, Play, Square, Users, Briefcase, Map as MapIcon, ClipboardList, Edit,
+    Navigation, DollarSign
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
