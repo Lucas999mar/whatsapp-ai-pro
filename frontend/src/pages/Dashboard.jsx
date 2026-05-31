@@ -8,12 +8,14 @@ import {
   Calendar, AlertCircle
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { user } = useAuth();
+
+  if (user?.role === 'motoboy') return <Navigate to="/" />;
   const [stats, setStats] = useState({
     knowledge: { total: 0 },
     conversations: { total: 0, uniqueUsers: 0 },
