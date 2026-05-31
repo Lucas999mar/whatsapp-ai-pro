@@ -229,17 +229,21 @@ router.post('/obsidian/sync', authMiddleware, async (req, res) => {
 router.put('/company/settings', authMiddleware, async (req, res) => {
   try {
     const supabase = getSupabase();
-    const { name, logo } = req.body;
+    const { name, logo, delivery_base_price, delivery_km_price, default_pickup_address } = req.body;
 
-    // Prepara dados para upsert
+    // Prepara dados para upsert (patching)
     const updateData = {
       id: req.user.id,
       updated_at: new Date().toISOString()
     };
-    if (name) updateData.name = name;
-    if (logo) updateData.logo = logo;
 
-    console.log(`💾 Tentando salvar configs para: ${req.user.id}`);
+    if (name !== undefined) updateData.name = name;
+    if (logo !== undefined) updateData.logo = logo;
+    if (delivery_base_price !== undefined) updateData.delivery_base_price = delivery_base_price;
+    if (delivery_km_price !== undefined) updateData.delivery_km_price = delivery_km_price;
+    if (default_pickup_address !== undefined) updateData.default_pickup_address = default_pickup_address;
+
+    console.log(`💾 Salvando configurações para: ${req.user.id}`, updateData);
 
     const { data, error } = await supabase
       .from('tenants')

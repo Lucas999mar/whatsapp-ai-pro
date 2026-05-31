@@ -33,7 +33,8 @@ export default function DeliveryDashboard() {
     // Configurações de Preço
     const [pricing, setPricing] = useState({
         delivery_base_price: '7.00',
-        delivery_km_price: '1.50'
+        delivery_km_price: '1.50',
+        default_pickup_address: ''
     });
     const [savingConfig, setSavingConfig] = useState(false);
 
@@ -78,7 +79,8 @@ export default function DeliveryDashboard() {
             if (myTenant) {
                 setPricing({
                     delivery_base_price: myTenant.delivery_base_price || '7.00',
-                    delivery_km_price: myTenant.delivery_km_price || '1.50'
+                    delivery_km_price: myTenant.delivery_km_price || '1.50',
+                    default_pickup_address: myTenant.default_pickup_address || ''
                 });
             }
         } catch (e) {
@@ -96,10 +98,10 @@ export default function DeliveryDashboard() {
         setSavingConfig(true);
         try {
             await api.put('/company/settings', pricing);
-            alert('Configurações de preço salvas com sucesso!');
+            alert('Configurações salvas com sucesso!');
             fetchData();
         } catch (e) {
-            alert('Erro ao salvar configurações.');
+            alert('Erro ao salvar as configurações: ' + (e.response?.data?.error || e.message));
         } finally {
             setSavingConfig(false);
         }
@@ -124,15 +126,27 @@ export default function DeliveryDashboard() {
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/delivery/create', {
-                ...newDelivery,
+            const payload = {
+                customer_name: newDelivery.customer_name,
+                pickup_address: newDelivery.pickup_address,
+                delivery_address: newDelivery.delivery_address,
                 delivery_type: 'entrega',
                 status: 'aguardando_motoboy'
-            });
+            };
+            // Só envia preço se o campo foi preenchido manualmente
+            if (newDelivery.estimated_price && parseFloat(newDelivery.estimated_price) > 0) {
+                payload.estimated_price = parseFloat(newDelivery.estimated_price);
+            }
+            const res = await api.post('/delivery/create', payload);
             setShowModal(false);
             setNewDelivery({ customer_name: '', pickup_address: '', delivery_address: '', estimated_price: '', cep: '' });
+
+            // Mostra o valor calculado
+            const km = res.data.estimated_km ? `${res.data.estimated_km} km` : 'N/A';
+            const price = res.data.estimated_price ? `R$ ${parseFloat(res.data.estimated_price).toFixed(2)}` : 'N/A';
+            alert(`✅ Entrega criada!\n📍 Distância: ${km}\n💰 Valor: ${price}\n📦 Código: ${res.data.tracking_code}`);
             fetchData();
-        } catch (e) { alert('Erro ao criar entrega.'); }
+        } catch (e) { alert('Erro ao criar entrega: ' + (e.response?.data?.error || e.message)); }
     };
 
     useEffect(() => {
@@ -175,7 +189,10 @@ export default function DeliveryDashboard() {
                 </div>
                 <div className="flex items-center gap-4 overflow-x-auto pb-2 md:pb-0 scroll-hide">
                     <button
-                        onClick={() => setShowModal(true)}
+                        onClick={() => {
+                            setNewDelivery(prev => ({ ...prev, pickup_address: pricing.default_pickup_address }));
+                            setShowModal(true);
+                        }}
                         className="whitespace-nowrap px-8 py-4 bg-[#25D366] text-black font-black rounded-[24px] shadow-2xl shadow-[#25D366]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 uppercase text-[10px] tracking-widest"
                     >
                         <Plus size={20} strokeWidth={3} /> Criar Pedido
@@ -516,6 +533,11 @@ export default function DeliveryDashboard() {
                             <div className="space-y-4">
                                 <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Valor por KM Rodado</label>
                                 <input type="number" step="0.01" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-3xl font-black text-blue-500 outline-none" value={pricing.delivery_km_price} onChange={e => setPricing({ ...pricing, delivery_km_price: e.target.value })} />
+                            </div>
+                            <div className="md:col-span-2 space-y-4">
+                                <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Endereço de Coleta Padrão (Empresa)</label>
+                                <textarea rows="2" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-xl font-bold text-white outline-none" value={pricing.default_pickup_address} onChange={e => setPricing({ ...pricing, default_pickup_address: e.target.value })} placeholder="Ex: Rua das Flores, 123, Centro..." />
+                                <p className="text-[9px] text-slate-500 font-bold uppercase ml-4 italic">* Use o endereço completo para que o GPS encontre a localização correta.</p>
                             </div>
                         </div>
                         <button onClick={handleSavePricing} disabled={savingConfig} className="w-full mt-10 py-6 bg-gradient-to-r from-[#25D366] to-green-600 text-black font-black rounded-[30px] flex items-center justify-center gap-4 uppercase tracking-[0.2em] transition-all">

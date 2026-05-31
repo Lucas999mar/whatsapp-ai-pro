@@ -44,6 +44,9 @@ ALTER TABLE os_tasks ADD CONSTRAINT os_tasks_status_check
 -- 3. Campos na tabela de empresas (tenants)
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS delivery_base_price NUMERIC(10,2) DEFAULT 7.00;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS delivery_km_price NUMERIC(10,2) DEFAULT 1.50;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_pickup_address TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_pickup_lat FLOAT8;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_pickup_lng FLOAT8;
 
 ALTER TABLE os_tasks ADD COLUMN IF NOT EXISTS checkin_at TIMESTAMPTZ;
 ALTER TABLE os_tasks ADD COLUMN IF NOT EXISTS checkout_at TIMESTAMPTZ;
