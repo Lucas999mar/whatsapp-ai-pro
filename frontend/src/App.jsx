@@ -50,12 +50,19 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
 
-  if (user?.role === 'technician' || user?.role === 'motoboy') {
+  if (user?.role === 'technician') {
+    navItems = [
+      { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
+      { path: '/atendimento', name: 'Atendimento', icon: <MessageSquare size={20} /> },
+      { path: '/os', name: 'Minhas Ordens', icon: <ClipboardList size={20} /> },
+      { path: '/settings', name: 'Perfil', icon: <Settings size={20} /> },
+    ];
+  }
+
+  if (user?.role === 'motoboy') {
     navItems = [
       { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
       { path: '/motoboy', name: 'Minhas Entregas', icon: <Bike size={20} /> },
-      { path: '/atendimento', name: 'Minhas Conversas', icon: <MessageSquare size={20} /> },
-      { path: '/os', name: 'Minhas Ordens', icon: <ClipboardList size={20} /> },
       { path: '/settings', name: 'Perfil', icon: <Settings size={20} /> },
     ];
   }

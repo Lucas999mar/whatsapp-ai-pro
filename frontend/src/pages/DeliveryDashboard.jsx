@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Bike, MapPin, Navigation, Package, Clock, DollarSign,
     Users, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
-    Map as MapIcon, Loader2
+    Map as MapIcon, Loader2, X
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -22,28 +22,46 @@ export default function DeliveryDashboard() {
     const [motoboys, setMotoboys] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('active'); // 'active', 'pending', 'completed'
+    const [showModal, setShowModal] = useState(false);
+    const [newDelivery, setNewDelivery] = useState({
+        customer_name: '',
+        delivery_address: '',
+        estimated_price: ''
+    });
 
     const fetchData = useCallback(async () => {
         try {
             const [statsRes, deliveriesRes, techRes] = await Promise.all([
                 api.get('/delivery/stats'),
-                api.get('/os/tasks'), // Pegamos todas as OS e filtramos no front ou usamos endpoint de entrega
+                api.get('/os/tasks'),
                 api.get('/os/technicians')
             ]);
 
             setStats(statsRes.data);
-            // Filtrar apenas tarefas que são do tipo delivery e estão ativas
             const deliveryOnly = (deliveriesRes.data || []).filter(t => t.delivery_type && t.delivery_type !== 'os');
             setDeliveries(deliveryOnly);
 
-            // Motoboys online
-            setMotoboys((techRes.data || []).filter(t => t.is_available || t.status === 'online'));
+            setMotoboys(techRes.data || []);
         } catch (e) {
             console.error('Erro ao buscar dados do dashboard:', e);
         } finally {
             setLoading(false);
         }
     }, []);
+
+    const handleCreate = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/delivery', {
+                ...newDelivery,
+                delivery_type: 'entrega',
+                status: 'aguardando_motoboy'
+            });
+            setShowModal(false);
+            setNewDelivery({ customer_name: '', delivery_address: '', estimated_price: '' });
+            fetchData();
+        } catch (e) { alert('Erro ao criar entrega'); }
+    };
 
     useEffect(() => {
         fetchData();
@@ -59,8 +77,15 @@ export default function DeliveryDashboard() {
         );
     }
 
+    const getTechStatus = (m) => {
+        const isBusy = deliveries.some(d => d.technician_id === m.id && !['entregue', 'concluida', 'cancelada'].includes(d.status));
+        if (!m.is_available) return { label: 'Indisponível', color: 'bg-slate-500/10 text-slate-500' };
+        if (isBusy) return { label: 'Em Entrega', color: 'bg-blue-500/10 text-blue-500' };
+        return { label: 'Livre', color: 'bg-[#25D366]/10 text-[#25D366]' };
+    };
+
     return (
-        <div className="min-h-screen bg-[#0B0F19] text-white p-4 lg:p-8 lg:pl-72">
+        <div className="min-h-screen bg-[#0B0F19] text-white p-4 lg:p-8 lg:pl-72 focus:outline-none">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
@@ -72,8 +97,16 @@ export default function DeliveryDashboard() {
                     </h1>
                     <p className="text-slate-400 mt-1">Visão geral em tempo real da sua frota e pedidos.</p>
                 </div>
-                <div className="flex bg-[#1E293B] p-1 rounded-2xl border border-white/5">
-                    <button onClick={() => fetchData()} className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-all">Atualizar Agora</button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="px-6 py-3 bg-[#25D366] text-black font-black rounded-2xl shadow-xl shadow-[#25D366]/20 hover:scale-105 transition-all flex items-center gap-2"
+                    >
+                        <Package size={20} /> NOVA ENTREGA
+                    </button>
+                    <button onClick={() => fetchData()} className="p-3 bg-[#1E293B] hover:bg-white/10 rounded-2xl border border-white/5 transition-all">
+                        <Loader2 size={24} className={loading ? 'animate-spin' : ''} />
+                    </button>
                 </div>
             </div>
 
@@ -110,7 +143,7 @@ export default function DeliveryDashboard() {
                                     <Popup>
                                         <div className="p-2">
                                             <p className="font-bold text-slate-800">{tech.name}</p>
-                                            <p className="text-xs text-slate-500">Status: {tech.is_available ? 'Livre' : 'Ocupado'}</p>
+                                            <p className="text-xs text-slate-500">Status: {getTechStatus(tech).label}</p>
                                             <p className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full mt-1 inline-block">{tech.vehicle_type}</p>
                                         </div>
                                     </Popup>
@@ -125,10 +158,10 @@ export default function DeliveryDashboard() {
 
                         <div className="absolute bottom-6 left-6 z-20 flex gap-3">
                             <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 text-xs font-bold flex items-center gap-2">
-                                <div className="w-3 h-3 bg-[#25D366] rounded-full"></div> Motoboy Disponível
+                                <div className="w-3 h-3 bg-[#25D366] rounded-full"></div> Livre
                             </div>
                             <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 text-xs font-bold flex items-center gap-2">
-                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div> Coleta Pendente
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div> Em Entrega
                             </div>
                         </div>
                     </div>
@@ -136,25 +169,28 @@ export default function DeliveryDashboard() {
                     {/* Lista de Motoboys */}
                     <div className="bg-[#1E293B] rounded-[40px] p-6 border border-white/5">
                         <h3 className="text-xl font-black mb-6 flex items-center gap-2 px-2">
-                            <Users className="text-[#25D366]" /> Frota Ativa ({motoboys.length})
+                            <Users className="text-[#25D366]" /> Frota Ativa ({motoboys.filter(m => m.is_available).length})
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {motoboys.length === 0 ? (
                                 <p className="col-span-2 text-center text-slate-500 py-10">Nenhum motoboy online no momento.</p>
-                            ) : motoboys.map(m => (
-                                <div key={m.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center gap-4 group hover:bg-white/10 transition-all">
-                                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold shadow-lg" style={{ backgroundColor: m.color || '#25D366' }}>
-                                        {m.name.charAt(0)}
+                            ) : motoboys.map(m => {
+                                const st = getTechStatus(m);
+                                return (
+                                    <div key={m.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center gap-4 group hover:bg-white/10 transition-all">
+                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold shadow-lg" style={{ backgroundColor: m.color || '#25D366' }}>
+                                            {m.name.charAt(0)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold">{m.name}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase font-black">{m.status} • {m.vehicle_type}</p>
+                                        </div>
+                                        <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${st.color}`}>
+                                            {st.label}
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="font-bold">{m.name}</p>
-                                        <p className="text-[10px] text-slate-400 uppercase font-black">{m.status} • {m.vehicle_type}</p>
-                                    </div>
-                                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${m.is_available ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                                        {m.is_available ? 'Livre' : 'Ocupado'}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -227,6 +263,60 @@ export default function DeliveryDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Nova Entrega */}
+            {showModal && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+                    <div className="bg-[#1E293B] w-full max-w-md rounded-3xl border border-white/10 p-8 shadow-2xl animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black flex items-center gap-2 text-white"><Package className="text-[#25D366]" /> NOVA ENTREGA</h3>
+                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-400"><X size={24} /></button>
+                        </div>
+
+                        <form onSubmit={handleCreate} className="space-y-4">
+                            <div>
+                                <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Nome do Cliente</label>
+                                <input
+                                    required
+                                    className="w-full mt-1 bg-black/20 border border-white/5 rounded-2xl p-4 text-white font-bold focus:border-[#25D366]/30 transition-all outline-none"
+                                    placeholder="Ex: João Silva"
+                                    value={newDelivery.customer_name}
+                                    onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Endereço de Entrega</label>
+                                <textarea
+                                    required
+                                    rows="3"
+                                    className="w-full mt-1 bg-black/20 border border-white/5 rounded-2xl p-4 text-white font-bold focus:border-[#25D366]/30 transition-all outline-none resize-none"
+                                    placeholder="Rua, Número, Bairro, Cidade..."
+                                    value={newDelivery.delivery_address}
+                                    onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Valor Sugerido (R$)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    className="w-full mt-1 bg-black/20 border border-white/5 rounded-2xl p-4 text-white font-black focus:border-[#25D366]/30 transition-all outline-none"
+                                    placeholder="0.00"
+                                    value={newDelivery.estimated_price}
+                                    onChange={e => setNewDelivery({ ...newDelivery, estimated_price: e.target.value })}
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full py-5 bg-[#25D366] text-black font-black rounded-2xl mt-4 shadow-xl shadow-[#25D366]/10 active:scale-95 transition-all text-lg"
+                            >
+                                SOLICITAR ENTREGA
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
