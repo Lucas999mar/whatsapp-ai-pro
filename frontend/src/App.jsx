@@ -216,7 +216,7 @@ function AppContent() {
 
         <div className="relative z-10 max-w-7xl mx-auto">
           <Routes>
-            <Route path="/" element={<AuthGuard><Dashboard /></AuthGuard>} />
+            <Route path="/" element={<AuthGuard>{user?.role === 'motoboy' ? <MotoboyApp /> : <Dashboard />}</AuthGuard>} />
             <Route path="/atendimento" element={<AuthGuard><AtendimentoPage /></AuthGuard>} />
             <Route path="/crm" element={<AuthGuard><CRMPage /></AuthGuard>} />
             <Route path="/contacts" element={<AuthGuard><ContatosPage /></AuthGuard>} />

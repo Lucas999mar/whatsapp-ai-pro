@@ -103,6 +103,36 @@ router.post('/motoboy/register', async (req, res) => {
     }
 });
 
+// Mudar status de disponibilidade (Online/Offline)
+router.put('/motoboy/toggle-online', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const { data: tech } = await supabase.from('os_technicians').select('is_available').eq('id', req.user.id).single();
+        const newStatus = !tech.is_available;
+
+        await supabase.from('os_technicians').update({
+            is_available: newStatus,
+            status: newStatus ? 'online' : 'offline'
+        }).eq('id', req.user.id);
+
+        res.json({ is_available: newStatus });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Atualizar foto de perfil
+router.put('/motoboy/profile-photo', authMiddleware, async (req, res) => {
+    try {
+        const { photo_url } = req.body;
+        const supabase = getSupabase();
+        await supabase.from('os_technicians').update({ photo_url }).eq('id', req.user.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Login de motoboy
 router.post('/motoboy/login', async (req, res) => {
     try {
