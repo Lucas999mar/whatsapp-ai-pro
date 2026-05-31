@@ -26,7 +26,8 @@ export default function DeliveryDashboard() {
     const [newDelivery, setNewDelivery] = useState({
         customer_name: '',
         delivery_address: '',
-        estimated_price: ''
+        estimated_price: '',
+        cep: ''
     });
 
     const fetchData = useCallback(async () => {
@@ -49,6 +50,22 @@ export default function DeliveryDashboard() {
         }
     }, []);
 
+    const handleCepSearch = async (cep) => {
+        const cleanCep = cep.replace(/\D/g, '');
+        if (cleanCep.length === 8) {
+            try {
+                const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+                const data = await res.json();
+                if (!data.erro) {
+                    setNewDelivery(prev => ({
+                        ...prev,
+                        delivery_address: `${data.logradouro}${data.bairro ? ', ' + data.bairro : ''}, ${data.localidade} - ${data.uf}`
+                    }));
+                }
+            } catch (e) { console.error('Erro CEP:', e); }
+        }
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
@@ -58,7 +75,7 @@ export default function DeliveryDashboard() {
                 status: 'aguardando_motoboy'
             });
             setShowModal(false);
-            setNewDelivery({ customer_name: '', delivery_address: '', estimated_price: '' });
+            setNewDelivery({ customer_name: '', delivery_address: '', estimated_price: '', cep: '' });
             fetchData();
         } catch (e) { alert('Erro ao criar entrega'); }
     };
@@ -129,7 +146,7 @@ export default function DeliveryDashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Mapa de Operações */}
                 <div className="xl:col-span-2 space-y-6">
-                    <div className="bg-[#1E293B] rounded-[40px] overflow-hidden border border-white/5 shadow-2xl h-[550px] relative">
+                    <div className="bg-[#1E293B] rounded-[40px] overflow-hidden border border-white/5 shadow-2xl h-[550px] relative z-[1]">
                         <MapContainer center={[-23.5505, -46.6333]} zoom={12} style={{ height: '100%', width: '100%' }}>
                             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
@@ -266,7 +283,7 @@ export default function DeliveryDashboard() {
 
             {/* Modal de Nova Entrega */}
             {showModal && (
-                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+                <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
                     <div className="bg-[#1E293B] w-full max-w-md rounded-3xl border border-white/10 p-8 shadow-2xl animate-in zoom-in duration-300">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-black flex items-center gap-2 text-white"><Package className="text-[#25D366]" /> NOVA ENTREGA</h3>
@@ -284,6 +301,23 @@ export default function DeliveryDashboard() {
                                     onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })}
                                 />
                             </div>
+
+                            <div>
+                                <label className="text-[10px] text-slate-500 font-black uppercase ml-1">CEP (Busca Automática)</label>
+                                <div className="relative group">
+                                    <MapIcon className="absolute left-4 top-4 text-slate-500 group-focus-within:text-[#25D366] transition-colors" size={18} />
+                                    <input
+                                        className="w-full mt-1 bg-black/20 border border-white/5 rounded-2xl p-4 pl-12 text-white font-black focus:border-[#25D366]/30 transition-all outline-none"
+                                        placeholder="00000-000"
+                                        value={newDelivery.cep}
+                                        onChange={e => {
+                                            setNewDelivery({ ...newDelivery, cep: e.target.value });
+                                            handleCepSearch(e.target.value);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Endereço de Entrega</label>
                                 <textarea
