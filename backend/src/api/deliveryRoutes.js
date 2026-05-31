@@ -133,6 +133,18 @@ router.put('/motoboy/profile-photo', authMiddleware, async (req, res) => {
     }
 });
 
+// Obter perfil atual do motoboy
+router.get('/motoboy/profile', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const { data, error } = await supabase.from('os_technicians').select('*').eq('id', req.user.id).single();
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Login de motoboy
 router.post('/motoboy/login', async (req, res) => {
     try {

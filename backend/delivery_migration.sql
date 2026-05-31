@@ -12,6 +12,7 @@ ALTER TABLE os_technicians ADD COLUMN IF NOT EXISTS rating NUMERIC(3,2) DEFAULT 
 ALTER TABLE os_technicians ADD COLUMN IF NOT EXISTS total_deliveries INTEGER DEFAULT 0;
 ALTER TABLE os_technicians ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE os_technicians ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+ALTER TABLE os_technicians ADD COLUMN IF NOT EXISTS balance NUMERIC(10,2) DEFAULT 0.00;
 
 -- Garantir que quem não tem role vire 'tecnico' inicialmente
 UPDATE os_technicians SET role = 'tecnico' WHERE role IS NULL;

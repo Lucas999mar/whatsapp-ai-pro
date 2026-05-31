@@ -216,7 +216,7 @@ function AppContent() {
 
         <div className="relative z-10 max-w-7xl mx-auto">
           <Routes>
-            <Route path="/" element={<AuthGuard>{user?.role === 'motoboy' ? <MotoboyApp /> : <Dashboard />}</AuthGuard>} />
+            <Route path="/" element={<AuthGuard>{user?.role === 'motoboy' ? <MotoboyApp initialMode="overview" /> : <Dashboard />}</AuthGuard>} />
             <Route path="/atendimento" element={<AuthGuard><AtendimentoPage /></AuthGuard>} />
             <Route path="/crm" element={<AuthGuard><CRMPage /></AuthGuard>} />
             <Route path="/contacts" element={<AuthGuard><ContatosPage /></AuthGuard>} />
@@ -226,7 +226,7 @@ function AppContent() {
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
-            <Route path="/motoboy" element={<AuthGuard><MotoboyApp /></AuthGuard>} />
+            <Route path="/motoboy" element={<AuthGuard><MotoboyApp initialMode="deliveries" /></AuthGuard>} />
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
             <Route path="/motoboy/register" element={<MotoboyRegister />} />
             <Route path="/track/:code" element={<TrackingPage />} />

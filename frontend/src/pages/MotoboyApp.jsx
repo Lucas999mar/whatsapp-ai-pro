@@ -25,18 +25,19 @@ function ChangeView({ center, zoom }) {
     return null;
 }
 
-export default function MotoboyApp() {
+export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const { user, logout, updateUser } = useAuth();
     const navigate = useNavigate();
     const [isOnline, setIsOnline] = useState(false);
     const [availableDeliveries, setAvailableDeliveries] = useState([]);
     const [activeDelivery, setActiveDelivery] = useState(null);
-    const [stats, setStats] = useState({ total_km: 0, total_earnings: 0, completed: 0 });
+    const [stats, setStats] = useState({ total_km: 0, total_earnings: 0, completed: 0, balance: 0 });
     const [loading, setLoading] = useState(true);
     const [myPos, setMyPos] = useState(null);
-    const [showHistory, setShowHistory] = useState(false);
-    const [showWallet, setShowWallet] = useState(false);
-    const [showProfile, setShowProfile] = useState(false);
+    const [showHistory, setShowHistory] = useState(initialMode === 'history');
+    const [showWallet, setShowWallet] = useState(initialMode === 'wallet');
+    const [showProfile, setShowProfile] = useState(initialMode === 'profile');
+    const [showOverview, setShowOverview] = useState(initialMode === 'overview');
     const [history, setHistory] = useState([]);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -63,14 +64,16 @@ export default function MotoboyApp() {
 
     const fetchData = useCallback(async () => {
         try {
-            const [statsRes, availRes, historyRes] = await Promise.all([
+            const [statsRes, availRes, historyRes, profileRes] = await Promise.all([
                 api.get('/delivery/motoboy/stats'),
                 api.get('/delivery/available'),
-                api.get('/delivery/motoboy/my-deliveries')
+                api.get('/delivery/motoboy/my-deliveries'),
+                api.get('/delivery/motoboy/profile')
             ]);
             setStats(statsRes.data);
             setAvailableDeliveries(availRes.data);
             setHistory(historyRes.data);
+            setIsOnline(!!profileRes.data?.is_available);
 
             const active = (historyRes.data || []).find(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status));
             if (active) {
@@ -212,6 +215,70 @@ export default function MotoboyApp() {
         return (
             <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
                 <Loader2 className="animate-spin text-[#25D366]" size={48} />
+            </div>
+        );
+    }
+
+    if (showOverview) {
+        return (
+            <div className="space-y-6 animate-fade-in pb-20">
+                <div className="bg-gradient-to-br from-[#25D366] to-[#128C7E] p-8 rounded-[32px] text-black shadow-xl">
+                    <p className="text-xs font-black uppercase tracking-widest opacity-70 mb-2">Meu Saldo</p>
+                    <h2 className="text-5xl font-black mb-6">R$ {parseFloat(stats.balance || 0).toFixed(2)}</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
+                            <p className="text-[10px] font-black uppercase opacity-70">Total Coletado</p>
+                            <p className="text-xl font-black">R$ {parseFloat(stats.total_earnings || 0).toFixed(2)}</p>
+                        </div>
+                        <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
+                            <p className="text-[10px] font-black uppercase opacity-70">Km Rodados</p>
+                            <p className="text-xl font-black">{(stats.total_km || 0).toFixed(1)} km</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="glass-panel p-6">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-[#25D366]/10 rounded-xl text-[#25D366]">
+                                <CheckCircle2 size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white">Desempenho</h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{stats.completed || 0} Entregas Concluídas</p>
+                            </div>
+                        </div>
+                        {/* Gráfico ou Barra de Progresso Simples */}
+                        <div className="w-full h-2 bg-white/5 rounded-full mt-4 overflow-hidden">
+                            <div className="h-full bg-[#25D366] rounded-full" style={{ width: `${Math.min((stats.completed || 0) * 10, 100)}%` }}></div>
+                        </div>
+                    </div>
+
+                    <div className="glass-panel p-6">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-yellow-500/10 rounded-xl text-yellow-500">
+                                <DollarSign size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white">Solicitar Saque</h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Mínimo R$ 50,00</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowWallet(true)} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white font-bold text-sm transition-all border border-white/5">
+                            ACESSAR CARTEIRA
+                        </button>
+                    </div>
+                </div>
+
+                <div className="glass-panel p-6">
+                    <h3 className="text-lg font-black text-white mb-4">Dicas de Segurança</h3>
+                    <div className="space-y-3">
+                        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex gap-3">
+                            <Clock size={20} className="text-blue-400 shrink-0" />
+                            <p className="text-sm text-blue-100 italic">"Mantenha o GPS ativo durante toda a corrida para garantir o pagamento correto."</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
