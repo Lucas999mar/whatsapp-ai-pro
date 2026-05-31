@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Bike, MapPin, Navigation, Package, Clock, DollarSign,
     Users, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
-    Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle
+    Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -21,9 +21,14 @@ export default function DeliveryDashboard() {
     const [deliveries, setDeliveries] = useState([]);
     const [motoboys, setMotoboys] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'fleet', 'config'
+    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'fleet', 'config', 'reports'
     const [deliveryTab, setDeliveryTab] = useState('active'); // 'active', 'completed'
     const [showModal, setShowModal] = useState(false);
+
+    // Relatórios
+    const [reportPeriod, setReportPeriod] = useState('day');
+    const [reports, setReports] = useState(null);
+    const [loadingReports, setLoadingReports] = useState(false);
 
     // Configurações de Preço
     const [pricing, setPricing] = useState({
@@ -39,13 +44,25 @@ export default function DeliveryDashboard() {
         cep: ''
     });
 
+    const fetchReports = useCallback(async (period) => {
+        setLoadingReports(true);
+        try {
+            const res = await api.get(`/delivery/reports?period=${period}`);
+            setReports(res.data);
+        } catch (e) {
+            console.error('Erro ao buscar relatórios:', e);
+        } finally {
+            setLoadingReports(false);
+        }
+    }, []);
+
     const fetchData = useCallback(async () => {
         try {
             const [statsRes, deliveriesRes, techRes, settingsRes] = await Promise.all([
                 api.get('/delivery/stats'),
                 api.get('/os/tasks'),
                 api.get('/os/technicians'),
-                api.get('/admin/tenants') // Usando para buscar configs se for admin, ou outra rota
+                api.get('/admin/tenants')
             ]);
 
             setStats(statsRes.data);
@@ -57,7 +74,6 @@ export default function DeliveryDashboard() {
             );
             setMotoboys(onlyMotoboys);
 
-            // Tenta pegar configs da empresa logada
             const myTenant = (settingsRes.data || []).find(t => t.id === (user?.tenant_id || user?.id));
             if (myTenant) {
                 setPricing({
@@ -71,6 +87,10 @@ export default function DeliveryDashboard() {
             setLoading(false);
         }
     }, [user]);
+
+    useEffect(() => {
+        if (activeTab === 'reports') fetchReports(reportPeriod);
+    }, [activeTab, reportPeriod, fetchReports]);
 
     const handleSavePricing = async () => {
         setSavingConfig(true);
@@ -143,7 +163,7 @@ export default function DeliveryDashboard() {
 
     return (
         <div className="min-h-screen bg-[#0B0F19] text-white p-4 lg:p-8 lg:pl-72 focus:outline-none selection:bg-[#25D366]/30">
-            {/* Header Moderno */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                 <div>
                     <h1 className="text-4xl font-black flex items-center gap-4 tracking-tighter">
@@ -153,23 +173,24 @@ export default function DeliveryDashboard() {
                         Delivery Pro
                     </h1>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 overflow-x-auto pb-2 md:pb-0 scroll-hide">
                     <button
                         onClick={() => setShowModal(true)}
-                        className="px-8 py-4 bg-[#25D366] text-black font-black rounded-[24px] shadow-2xl shadow-[#25D366]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 uppercase text-xs tracking-widest"
+                        className="whitespace-nowrap px-8 py-4 bg-[#25D366] text-black font-black rounded-[24px] shadow-2xl shadow-[#25D366]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 uppercase text-[10px] tracking-widest"
                     >
-                        <Plus size={20} strokeWidth={3} /> Nova Entrega
+                        <Plus size={20} strokeWidth={3} /> Criar Pedido
                     </button>
-                    <div className="flex bg-[#1E293B] p-1.5 rounded-[24px] border border-white/5 shadow-inner">
+                    <div className="flex bg-[#1E293B] p-1.5 rounded-[24px] border border-white/5 shadow-inner shrink-0">
                         {[
-                            { id: 'monitor', icon: <MapIcon size={18} />, label: 'Monitor' },
-                            { id: 'fleet', icon: <Users size={18} />, label: 'Frota' },
-                            { id: 'config', icon: <Settings size={18} />, label: 'Preços' }
+                            { id: 'monitor', icon: <MapIcon size={16} />, label: 'Monitor' },
+                            { id: 'fleet', icon: <Users size={16} />, label: 'Frota' },
+                            { id: 'reports', icon: <BarChart3 size={16} />, label: 'Relatórios' },
+                            { id: 'config', icon: <Settings size={16} />, label: 'Preços' }
                         ].map(t => (
                             <button
                                 key={t.id}
                                 onClick={() => setActiveTab(t.id)}
-                                className={`px-5 py-2.5 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === t.id ? 'bg-white shadow-xl text-black' : 'text-slate-500 hover:text-white'}`}
+                                className={`px-4 py-2.5 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === t.id ? 'bg-white shadow-xl text-black' : 'text-slate-500 hover:text-white'}`}
                             >
                                 {t.icon} {t.label}
                             </button>
@@ -180,7 +201,6 @@ export default function DeliveryDashboard() {
 
             {activeTab === 'monitor' && (
                 <>
-                    {/* Grid de Stats */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                         {[
                             { label: 'Entregas Hoje', val: stats?.today_total || 0, icon: <Package />, color: 'from-blue-500 to-blue-700' },
@@ -199,7 +219,6 @@ export default function DeliveryDashboard() {
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                        {/* Mapa Principal */}
                         <div className="xl:col-span-2 space-y-8">
                             <div className="bg-[#1E293B] rounded-[60px] overflow-hidden border border-white/5 shadow-2xl h-[600px] relative z-[1] group">
                                 <MapContainer center={[-23.5505, -46.6333]} zoom={12} style={{ height: '100%', width: '100%' }}>
@@ -230,7 +249,6 @@ export default function DeliveryDashboard() {
                                 </MapContainer>
                             </div>
 
-                            {/* Feed de Operação */}
                             <div className="bg-[#1E293B] rounded-[50px] p-8 border border-white/5">
                                 <div className="flex items-center justify-between mb-8 px-2">
                                     <h3 className="text-2xl font-black tracking-tighter">Status da Frota</h3>
@@ -256,7 +274,6 @@ export default function DeliveryDashboard() {
                             </div>
                         </div>
 
-                        {/* Sidebar de Fluxo de Pedidos */}
                         <div className="bg-[#1E293B] rounded-[60px] p-8 border border-white/5 flex flex-col h-[820px] shadow-2xl">
                             <div className="flex items-center justify-between mb-8 px-2">
                                 <h3 className="text-2xl font-black tracking-tighter">Pedidos</h3>
@@ -299,15 +316,92 @@ export default function DeliveryDashboard() {
                 </>
             )}
 
+            {activeTab === 'reports' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                    <div className="bg-[#1E293B] p-10 rounded-[50px] border border-white/5 shadow-2xl">
+                        <div className="flex items-center justify-between mb-10">
+                            <div>
+                                <h3 className="text-3xl font-black flex items-center gap-3 tracking-tighter uppercase italic"><BarChart3 size={32} className="text-[#25D366]" /> Relatórios de Performance</h3>
+                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1 ml-11">Análise financeira e operacional</p>
+                            </div>
+                            <div className="flex bg-black/40 p-1.5 rounded-[20px] border border-white/5">
+                                {['day', 'week', 'month'].map(p => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setReportPeriod(p)}
+                                        className={`px-6 py-2 rounded-[15px] text-[10px] font-black uppercase tracking-widest transition-all ${reportPeriod === p ? 'bg-[#25D366] text-black shadow-lg shadow-[#25D366]/20' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        {p === 'day' ? 'Hoje' : p === 'week' ? '7 Dias' : '30 Dias'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {loadingReports ? (
+                            <div className="py-20 flex flex-col items-center justify-center opacity-30">
+                                <Loader2 className="animate-spin mb-4" size={48} />
+                                <p className="font-black uppercase tracking-widest text-xs">Processando dados...</p>
+                            </div>
+                        ) : reports ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="bg-blue-500/10 p-8 rounded-[40px] border border-blue-500/20 text-center">
+                                    <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-2">Total Pedidos</p>
+                                    <h4 className="text-4xl font-black">{reports.total_count}</h4>
+                                </div>
+                                <div className="bg-[#25D366]/10 p-8 rounded-[40px] border border-[#25D366]/20 text-center">
+                                    <p className="text-[10px] text-[#25D366] font-black uppercase tracking-widest mb-2">Ganhos Período</p>
+                                    <h4 className="text-4xl font-black text-[#25D366]">R$ {reports.total_revenue}</h4>
+                                </div>
+                                <div className="bg-orange-500/10 p-8 rounded-[40px] border border-orange-500/20 text-center">
+                                    <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest mb-2">Concluídos</p>
+                                    <h4 className="text-4xl font-black">{reports.completed_count}</h4>
+                                </div>
+                                <div className="bg-red-500/10 p-8 rounded-[40px] border border-red-500/20 text-center">
+                                    <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mb-2">Cancelados</p>
+                                    <h4 className="text-4xl font-black">{reports.canceled_count}</h4>
+                                </div>
+
+                                <div className="md:col-span-2 bg-black/20 p-8 rounded-[40px] border border-white/5">
+                                    <h5 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2"><PieChart size={18} className="text-[#25D366]" /> Top Motoboys (Ganhos)</h5>
+                                    <div className="space-y-4">
+                                        {Object.entries(reports.by_motoboy).sort(([, a], [, b]) => b - a).map(([name, val]) => (
+                                            <div key={name} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
+                                                <p className="font-bold text-sm uppercase tracking-tight">{name}</p>
+                                                <p className="font-black text-[#25D366]">R$ {val.toFixed(2)}</p>
+                                            </div>
+                                        ))}
+                                        {Object.keys(reports.by_motoboy).length === 0 && <p className="text-center text-slate-600 text-xs py-4">Nenhuma entrega no período.</p>}
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-2 bg-black/20 p-8 rounded-[40px] border border-white/5">
+                                    <h5 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500" /> Histórico Diário (Ganhos)</h5>
+                                    <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                        {Object.entries(reports.daily).sort((a, b) => b[0].localeCompare(a[0])).map(([date, val]) => (
+                                            <div key={date} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
+                                                <p className="font-mono text-xs">{new Date(date).toLocaleDateString()}</p>
+                                                <p className="font-black text-blue-500">R$ {val.toFixed(2)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-20 text-center opacity-20">
+                                <BarChart3 className="mx-auto mb-4" size={64} />
+                                <p className="font-black">Sem dados para este período.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'fleet' && (
-                /* ABA DE GESTÃO DE FROTA */
                 <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-700">
                     <div className="bg-gradient-to-br from-[#1E293B] to-[#0B0F19] p-12 rounded-[70px] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-12 shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
                         <div className="max-w-xl relative z-10">
                             <h2 className="text-5xl font-black mb-6 tracking-tighter italic">Expanda sua Rede</h2>
-                            <p className="text-slate-400 text-lg font-medium leading-relaxed">Seus entregadores usam este código único para se vincularem à sua empresa. Envie o link de cadastro junto com o código.</p>
-
                             <div className="mt-10 p-8 bg-black/40 rounded-[40px] border-2 border-dashed border-[#25D366]/30 flex items-center justify-between gap-6 group hover:border-[#25D366] transition-all">
                                 <div>
                                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-3">Enterprise Key</p>
@@ -319,181 +413,63 @@ export default function DeliveryDashboard() {
                             </div>
                         </div>
                         <div className="flex-1 grid grid-cols-2 gap-6 w-full relative z-10">
-                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl group hover:bg-[#25D366]/10 transition-all">
-                                <h4 className="text-5xl font-black text-blue-500 mb-2 tracking-tighter">{motoboys.length}</h4>
+                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl">
+                                <h4 className="text-5xl font-black text-blue-500 mb-2">{motoboys.length}</h4>
                                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Registrados</p>
                             </div>
-                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl group hover:bg-[#25D366]/10 transition-all">
-                                <h4 className="text-5xl font-black text-[#25D366] mb-2 tracking-tighter">{motoboys.filter(m => m.is_available).length}</h4>
+                            <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[50px] text-center border border-white/10 shadow-2xl">
+                                <h4 className="text-5xl font-black text-[#25D366] mb-2">{motoboys.filter(m => m.is_available).length}</h4>
                                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Em Serviço</p>
-                            </div>
-                            <div className="col-span-2 bg-gradient-to-r from-blue-500/10 to-transparent p-6 rounded-[35px] border border-blue-500/20 flex items-center gap-5">
-                                <div className="p-4 bg-blue-500 text-white rounded-2xl shadow-lg"><Info size={24} /></div>
-                                <div className="flex-1 text-xs font-bold text-blue-400 leading-tight">
-                                    Link Público para Cadastro:<br />
-                                    <span className="text-white font-mono bg-black/40 px-3 py-1 rounded inline-block mt-2">/motoboy/register</span>
-                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div className="bg-[#1E293B] rounded-[60px] p-10 border border-white/5 shadow-2xl">
-                        <div className="flex items-center justify-between mb-12 px-4">
-                            <h3 className="text-3xl font-black tracking-tighter flex items-center gap-4"><Users className="text-[#25D366]" size={32} /> Squad de Entregadores</h3>
-                            <button className="px-6 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all text-[#25D366] flex items-center gap-2">
-                                <Plus size={16} /> Convite em Massa
-                            </button>
-                        </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
                             {motoboys.map(m => (
-                                <div key={m.id} className="bg-black/30 p-8 rounded-[50px] border border-white/5 flex flex-col items-center group relative hover:border-[#25D366]/30 transition-all duration-500 origin-bottom">
-                                    <div className="absolute top-6 right-6">
-                                        <div className={`w-3 h-3 rounded-full ${m.is_available ? 'bg-[#25D366] shadow-[0_0_10px_#25D366]' : 'bg-slate-600'}`}></div>
-                                    </div>
+                                <div key={m.id} className="bg-black/30 p-8 rounded-[50px] border border-white/5 flex flex-col items-center group relative hover:border-[#25D366]/30 transition-all duration-500">
                                     <div className="w-24 h-24 rounded-[35px] bg-slate-800 mb-6 overflow-hidden relative border-[6px] border-white/5 group-hover:border-[#25D366]/20 transition-all shadow-2xl">
                                         {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-600" />}
                                     </div>
                                     <h4 className="font-black text-xl tracking-tighter uppercase text-center mb-1">{m.name}</h4>
                                     <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mb-6">{m.email}</p>
-
-                                    <div className="grid grid-cols-2 gap-3 w-full">
-                                        <div className="bg-white/5 p-4 rounded-3xl text-center">
-                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1 tracking-widest">Modal</p>
-                                            <p className="text-xs font-black uppercase text-[#25D366]">{m.vehicle_type || 'Moto'}</p>
-                                        </div>
-                                        <div className="bg-white/5 p-4 rounded-3xl text-center">
-                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1 tracking-widest">Jobs</p>
-                                            <p className="text-xs font-black text-blue-500">{m.total_deliveries || 0}</p>
-                                        </div>
-                                    </div>
                                 </div>
                             ))}
-                            {motoboys.length === 0 && (
-                                <div className="col-span-full py-20 text-center opacity-30">
-                                    <Users size={64} className="mx-auto mb-4" />
-                                    <p className="text-xl font-black">Nenhum motoboy recrutado ainda.</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
             )}
 
             {activeTab === 'config' && (
-                /* ABA DE CONFIGURAÇÕES DE PREÇO */
                 <div className="max-w-4xl mx-auto animate-in fade-in zoom-in duration-500">
                     <div className="bg-[#1E293B] rounded-[60px] p-12 border border-white/5 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-12 opacity-5"><TrendingUp size={120} /></div>
-
-                        <div className="flex items-center gap-4 mb-10">
-                            <div className="p-4 bg-purple-500/20 text-purple-400 rounded-3xl"><DollarSign size={32} /></div>
-                            <div>
-                                <h2 className="text-3xl font-black tracking-tighter italic">Engine de Preços</h2>
-                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Base de cálculo para o faturamento</p>
-                            </div>
-                        </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div className="space-y-4">
                                 <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Taxa Base (Bandeirada)</label>
-                                <div className="relative group">
-                                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 font-black">R$</div>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 pl-14 text-3xl font-black text-[#25D366] outline-none focus:border-[#25D366]/30 transition-all shadow-inner"
-                                        value={pricing.delivery_base_price}
-                                        onChange={e => setPricing({ ...pricing, delivery_base_price: e.target.value })}
-                                    />
-                                </div>
-                                <p className="text-[11px] text-slate-500 ml-4 font-medium italic">* Valor fixo cobrado por cada nova solicitação.</p>
+                                <input type="number" step="0.01" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-3xl font-black text-[#25D366] outline-none" value={pricing.delivery_base_price} onChange={e => setPricing({ ...pricing, delivery_base_price: e.target.value })} />
                             </div>
-
                             <div className="space-y-4">
                                 <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Valor por KM Rodado</label>
-                                <div className="relative group">
-                                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 font-black">R$</div>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 pl-14 text-3xl font-black text-blue-500 outline-none focus:border-blue-500/30 transition-all shadow-inner"
-                                        value={pricing.delivery_km_price}
-                                        onChange={e => setPricing({ ...pricing, delivery_km_price: e.target.value })}
-                                    />
-                                </div>
-                                <p className="text-[11px] text-slate-500 ml-4 font-medium italic">* Calculado via rotas reais (Waze/Maps).</p>
+                                <input type="number" step="0.01" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-3xl font-black text-blue-500 outline-none" value={pricing.delivery_km_price} onChange={e => setPricing({ ...pricing, delivery_km_price: e.target.value })} />
                             </div>
                         </div>
-
-                        <div className="mt-12 bg-black/30 p-8 rounded-[40px] border border-white/5">
-                            <h4 className="text-md font-black italic mb-4 flex items-center gap-2 underline underline-offset-4"><Info size={18} className="text-[#25D366]" /> Simulação de Cálculo</h4>
-                            <div className="space-y-3 opacity-80">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Corrida exemplo (5 KM):</span>
-                                    <span className="font-mono text-[#25D366] font-black underline">R$ {(parseFloat(pricing.delivery_base_price) + (5 * parseFloat(pricing.delivery_km_price))).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Cálculo:</span>
-                                    <span className="text-slate-400 font-bold text-xs">{pricing.delivery_base_price} + (5 x {pricing.delivery_km_price})</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={handleSavePricing}
-                            disabled={savingConfig}
-                            className="w-full mt-10 py-6 bg-gradient-to-r from-[#25D366] to-green-600 text-black font-black rounded-[30px] shadow-2xl shadow-[#25D366]/20 flex items-center justify-center gap-4 uppercase tracking-[0.2em] active:scale-95 hover:scale-105 transition-all text-sm disabled:opacity-50"
-                        >
+                        <button onClick={handleSavePricing} disabled={savingConfig} className="w-full mt-10 py-6 bg-gradient-to-r from-[#25D366] to-green-600 text-black font-black rounded-[30px] flex items-center justify-center gap-4 uppercase tracking-[0.2em] transition-all">
                             {savingConfig ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Salvar Configurações</>}
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* Modal de Nova Entrega */}
             {showModal && (
                 <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300">
                     <div className="bg-[#1E293B] w-full max-w-2xl rounded-[60px] border border-white/10 p-12 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-12 opacity-5 -rotate-12"><Package size={150} /></div>
-                        <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 p-3 bg-white/5 rounded-full text-slate-400 hover:text-white transition-all"><X size={28} /></button>
-
-                        <h3 className="text-3xl font-black mb-10 flex items-center gap-4 italic tracking-tighter">
-                            <div className="p-3 bg-[#25D366]/20 rounded-2xl"><Plus className="text-[#25D366]" size={28} /></div>
-                            Despachar Pedido
-                        </h3>
-
-                        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] text-slate-500 font-black ml-4 mb-2 block uppercase tracking-widest">Nome do Cliente</label>
-                                <input required className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-black outline-none focus:border-[#25D366]/30 shadow-inner" placeholder="PAGADOR / DESTINATÁRIO" value={newDelivery.customer_name} onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })} />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] text-slate-500 font-black ml-4 mb-2 block uppercase tracking-widest">Código Postal (CEP)</label>
-                                <div className="relative">
-                                    <MapIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                                    <input className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 pl-14 text-white font-mono font-black outline-none focus:border-[#25D366]/30 shadow-inner" placeholder="00000-000" value={newDelivery.cep} onChange={e => { setNewDelivery({ ...newDelivery, cep: e.target.value }); handleCepSearch(e.target.value); }} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] text-slate-500 font-black ml-4 mb-2 block uppercase tracking-widest">Valor do Frete (R$)</label>
-                                <div className="relative">
-                                    <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-[#25D366]" size={18} />
-                                    <input type="number" step="0.01" className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 pl-14 text-[#25D366] font-black outline-none focus:border-[#25D366]/30 shadow-inner" placeholder="AUTOMÁTICO" value={newDelivery.estimated_price} onChange={e => setNewDelivery({ ...newDelivery, estimated_price: e.target.value })} />
-                                </div>
-                                <p className="text-[9px] text-[#25D366]/60 mt-2 ml-4 font-bold">* Deixe vazio para calcular pelo KM automático.</p>
-                            </div>
-
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] text-slate-500 font-black ml-4 mb-2 block uppercase tracking-widest">Endereço de Entrega</label>
-                                <textarea required rows="3" className="w-full bg-black/30 border border-white/5 rounded-[35px] p-6 text-white font-bold outline-none focus:border-[#25D366]/30 resize-none shadow-inner" placeholder="Rua, Número, Bairro, Cidade..." value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} />
-                            </div>
-
-                            <button type="submit" className="md:col-span-2 py-8 bg-[#25D366] text-black font-black rounded-[30px] shadow-2xl shadow-[#25D366]/30 text-xl tracking-tighter uppercase flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all">
-                                SOLICITAR ENTREGA AGORA <ChevronRight size={24} strokeWidth={3} />
-                            </button>
+                        <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 p-3 bg-white/5 rounded-full text-slate-400"><X size={28} /></button>
+                        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="md:col-span-2"><input required className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-black" placeholder="NOME DO CLIENTE" value={newDelivery.customer_name} onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })} /></div>
+                            <div><input className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-mono font-black" placeholder="CEP" value={newDelivery.cep} onChange={e => { setNewDelivery({ ...newDelivery, cep: e.target.value }); handleCepSearch(e.target.value); }} /></div>
+                            <div><input type="number" step="0.01" className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-[#25D366] font-black" placeholder="PREÇO MANUAL" value={newDelivery.estimated_price} onChange={e => setNewDelivery({ ...newDelivery, estimated_price: e.target.value })} /></div>
+                            <div className="md:col-span-2"><textarea required rows="3" className="w-full bg-black/30 border border-white/5 rounded-[35px] p-6 text-white font-bold" placeholder="ENDEREÇO..." value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} /></div>
+                            <button type="submit" className="md:col-span-2 py-8 bg-[#25D366] text-black font-black rounded-[30px] text-xl tracking-tighter uppercase">SOLICITAR ENTREGA AGORA</button>
                         </form>
                     </div>
                 </div>
@@ -503,10 +479,8 @@ export default function DeliveryDashboard() {
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 20px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
+                .scroll-hide::-webkit-scrollbar { display: none; }
                 .leaflet-container { width: 100%; height: 100%; z-index: 1; filter: grayscale(1) invert(1) brightness(0.7) contrast(1.2); }
-                .leaflet-popup-content-wrapper { background: white; border-radius: 20px; padding: 0; overflow: hidden; }
-                .leaflet-popup-tip { background: white; }
             `}</style>
         </div>
     );

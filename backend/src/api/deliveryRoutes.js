@@ -725,4 +725,52 @@ router.get('/stats', authMiddleware, async (req, res) => {
     }
 });
 
+// Relatórios de faturamento e desempenho
+router.get('/reports', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
+        const { period } = req.query; // 'day', 'week', 'month'
+
+        let gteDate = new Date();
+        if (period === 'week') gteDate.setDate(gteDate.getDate() - 7);
+        else if (period === 'month') gteDate.setMonth(gteDate.getMonth() - 1);
+        else gteDate.setHours(0, 0, 0, 0); // hoje
+
+        const { data: deliveries, error } = await supabase
+            .from('os_tasks')
+            .select(`
+                *,
+                technician:os_technicians(id, name)
+            `)
+            .eq('tenant_id', tenantId)
+            .eq('delivery_type', 'entrega')
+            .gte('created_at', gteDate.toISOString());
+
+        if (error) throw error;
+
+        const stats = {
+            total_count: deliveries.length,
+            completed_count: deliveries.filter(d => d.status === 'entregue').length,
+            canceled_count: deliveries.filter(d => d.status === 'cancelada').length,
+            total_revenue: deliveries.filter(d => d.status === 'entregue').reduce((acc, d) => acc + (parseFloat(d.estimated_price) || 0), 0).toFixed(2),
+            by_motoboy: {},
+            daily: {}
+        };
+
+        deliveries.forEach(d => {
+            if (d.status === 'entregue' && d.technician) {
+                const name = d.technician.name;
+                stats.by_motoboy[name] = (stats.by_motoboy[name] || 0) + (parseFloat(d.estimated_price) || 0);
+            }
+            const date = d.created_at.split('T')[0];
+            stats.daily[date] = (stats.daily[date] || 0) + (parseFloat(d.estimated_price) || 0);
+        });
+
+        res.json(stats);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

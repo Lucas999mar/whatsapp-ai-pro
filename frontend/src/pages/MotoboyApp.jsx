@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Bike, MapPin, Navigation, Package, CheckCircle2, XCircle,
     Power, User, Clock, DollarSign, Map as MapIcon, ChevronRight,
-    Loader2, Play, Square, Hash, Camera, Upload, LogOut
+    Loader2, Play, Square, Hash, Camera, Upload, LogOut, Bell, BellOff
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -38,26 +38,39 @@ export default function MotoboyApp() {
     const [showWallet, setShowWallet] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [history, setHistory] = useState([]);
-    const [walletHistory, setWalletHistory] = useState([]);
-    const [withdrawModal, setWithdrawModal] = useState({ open: false, amount: '', pix_key: '' });
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [uploading, setUploading] = useState(false);
 
     const socketRef = useRef(null);
     const watchId = useRef(null);
     const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'));
 
+    const requestNotificationPermission = useCallback(async () => {
+        if (!('Notification' in window)) return;
+        const permission = await Notification.requestPermission();
+        setNotificationsEnabled(permission === 'granted');
+    }, []);
+
+    const sendBrowserNotification = useCallback((title, body) => {
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body,
+                icon: '/logo192.png',
+                vibrate: [200, 100, 200]
+            });
+        }
+    }, []);
+
     const fetchData = useCallback(async () => {
         try {
-            const [statsRes, availRes, historyRes, walletRes] = await Promise.all([
+            const [statsRes, availRes, historyRes] = await Promise.all([
                 api.get('/delivery/motoboy/stats'),
                 api.get('/delivery/available'),
-                api.get('/delivery/motoboy/my-deliveries'),
-                api.get('/delivery/wallet/history')
+                api.get('/delivery/motoboy/my-deliveries')
             ]);
             setStats(statsRes.data);
             setAvailableDeliveries(availRes.data);
             setHistory(historyRes.data);
-            setWalletHistory(walletRes.data);
 
             const active = (historyRes.data || []).find(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status));
             if (active) {
@@ -73,6 +86,9 @@ export default function MotoboyApp() {
 
     useEffect(() => {
         fetchData();
+        if ('Notification' in window) {
+            setNotificationsEnabled(Notification.permission === 'granted');
+        }
     }, [fetchData]);
 
     useEffect(() => {
@@ -88,6 +104,7 @@ export default function MotoboyApp() {
         socket.on('delivery:new', (data) => {
             setAvailableDeliveries(prev => [data.delivery, ...prev]);
             audioRef.current.play().catch(e => console.log('Audio play failed:', e));
+            sendBrowserNotification('Nova Entrega Disponível! 🚀', `R$ ${data.delivery.estimated_price} - De: ${data.delivery.pickup_address} Para: ${data.delivery.delivery_address}`);
             if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
         });
 
@@ -118,12 +135,15 @@ export default function MotoboyApp() {
             socket.disconnect();
             if (watchId.current) navigator.geolocation.clearWatch(watchId.current);
         };
-    }, [user, isOnline, activeDelivery]);
+    }, [user, isOnline, activeDelivery, sendBrowserNotification]);
 
     const toggleOnline = async () => {
         try {
             const res = await api.put('/delivery/motoboy/toggle-online');
             setIsOnline(res.data.is_available);
+            if (res.data.is_available && !notificationsEnabled) {
+                requestNotificationPermission();
+            }
         } catch (e) { alert('Erro ao mudar status'); }
     };
 
@@ -138,7 +158,7 @@ export default function MotoboyApp() {
             const photoUrl = res.data.url;
             await api.put('/delivery/motoboy/profile-photo', { photo_url: photoUrl });
             alert('Foto atualizada com sucesso!');
-            window.location.reload(); // Refresh to update context
+            window.location.reload();
         } catch (err) {
             alert('Erro ao subir foto');
         } finally {
@@ -176,20 +196,8 @@ export default function MotoboyApp() {
             await api.post(`/delivery/complete/${activeDelivery.id}`, { lat: myPos.lat, lng: myPos.lng, notes });
             setActiveDelivery(null);
             fetchData();
+            sendBrowserNotification('Entrega Concluída! 🏁', 'Bom trabalho! O valor foi adicionado à sua carteira.');
         } catch (e) { alert('Erro ao finalizar entrega'); }
-    };
-
-    const handleWithdraw = async () => {
-        if (!withdrawModal.amount || !withdrawModal.pix_key) return alert('Preencha os campos');
-        try {
-            await api.post('/delivery/wallet/withdraw', {
-                amount: parseFloat(withdrawModal.amount),
-                pix_key: withdrawModal.pix_key
-            });
-            alert('Solicitação enviada com sucesso!');
-            setWithdrawModal({ open: false, amount: '', pix_key: '' });
-            fetchData();
-        } catch (e) { alert(e.response?.data?.error || 'Erro ao processar saque'); }
     };
 
     const openNavigation = (lat, lng, address) => {
@@ -230,12 +238,17 @@ export default function MotoboyApp() {
                         </p>
                     </div>
                 </div>
-                <button
-                    onClick={toggleOnline}
-                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${isOnline ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[#25D366]/10 border-[#25D366]/20 text-[#25D366]'}`}
-                >
-                    <Power size={14} /> {isOnline ? 'FICAR OFF' : 'FICAR ON'}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={requestNotificationPermission} className={`p-2 rounded-xl transition-all ${notificationsEnabled ? 'text-[#25D366] bg-[#25D366]/10' : 'text-slate-500 bg-white/5'}`}>
+                        {notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}
+                    </button>
+                    <button
+                        onClick={toggleOnline}
+                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${isOnline ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[#25D366]/10 border-[#25D366]/20 text-[#25D366]'}`}
+                    >
+                        <Power size={14} /> {isOnline ? 'FICAR OFF' : 'FICAR ON'}
+                    </button>
+                </div>
             </div>
 
             <div className="p-4 grid grid-cols-3 gap-3">
@@ -399,9 +412,6 @@ export default function MotoboyApp() {
                     <User size={22} /><span className="text-[8px] font-black uppercase tracking-tighter">Perfil</span>
                 </button>
             </div>
-
-            {/* Modals para History e Wallet omitidos por brevidade, mas mantidos na lógica real */}
-            {/* ... (códigos de historial e wallet do arquivo anterior) ... */}
 
             <style>{`
                 .leaflet-container { width: 100%; height: 100%; z-index: 1; filter: grayscale(1) invert(1) brightness(0.7) contrast(1.2); }
