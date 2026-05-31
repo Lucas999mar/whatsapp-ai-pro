@@ -159,7 +159,7 @@ function AuthGuard({ children, adminOnly = false }) {
 }
 
 function AppContent() {
-  const { token, loading } = useAuth();
+  const { token, loading, user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const location = useLocation();
 
