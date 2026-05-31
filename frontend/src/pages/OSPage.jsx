@@ -56,29 +56,135 @@ function OSMap({ technicians, tasks, onTaskClick }) {
 
 // ── MODAL: Nova Tarefa ──────────────────────────────────────────
 function TaskModal({ isOpen, onClose, onSave, task, clients, technicians, taskTypes }) {
-    const [form, setForm] = useState({ title: '', client_id: '', technician_id: '', task_type_id: '', scheduled_date: '', scheduled_time: '', priority: 'media' });
-    useEffect(() => { if (task) setForm({ ...task }); else setForm({ title: '', client_id: '', technician_id: '', task_type_id: '', scheduled_date: '', scheduled_time: '', priority: 'media' }); }, [task, isOpen]);
+    const [form, setForm] = useState({
+        title: '', client_id: '', technician_id: '', task_type_id: '',
+        scheduled_date: '', scheduled_time: '', priority: 'media',
+        delivery_type: 'os', pickup_address: '', delivery_address: '',
+        pickup_lat: null, pickup_lng: null, delivery_lat: null, delivery_lng: null,
+        estimated_km: 0, estimated_price: 0, customer_name: '', customer_phone: ''
+    });
+    const [calculating, setCalculating] = useState(false);
+
+    useEffect(() => {
+        if (task) setForm({ ...task });
+        else setForm({
+            title: '', client_id: '', technician_id: '', task_type_id: '',
+            scheduled_date: new Date().toISOString().split('T')[0],
+            scheduled_time: new Date().toTimeString().slice(0, 5),
+            priority: 'media', delivery_type: 'os', pickup_address: '',
+            delivery_address: '', estimated_km: 0, estimated_price: 0
+        });
+    }, [task, isOpen]);
+
+    const calculateRoute = async () => {
+        if (!form.pickup_address || !form.delivery_address) return alert('Informe os dois endereços!');
+        setCalculating(true);
+        try {
+            const res1 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.pickup_address)}`);
+            const data1 = await res1.json();
+            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.delivery_address)}`);
+            const data2 = await res2.json();
+
+            if (data1[0] && data2[0]) {
+                const routeRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/delivery/route?from_lat=${data1[0].lat}&from_lng=${data1[0].lon}&to_lat=${data2[0].lat}&to_lng=${data2[0].lon}`);
+                const routeData = await routeRes.json();
+
+                setForm(f => ({
+                    ...f,
+                    pickup_lat: parseFloat(data1[0].lat), pickup_lng: parseFloat(data1[0].lon),
+                    delivery_lat: parseFloat(data2[0].lat), delivery_lng: parseFloat(data2[0].lon),
+                    estimated_km: routeData.distance_km,
+                    estimated_price: +(routeData.distance_km * 3.5 + 5).toFixed(2)
+                }));
+            }
+        } catch (e) { console.error(e); }
+        finally { setCalculating(false); }
+    };
+
     if (!isOpen) return null;
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <div className="w-full max-w-2xl bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl">
-                <h3 className="text-xl font-bold text-white mb-4">{task ? 'Editar OS' : 'Nova Ordem de Serviço'}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input className="md:col-span-2 bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Título da OS" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-                    <select className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white focus:outline-none" value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
-                        <option value="">Cliente...</option>
-                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <select className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" value={form.technician_id} onChange={e => setForm({ ...form, technician_id: e.target.value })}>
-                        <option value="">Técnico...</option>
-                        {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                    <input type="date" className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" value={form.scheduled_date} onChange={e => setForm({ ...form, scheduled_date: e.target.value })} />
-                    <input type="time" className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" value={form.scheduled_time} onChange={e => setForm({ ...form, scheduled_time: e.target.value })} />
+            <div className="w-full max-w-2xl bg-[#0F172A] border border-white/10 rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-black text-white">{task ? 'Editar Serviço' : 'Novo Serviço / Entrega'}</h3>
+                    <div className="flex bg-white/5 p-1 rounded-xl">
+                        <button onClick={() => setForm({ ...form, delivery_type: 'os' })} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${form.delivery_type === 'os' ? 'bg-[#25D366] text-black' : 'text-slate-400'}`}>ORDEM SERVIÇO</button>
+                        <button onClick={() => setForm({ ...form, delivery_type: 'delivery' })} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${form.delivery_type === 'delivery' ? 'bg-blue-500 text-white' : 'text-slate-400'}`}>DELIVERY/UBER</button>
+                    </div>
                 </div>
-                <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={onClose} className="px-6 py-2 bg-white/5 rounded-xl">Cancelar</button>
-                    <button onClick={() => { onSave(form); onClose(); }} className="px-8 py-2 bg-[#25D366] text-black font-bold rounded-xl">Salvar OS</button>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input className="md:col-span-2 bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white focus:border-[#25D366]/50 outline-none" placeholder="Título ou Descrição Curta" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+
+                    {form.delivery_type === 'delivery' ? (
+                        <>
+                            <input className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="Nome do Cliente" value={form.customer_name} onChange={e => setForm({ ...form, customer_name: e.target.value })} />
+                            <input className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" placeholder="WhatsApp do Cliente" value={form.customer_phone} onChange={e => setForm({ ...form, customer_phone: e.target.value })} />
+                            <div className="md:col-span-2 space-y-3">
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-3.5 text-blue-500" size={18} />
+                                    <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 pl-10 text-white" placeholder="Endereço de COLETA" value={form.pickup_address} onChange={e => setForm({ ...form, pickup_address: e.target.value })} />
+                                </div>
+                                <div className="relative">
+                                    <Navigation className="absolute left-3 top-3.5 text-green-500" size={18} />
+                                    <input className="w-full bg-[#1E293B] border border-white/10 rounded-xl p-3 pl-10 text-white" placeholder="Endereço de ENTREGA" value={form.delivery_address} onChange={e => setForm({ ...form, delivery_address: e.target.value })} />
+                                </div>
+                                <button onClick={calculateRoute} disabled={calculating} className="w-full py-2 bg-white/5 rounded-xl text-xs font-bold hover:bg-white/10 transition-all text-slate-300">
+                                    {calculating ? 'Calculando Rota...' : '⚡ CALCULAR KM E PREÇO'}
+                                </button>
+                            </div>
+                            <div className="p-4 bg-white/5 rounded-2xl flex justify-between items-center md:col-span-2 border border-white/5">
+                                <div>
+                                    <p className="text-[10px] text-slate-500 font-black uppercase">Distância Est.</p>
+                                    <p className="text-xl font-black text-white">{form.estimated_km} km</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-slate-500 font-black uppercase">Preço sugerido</p>
+                                    <p className="text-xl font-black text-[#25D366]">R$ {form.estimated_price}</p>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <select className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white focus:outline-none" value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
+                                <option value="">Selecionar Cliente...</option>
+                                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <select className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" value={form.task_type_id} onChange={e => setForm({ ...form, task_type_id: e.target.value })}>
+                                <option value="">Tipo de Serviço...</option>
+                                {taskTypes?.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                        </>
+                    )}
+
+                    <select className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white" value={form.technician_id} onChange={e => setForm({ ...form, technician_id: e.target.value })}>
+                        <option value="">{form.delivery_type === 'delivery' ? 'Motoboy (Opcional)' : 'Técnico Responsável'}</option>
+                        {technicians.map(t => <option key={t.id} value={t.id}>{t.name} ({t.status})</option>)}
+                    </select>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <input type="date" className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white text-xs" value={form.scheduled_date} onChange={e => setForm({ ...form, scheduled_date: e.target.value })} />
+                        <input type="time" className="bg-[#1E293B] border border-white/10 rounded-xl p-3 text-white text-xs" value={form.scheduled_time} onChange={e => setForm({ ...form, scheduled_time: e.target.value })} />
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-8">
+                    <button onClick={onClose} className="px-6 py-3 bg-white/5 rounded-2xl font-bold text-slate-400 hover:bg-white/10">Cancelar</button>
+                    <button
+                        onClick={async () => {
+                            if (form.delivery_type === 'delivery' && !form.id) {
+                                const res = await api.post('/delivery/create', form);
+                                alert(`Entrega criada! Link de tracking: /track/${res.data.tracking_code}`);
+                            } else {
+                                await onSave(form);
+                            }
+                            onClose();
+                        }}
+                        className={`px-10 py-3 rounded-2xl font-black shadow-xl transition-all active:scale-95 ${form.delivery_type === 'delivery' ? 'bg-blue-600 text-white shadow-blue-600/20' : 'bg-[#25D366] text-black shadow-[#25D366]/20'}`}
+                    >
+                        {task ? 'ATUALIZAR' : 'CRIAR SERVIÇO'}
+                    </button>
                 </div>
             </div>
         </div>

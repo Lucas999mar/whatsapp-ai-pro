@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
 const routes = require('./routes');
 const config = require('../config/config');
+const { initSocket } = require('./socketManager');
 
 const app = express();
 
@@ -34,8 +36,16 @@ app.use('/api', routes);
 
 function startServer() {
   const port = process.env.PORT || config.server.port || 3001;
-  app.listen(port, '0.0.0.0', () => {
+
+  // Cria HTTP server para compartilhar com Socket.IO
+  const httpServer = http.createServer(app);
+
+  // Inicializa Socket.IO no mesmo servidor HTTP
+  initSocket(httpServer);
+
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`🌐 Servidor API rodando na porta ${port}`);
+    console.log(`🔌 Socket.IO ativo para entregas em tempo real`);
   });
 }
 

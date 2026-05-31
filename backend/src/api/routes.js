@@ -554,6 +554,10 @@ router.get('/google/callback', async (req, res) => {
 const osRouter = require('./osRoutes');
 router.use('/os', osRouter);
 
+// ── DELIVERY (ENTREGAS EM TEMPO REAL) ─────────────────────────
+const deliveryRouter = require('./deliveryRoutes');
+router.use('/delivery', deliveryRouter);
+
 // ── CRM & KANBAN ROUTES ───────────────────────────────────────
 const crmRouter = require('./crmRoutes');
 router.use('/crm', crmRouter);

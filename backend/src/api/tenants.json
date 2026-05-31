@@ -1,12 +1,5 @@
 [
   {
-    "id": "admin",
-    "name": "Super Admin",
-    "password": "admin",
-    "role": "superadmin",
-    "status": "active"
-  },
-  {
     "id": "default",
     "name": "Minha Empresa",
     "password": "123",

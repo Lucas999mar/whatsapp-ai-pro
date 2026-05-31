@@ -24,6 +24,11 @@ import AtendimentoPage from './pages/AtendimentoPage';
 import CRMPage from './pages/CRMPage';
 import ContatosPage from './pages/ContatosPage';
 
+// Novos componentes de Delivery
+import TrackingPage from './pages/TrackingPage';
+import MotoboyApp from './pages/MotoboyApp';
+import MotoboyRegister from './pages/MotoboyRegister';
+
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -39,13 +44,15 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
+    { path: '/motoboy', name: 'Entregas / Motoboy', icon: <Bike size={20} /> },
     { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
 
-  if (user?.role === 'technician') {
+  if (user?.role === 'technician' || user?.role === 'motoboy') {
     navItems = [
       { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
+      { path: '/motoboy', name: 'Minhas Entregas', icon: <Bike size={20} /> },
       { path: '/atendimento', name: 'Minhas Conversas', icon: <MessageSquare size={20} /> },
       { path: '/os', name: 'Minhas Ordens', icon: <ClipboardList size={20} /> },
       { path: '/settings', name: 'Perfil', icon: <Settings size={20} /> },
@@ -169,6 +176,8 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/track/:code" element={<TrackingPage />} />
+        <Route path="/motoboy/register" element={<MotoboyRegister />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
@@ -210,6 +219,8 @@ function AppContent() {
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
+            <Route path="/motoboy" element={<AuthGuard><MotoboyApp /></AuthGuard>} />
+            <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard adminOnly><SuperAdmin /></AuthGuard>} />
