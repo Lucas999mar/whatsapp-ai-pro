@@ -158,6 +158,19 @@ export default function MotoboyRegister() {
                             </div>
                         </div>
 
+                        <div className="flex items-start gap-3 px-2">
+                            <input
+                                type="checkbox"
+                                id="terms"
+                                required
+                                className="mt-1 w-4 h-4 rounded border-white/10 bg-black/20 text-[#25D366] focus:ring-[#25D366]"
+                            />
+                            <label htmlFor="terms" className="text-xs text-slate-400 leading-relaxed cursor-pointer">
+                                Li e aceito os <span className="text-[#25D366] font-bold">termos de uso</span> e a
+                                política de privacidade da plataforma de entregas.
+                            </label>
+                        </div>
+
                         <button
                             disabled={loading}
                             className="w-full bg-[#25D366] text-black font-black py-5 rounded-2xl mt-6 flex items-center justify-center gap-3 shadow-xl shadow-[#25D366]/20 active:scale-95 transition-all hover:brightness-110 disabled:opacity-50"

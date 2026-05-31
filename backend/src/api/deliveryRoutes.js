@@ -76,8 +76,10 @@ router.post('/motoboy/register', async (req, res) => {
                 vehicle_type: vehicle_type || 'moto',
                 vehicle_plate,
                 tenant_id,
+                role: 'motoboy', // <--- IMPORTANTE
                 status: 'offline',
                 is_available: false,
+                terms_accepted_at: new Date().toISOString(),
                 color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
             })
             .select()
@@ -227,6 +229,25 @@ router.get('/motoboy/stats', authMiddleware, async (req, res) => {
     }
 });
 
+// Atualizar foto de perfil do motoboy
+router.put('/motoboy/profile-photo', authMiddleware, async (req, res) => {
+    try {
+        const { photo_url } = req.body;
+        if (!photo_url) return res.status(400).json({ error: 'URL da foto é obrigatória' });
+
+        const supabase = getSupabase();
+        const { error } = await supabase
+            .from('os_technicians')
+            .update({ photo_url })
+            .eq('id', req.user.id);
+
+        if (error) throw error;
+        res.json({ success: true, photo_url });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ══════════════════════════════════════════════════════════════
 // ── DELIVERY CRUD (Empresa cria, motoboy aceita)
 // ══════════════════════════════════════════════════════════════
@@ -238,14 +259,24 @@ router.post('/create', authMiddleware, async (req, res) => {
         const tenantId = req.user.tenant_id || req.user.id;
         const trackingCode = generateTrackingCode();
 
-        const {
+        let {
             title, description, customer_name, customer_phone,
             pickup_address, pickup_lat, pickup_lng,
             delivery_address, delivery_lat, delivery_lng,
             estimated_price, priority, delivery_type
         } = req.body;
 
-        // Calcula km estimado
+        // Busca configurações de preço do tenant
+        const { data: tenant } = await supabase
+            .from('tenants')
+            .select('delivery_base_price, delivery_km_price')
+            .eq('id', tenantId)
+            .single();
+
+        const basePrice = tenant?.delivery_base_price || 7.00;
+        const kmPrice = tenant?.delivery_km_price || 1.50;
+
+        // Calcula km estimado e rota
         let estimated_km = null;
         let route_polyline = [];
 
@@ -257,6 +288,13 @@ router.post('/create', authMiddleware, async (req, res) => {
             } else {
                 estimated_km = haversineKm(pickup_lat, pickup_lng, delivery_lat, delivery_lng);
             }
+        }
+
+        // Se não informar preço, calcula com base nas regras do tenant
+        if (!estimated_price && estimated_km) {
+            estimated_price = (parseFloat(basePrice) + (estimated_km * parseFloat(kmPrice))).toFixed(2);
+        } else if (!estimated_price) {
+            estimated_price = parseFloat(basePrice).toFixed(2);
         }
 
         const taskData = {
@@ -277,7 +315,7 @@ router.post('/create', authMiddleware, async (req, res) => {
             delivery_type: delivery_type || 'entrega',
             status: 'aguardando_motoboy',
             priority: priority || 'media',
-            route_polyline,
+            route_polyline: route_polyline || [],
             scheduled_date: new Date().toISOString().split('T')[0],
             scheduled_time: new Date().toTimeString().slice(0, 5)
         };

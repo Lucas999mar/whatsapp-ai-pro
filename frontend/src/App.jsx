@@ -53,7 +53,6 @@ function Sidebar({ isOpen, setIsOpen }) {
   if (user?.role === 'technician') {
     navItems = [
       { path: '/', name: 'Visão Geral', icon: <LayoutDashboard size={20} /> },
-      { path: '/atendimento', name: 'Atendimento', icon: <MessageSquare size={20} /> },
       { path: '/os', name: 'Minhas Ordens', icon: <ClipboardList size={20} /> },
       { path: '/settings', name: 'Perfil', icon: <Settings size={20} /> },
     ];
