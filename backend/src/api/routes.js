@@ -129,7 +129,7 @@ router.post('/auth/login', async (req, res) => {
     }
 
     if (tech) {
-      console.log(`👷 Técnico logado: ${tech.name}`);
+      console.log(`👷 Usuário (OS/Delivery) logado: ${tech.name} como ${tech.role || 'technician'}`);
 
       // Update status to online
       await supabase.from('os_technicians').update({ status: 'online' }).eq('id', tech.id);
@@ -137,9 +137,9 @@ router.post('/auth/login', async (req, res) => {
       user = {
         id: tech.id,
         name: tech.name,
-        role: 'technician',
-        tenant_id: tech.tenant_id || tech.id_do_inquilino,
-        logo: null
+        role: tech.role || 'technician', // Usa a role do banco ou fallback
+        tenant_id: tech.tenant_id,
+        photo_url: tech.photo_url
       };
     }
   }
