@@ -118,6 +118,26 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
         }
     }, []);
 
+    // Persistência: Recupera do LocalStorage se houver
+    useEffect(() => {
+        const saved = localStorage.getItem('active_delivery_v1');
+        if (saved) {
+            try {
+                setActiveDelivery(JSON.parse(saved));
+                setAutoFollow(true);
+            } catch (e) { localStorage.removeItem('active_delivery_v1'); }
+        }
+    }, []);
+
+    // Persistência: Salva no LocalStorage
+    useEffect(() => {
+        if (activeDelivery) {
+            localStorage.setItem('active_delivery_v1', JSON.stringify(activeDelivery));
+        } else {
+            localStorage.removeItem('active_delivery_v1');
+        }
+    }, [activeDelivery]);
+
     const fetchData = useCallback(async () => {
         try {
             const [statsRes, availRes, historyRes, profileRes] = await Promise.all([
@@ -131,17 +151,17 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
             setHistory(historyRes.data);
             setIsOnline(!!profileRes.data?.is_available);
 
+            // Re-sincroniza com o banco se não tiver estado local ou se o estado mudou
             const active = (historyRes.data || []).find(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status));
-            if (active) {
-                const fullRes = await api.get(`/delivery/track/${active.tracking_code}`);
-                setActiveDelivery(fullRes.data);
+            if (active && (!activeDelivery || activeDelivery.id !== active.id)) {
+                setActiveDelivery(active);
             }
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [activeDelivery]);
 
     useEffect(() => {
         fetchData();
@@ -280,22 +300,38 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
 
     const confirmPickup = async () => {
         try {
-            if (!myPos) return alert('Aguardando sinal de GPS...');
+            if (!myPos) return alert('⚠️ Aguarde o sinal de GPS estabilizar.');
+            setLoading(true);
             const res = await api.post(`/delivery/pickup/${activeDelivery.id}`, { lat: myPos.lat, lng: myPos.lng });
             setActiveDelivery(res.data);
-        } catch (e) { alert('Erro ao confirmar coleta'); }
+            alert('📦 Coleta confirmada! Rota para entrega iniciada.');
+            fetchData();
+        } catch (e) {
+            alert('❌ Erro ao confirmar coleta: ' + (e.response?.data?.error || 'Verifique sua conexão.'));
+        } finally {
+            setLoading(false);
+        }
     };
 
     const confirmDelivery = async () => {
-        if (!confirm('Deseja confirmar a entrega finalizada?')) return;
+        if (!confirm('🏁 Deseja finalizar esta entrega?')) return;
         try {
-            if (!myPos) return alert('Aguardando sinal de GPS...');
+            if (!myPos) return alert('⚠️ Aguarde o sinal de GPS estabilizar.');
+            setLoading(true);
             const notes = prompt('Observações da entrega (opcional):');
             await api.post(`/delivery/complete/${activeDelivery.id}`, { lat: myPos.lat, lng: myPos.lng, notes });
+
+            localStorage.removeItem('active_delivery_v1');
             setActiveDelivery(null);
+            setRouteCoords([]);
+            alert('✅ Entrega finalizada com sucesso!');
             fetchData();
             sendBrowserNotification('Entrega Concluída! 🏁', 'Bom trabalho! O valor foi adicionado à sua carteira.');
-        } catch (e) { alert('Erro ao finalizar entrega'); }
+        } catch (e) {
+            alert('❌ Erro ao finalizar entrega: ' + (e.response?.data?.error || 'Tente novamente.'));
+        } finally {
+            setLoading(false);
+        }
     };
 
     const openNavigation = (lat, lng, address) => {
