@@ -131,34 +131,32 @@ export default function DeliveryDashboard() {
         if (!newDelivery.pickup_address || !newDelivery.delivery_address) return alert('Informe os dois endereços!');
         setCalculating(true);
         try {
-            const res1 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newDelivery.pickup_address)}`);
-            const data1 = await res1.json();
-            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newDelivery.delivery_address)}`);
-            const data2 = await res2.json();
+            const res = await api.post('/delivery/calculate-route', {
+                pickup_address: newDelivery.pickup_address,
+                delivery_address: newDelivery.delivery_address,
+                base_price: pricing.delivery_base_price,
+                km_price: pricing.delivery_km_price
+            });
 
-            if (data1[0] && data2[0]) {
-                const apiBase = import.meta.env.VITE_API_URL || '';
-                const routeRes = await fetch(`${apiBase}/api/delivery/route?from_lat=${data1[0].lat}&from_lng=${data1[0].lon}&to_lat=${data2[0].lat}&to_lng=${data2[0].lon}`);
-                const routeData = await routeRes.json();
-
-                if (routeData.distance_km) {
-                    const km = routeData.distance_km;
-                    const base = parseFloat(pricing.delivery_base_price);
-                    const perKm = parseFloat(pricing.delivery_km_price);
-                    const finalPrice = +(km * perKm + base).toFixed(2);
-
-                    setNewDelivery(prev => ({
-                        ...prev,
-                        estimated_km: km,
-                        estimated_price: finalPrice
-                    }));
-                }
-            } else {
-                alert('Não foi possível localizar as coordenadas de um dos endereços.');
+            const data = res.data;
+            if (data.distance_km) {
+                setNewDelivery(prev => ({
+                    ...prev,
+                    estimated_km: data.distance_km,
+                    estimated_price: data.estimated_price
+                }));
             }
         } catch (e) {
-            console.error(e);
-            alert('Erro ao calcular rota. Verifique sua conexão.');
+            console.error('Erro ao calcular rota:', e);
+            const errorMsg = e.response?.data?.error || 'Erro ao calcular rota. Verifique sua conexão.';
+            const field = e.response?.data?.field;
+            if (field === 'pickup_address') {
+                alert(`⚠️ Endereço de COLETA não encontrado.\n\n"${newDelivery.pickup_address}"\n\nDica: Tente adicionar a cidade e o estado. Ex: "Rua X, 123, Macaé - RJ"`);
+            } else if (field === 'delivery_address') {
+                alert(`⚠️ Endereço de ENTREGA não encontrado.\n\n"${newDelivery.delivery_address}"\n\nDica: Tente adicionar a cidade e o estado. Ex: "Rua Y, 456, Macaé - RJ"`);
+            } else {
+                alert(errorMsg);
+            }
         } finally {
             setCalculating(false);
         }

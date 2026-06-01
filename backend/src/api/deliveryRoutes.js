@@ -44,20 +44,60 @@ async function getOSRMRoute(fromLat, fromLng, toLat, toLng) {
     }
 }
 
-// Helper: Geocodificação via Nominatim (Gratuito)
+// Helper: Geocodificação via Nominatim (Gratuito) - Otimizado para endereços BR
 async function geocodeAddress(address) {
-    try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
-        const res = await fetch(url, { headers: { 'User-Agent': 'WhatsAppAIPro/1.0' } });
-        const data = await res.json();
-        if (data && data.length > 0) {
-            return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    if (!address || address.trim().length < 3) return null;
+    const headers = { 'User-Agent': 'WhatsAppAIPro/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' };
+
+    // Função interna para tentar uma busca
+    async function tryGeocode(query) {
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=br&limit=3&addressdetails=1`;
+            const res = await fetch(url, { headers });
+            const data = await res.json();
+            if (data && data.length > 0) {
+                return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+            }
+            return null;
+        } catch (err) {
+            console.error('❌ Geocode attempt error:', err.message);
+            return null;
         }
-        return null;
-    } catch (err) {
-        console.error('❌ Geocode Error:', err.message);
-        return null;
     }
+
+    // Tentativa 1: Endereço completo original
+    let result = await tryGeocode(address);
+    if (result) return result;
+
+    // Tentativa 2: Remover CEP (padrão XXXXX-XXX) e tentar novamente
+    const withoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').trim();
+    if (withoutCep !== address) {
+        result = await tryGeocode(withoutCep);
+        if (result) return result;
+    }
+
+    // Tentativa 3: Simplificar - pegar rua + cidade extraindo padrões comuns
+    // Ex: "R. Alcides Mourão, 877 - Aroeira, Macaé - RJ" -> "Rua Alcides Mourão, 877, Macaé, RJ"
+    const simplified = address
+        .replace(/\s*-\s*/g, ', ')  // troca traços por vírgulas
+        .replace(/,\s*Brasil$/i, '') // remove Brasil no final
+        .trim();
+    if (simplified !== address && simplified !== withoutCep) {
+        result = await tryGeocode(simplified);
+        if (result) return result;
+    }
+
+    // Tentativa 4: Apenas rua e cidade (pegar as primeiras partes significativas)
+    const parts = address.split(/[,\-]+/).map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+        // Tenta rua + cidade (primeiro e penúltimo/último elemento)
+        const streetAndCity = `${parts[0]}, ${parts[parts.length - 2] || ''}, ${parts[parts.length - 1] || ''}, Brasil`;
+        result = await tryGeocode(streetAndCity);
+        if (result) return result;
+    }
+
+    console.error(`❌ Geocode: Nenhum resultado para "${address}" após todas as tentativas`);
+    return null;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -790,7 +830,7 @@ router.get('/track/:code', async (req, res) => {
     }
 });
 
-// Rota de cálculo (OSRM)
+// Rota de cálculo (OSRM) - por coordenadas
 router.get('/route', async (req, res) => {
     try {
         const { from_lat, from_lng, to_lat, to_lng } = req.query;
@@ -802,6 +842,69 @@ router.get('/route', async (req, res) => {
         res.json(route);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── NOVA ROTA: Calcular rota A PARTIR DE ENDEREÇOS DE TEXTO
+// ══════════════════════════════════════════════════════════════
+router.post('/calculate-route', authMiddleware, async (req, res) => {
+    try {
+        const { pickup_address, delivery_address, base_price, km_price } = req.body;
+
+        if (!pickup_address || !delivery_address) {
+            return res.status(400).json({ error: 'Endereço de coleta e entrega são obrigatórios.' });
+        }
+
+        console.log(`📍 Geocodificando coleta: "${pickup_address}"`);
+        const pickupGeo = await geocodeAddress(pickup_address);
+        if (!pickupGeo) {
+            return res.status(422).json({
+                error: `Não foi possível localizar o endereço de coleta. Tente adicionar mais detalhes (cidade, estado).`,
+                field: 'pickup_address'
+            });
+        }
+
+        console.log(`📍 Geocodificando entrega: "${delivery_address}"`);
+        const deliveryGeo = await geocodeAddress(delivery_address);
+        if (!deliveryGeo) {
+            return res.status(422).json({
+                error: `Não foi possível localizar o endereço de entrega. Tente adicionar mais detalhes (cidade, estado).`,
+                field: 'delivery_address'
+            });
+        }
+
+        console.log(`📍 Coleta: ${pickupGeo.lat}, ${pickupGeo.lng} | Entrega: ${deliveryGeo.lat}, ${deliveryGeo.lng}`);
+
+        // Calcula rota via OSRM
+        const route = await getOSRMRoute(pickupGeo.lat, pickupGeo.lng, deliveryGeo.lat, deliveryGeo.lng);
+        let distance_km, duration_min;
+
+        if (route) {
+            distance_km = route.distance_km;
+            duration_min = route.duration_min;
+        } else {
+            // Fallback: Haversine (linha reta)
+            distance_km = +haversineKm(pickupGeo.lat, pickupGeo.lng, deliveryGeo.lat, deliveryGeo.lng).toFixed(2);
+            duration_min = null;
+        }
+
+        // Calcula preço
+        const bPrice = parseFloat(base_price) || 7.00;
+        const kPrice = parseFloat(km_price) || 1.50;
+        const estimated_price = +(distance_km * kPrice + bPrice).toFixed(2);
+
+        res.json({
+            distance_km,
+            duration_min,
+            estimated_price,
+            pickup_coords: { lat: pickupGeo.lat, lng: pickupGeo.lng },
+            delivery_coords: { lat: deliveryGeo.lat, lng: deliveryGeo.lng },
+            route_geometry: route?.geometry || []
+        });
+    } catch (err) {
+        console.error('❌ calculate-route error:', err);
+        res.status(500).json({ error: 'Erro interno ao calcular a rota.' });
     }
 });
 
