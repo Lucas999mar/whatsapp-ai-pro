@@ -26,11 +26,14 @@ async function getAgentsStatus(tenantId = null) {
 
   return savedAgents.map(saved => {
     const running = agents.get(saved.id);
+    // 🛡️ Se não estiver no Map, o bot não está rodando neste processo (sessão perdida ou reiniciado)
+    const currentStatus = running ? running.status : 'disconnected';
+
     return {
       id: saved.id,
       name: saved.name,
-      status: running ? running.status : (saved.status || 'disconnected'),
-      qr: running ? running.qr : (saved.qr || null),
+      status: currentStatus,
+      qr: running ? running.qr : null,
       settings: running ? running.settings : (saved.settings || {}),
       tenantId: saved.tenantId || saved.tenant_id
     };

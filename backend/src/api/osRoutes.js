@@ -108,6 +108,7 @@ router.get('/technicians', authMiddleware, async (req, res) => {
             .from('os_technicians')
             .select('*')
             .eq('tenant_id', tenantId)
+            .neq('role', 'motoboy') // 🛡️ Exclui motoboys da lista de técnicos de OS
             .order('name');
         if (error) throw error;
         res.json(data || []);
@@ -118,7 +119,11 @@ router.post('/technicians', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
-        const techData = { ...req.body, tenant_id: tenantId };
+        const techData = {
+            ...req.body,
+            tenant_id: tenantId,
+            role: 'technician' // 🛡️ Garante que é criado como técnico de OS
+        };
 
         console.log('👷 Tentando criar técnico:', techData);
 
@@ -519,6 +524,7 @@ router.get('/map/technicians', authMiddleware, async (req, res) => {
             .from('os_technicians')
             .select('id, name, phone, color, status, lat, lng, last_location_at, device_info')
             .eq('tenant_id', req.user.id)
+            .neq('role', 'motoboy') // 🛡️ Apenas técnicos no mapa de OS
             .not('lat', 'is', null);
         if (error) throw error;
         res.json(data || []);
@@ -556,7 +562,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
         const [tasksRes, clientsRes, techsRes, todayRes] = await Promise.all([
             supabase.from('os_tasks').select('id, status').eq('tenant_id', tenantId),
             supabase.from('os_clients').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-            supabase.from('os_technicians').select('id, status').eq('tenant_id', tenantId),
+            supabase.from('os_technicians').select('id, status').eq('tenant_id', tenantId).neq('role', 'motoboy'), // 🛡️ Filtra motoboys
             supabase.from('os_tasks').select('id, status').eq('tenant_id', tenantId).eq('scheduled_date', today)
         ]);
 
