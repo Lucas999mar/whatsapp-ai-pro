@@ -235,13 +235,26 @@ router.get('/company/settings', authMiddleware, async (req, res) => {
   try {
     const supabase = getSupabase();
     const tenantId = req.user.tenant_id || req.user.id;
-    const { data, error } = await supabase
+
+    // Tenta primeiro o select completo
+    let { data, error } = await supabase
       .from('tenants')
       .select('id, name, logo, delivery_base_price, delivery_km_price, default_pickup_address')
       .eq('id', tenantId)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+    // Se falhar por coluna inexistente (erro 42703), tenta sem default_pickup_address
+    if (error && error.code === '42703') {
+      const retry = await supabase
+        .from('tenants')
+        .select('id, name, logo, delivery_base_price, delivery_km_price')
+        .eq('id', tenantId)
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error && error.code !== 'PGRST116') throw error;
     res.json(data || {});
   } catch (err) {
     res.status(500).json({ error: err.message });
