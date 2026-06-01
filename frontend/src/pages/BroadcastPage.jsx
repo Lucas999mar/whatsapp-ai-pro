@@ -76,7 +76,7 @@ export default function BroadcastPage() {
     if (!message.trim() && !media) return alert('Insira uma mensagem ou anexe um arquivo.');
     if (!selectedAgent) return alert('Selecione um agente conectado.');
 
-    if (!window.confirm(`Você está prestes a enviar mensagens para ${numbers.length} contatos. Deseja continuar?`)) return;
+    // if (!window.confirm(`Você está prestes a enviar mensagens para ${numbers.length} contatos. Deseja continuar?`)) return;
 
     setLoading(true);
     setStatus('sending');
