@@ -797,7 +797,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
         const [allRes, todayRes, motoboyRes] = await Promise.all([
             supabase.from('os_tasks').select('id, status, estimated_km, actual_km, estimated_price, delivery_type').eq('tenant_id', tenantId).not('delivery_type', 'is', null),
             supabase.from('os_tasks').select('id, status').eq('tenant_id', tenantId).eq('scheduled_date', today).not('delivery_type', 'is', null),
-            supabase.from('os_technicians').select('id, status, is_available').eq('tenant_id', tenantId)
+            supabase.from('os_technicians').select('id, status, is_available').eq('tenant_id', tenantId).eq('role', 'motoboy')
         ]);
 
         const all = allRes.data || [];
