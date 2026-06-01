@@ -331,15 +331,22 @@ export default function DeliveryDashboard() {
                                     {/* Rotas das Entregas Ativas */}
                                     {deliveries.filter(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status)).map(d => (
                                         <React.Fragment key={d.id}>
-                                            {d.pickup_lat && <Marker position={[d.pickup_lat, d.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:4px;background:#3b82f6;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5)"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg></div>` })} />}
-                                            {d.delivery_lat && <Marker position={[d.delivery_lat, d.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:4px;background:#25D366;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5)"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg></div>` })} />}
+                                            {/* Ponto de Coleta (Azul) */}
+                                            {d.pickup_lat && (
+                                                <Marker position={[d.pickup_lat, d.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:4px;background:#3b82f6;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(59,130,246,0.5)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg></div>` })} />
+                                            )}
+                                            {/* Ponto de Entrega (Verde) */}
+                                            {d.delivery_lat && (
+                                                <Marker position={[d.delivery_lat, d.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:4px;background:#22C55E;color:white;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(34,197,94,0.5)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg></div>` })} />
+                                            )}
+                                            {/* Linha da Rota */}
                                             {d.route_polyline && d.route_polyline.length > 0 && (
                                                 <Polyline
                                                     positions={d.route_polyline.map(p => [p.lat, p.lng])}
-                                                    color="#25D366"
-                                                    weight={2}
-                                                    opacity={0.5}
-                                                    dashArray="5, 5"
+                                                    color={d.status === 'aceita' ? '#3b82f6' : '#22C55E'}
+                                                    weight={3}
+                                                    opacity={0.6}
+                                                    dashArray={d.status === 'aceita' ? "5, 10" : "0"}
                                                 />
                                             )}
                                         </React.Fragment>
