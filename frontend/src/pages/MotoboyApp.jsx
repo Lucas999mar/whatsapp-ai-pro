@@ -30,7 +30,7 @@ function ChangeView({ center, zoom, active }) {
 }
 
 // 📍 FollowMe: Mantém o motoboy no centro em "Primeira Pessoa"
-function FollowMe({ pos, heading, active, zoom, onManualMove }) {
+function FollowMe({ pos, heading, active, zoom, onManualMove, onRecenter }) {
     const map = useMap();
     const isMovingManually = useRef(false);
 
@@ -43,12 +43,28 @@ function FollowMe({ pos, heading, active, zoom, onManualMove }) {
         return () => map.off('dragstart', onDragStart);
     }, [map, onManualMove]);
 
+    // Quando o usuário clica em Recentralizar, resetamos o flag manual
+    useEffect(() => {
+        if (active) {
+            isMovingManually.current = false;
+        }
+    }, [active]);
+
     useEffect(() => {
         if (pos && active && !isMovingManually.current) {
             map.setView([pos.lat, pos.lng], zoom, { animate: true, duration: 1 });
         }
     }, [pos?.lat, pos?.lng, active, zoom, map]);
 
+    return null;
+}
+
+// 🔭 ZoomHandler: Aplica mudanças de zoom dinamicamente
+function ZoomHandler({ zoom }) {
+    const map = useMap();
+    useEffect(() => {
+        map.setZoom(zoom);
+    }, [zoom, map]);
     return null;
 }
 
@@ -429,6 +445,7 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                             zoom={mapZoom}
                                             onManualMove={() => setAutoFollow(false)}
                                         />
+                                        <ZoomHandler zoom={mapZoom} />
                                     </MapContainer>
 
                                     <div className="absolute top-6 left-4 right-4 z-10">
