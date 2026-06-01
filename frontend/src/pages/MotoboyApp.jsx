@@ -29,6 +29,23 @@ function ChangeView({ center, zoom, active }) {
     return null;
 }
 
+// 🗺️ AutoBounds: Ajusta o zoom para mostrar motoboy + destino na mesma tela
+function AutoBounds({ pos, dest }) {
+    const map = useMap();
+    useEffect(() => {
+        if (pos && dest && dest.lat && dest.lng) {
+            const bounds = L.latLngBounds(
+                [pos.lat, pos.lng],
+                [dest.lat, dest.lng]
+            );
+            map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17, animate: true, duration: 1 });
+        } else if (pos) {
+            map.setView([pos.lat, pos.lng], 16, { animate: true });
+        }
+    }, [pos?.lat, pos?.lng, dest?.lat, dest?.lng, map]);
+    return null;
+}
+
 export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const { user, logout, updateUser } = useAuth();
     const navigate = useNavigate();
@@ -42,6 +59,8 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const [history, setHistory] = useState([]);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [routeCoords, setRouteCoords] = useState([]);
+    const [routeInfo, setRouteInfo] = useState({ distance: 0, duration: 0 });
 
     const socketRef = useRef(null);
     const watchId = useRef(null);
@@ -170,12 +189,46 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
         }
     };
 
+    // 🗺️ Busca rota via OSRM (gratuito) entre dois pontos
+    const fetchRoute = useCallback(async (fromLat, fromLng, toLat, toLng) => {
+        if (!fromLat || !fromLng || !toLat || !toLng) return;
+        try {
+            const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.routes && data.routes[0]) {
+                const route = data.routes[0];
+                const coords = route.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
+                setRouteCoords(coords);
+                setRouteInfo({
+                    distance: (route.distance / 1000).toFixed(1),
+                    duration: Math.ceil(route.duration / 60)
+                });
+            }
+        } catch (e) {
+            console.error('Erro ao buscar rota:', e);
+        }
+    }, []);
+
+    // 🔄 Atualiza rota automaticamente quando posição ou destino mudam
+    useEffect(() => {
+        if (!activeDelivery || !myPos) return;
+        const destLat = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lat : activeDelivery.delivery_lat;
+        const destLng = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lng : activeDelivery.delivery_lng;
+        fetchRoute(myPos.lat, myPos.lng, destLat, destLng);
+        const interval = setInterval(() => {
+            if (myPos) fetchRoute(myPos.lat, myPos.lng, destLat, destLng);
+        }, 30000); // Recalcula a cada 30s
+        return () => clearInterval(interval);
+    }, [activeDelivery?.id, activeDelivery?.status, myPos?.lat, myPos?.lng, fetchRoute]);
+
     const acceptDelivery = async (id) => {
         try {
             setLoading(true);
             const res = await api.post(`/delivery/accept/${id}`);
             setActiveDelivery(res.data);
             setAvailableDeliveries(prev => prev.filter(d => d.id !== id));
+            setRouteCoords([]); // Limpa rota antiga
             fetchData();
         } catch (err) {
             alert(err.response?.data?.error || 'Erro ao aceitar corrida');
@@ -310,16 +363,33 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                         {activeDelivery?.pickup_lat && <Marker position={[activeDelivery.pickup_lat, activeDelivery.pickup_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:8px;background:#3b82f6;color:white;border-radius:20px;border:2px solid white;box-shadow:0 0 15px rgba(0,0,0,0.5);font-weight:bold;font-size:10px;white-space:nowrap;display:flex;items-center:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg> PONTO DE COLETA</div>` })} />}
                                         {activeDelivery?.delivery_lat && <Marker position={[activeDelivery.delivery_lat, activeDelivery.delivery_lng]} icon={L.divIcon({ className: 'bg-none', html: `<div style="padding:8px;background:#25D366;color:white;border-radius:20px;border:2px solid white;box-shadow:0 0 15px rgba(0,0,0,0.5);font-weight:bold;font-size:10px;white-space:nowrap;display:flex;items-center:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg> CLIENTE</div>` })} />}
 
-                                        {activeDelivery?.route_polyline && activeDelivery.route_polyline.length > 0 && (
+                                        {/* 🗺️ Rota OSRM em Tempo Real (Estilo Uber) */}
+                                        {routeCoords.length > 0 && (
+                                            <Polyline
+                                                positions={routeCoords.map(p => [p.lat, p.lng])}
+                                                color="#25D366"
+                                                weight={6}
+                                                opacity={0.85}
+                                                lineCap="round"
+                                                lineJoin="round"
+                                                dashArray={null}
+                                            />
+                                        )}
+                                        {/* Fallback: rota salva no banco */}
+                                        {routeCoords.length === 0 && activeDelivery?.route_polyline && activeDelivery.route_polyline.length > 0 && (
                                             <Polyline
                                                 positions={activeDelivery.route_polyline.map(p => [p.lat, p.lng])}
                                                 color="#25D366"
-                                                weight={6}
+                                                weight={5}
                                                 opacity={0.6}
+                                                dashArray="10 6"
                                             />
                                         )}
 
-                                        <ChangeView center={myPos ? [myPos.lat, myPos.lng] : null} zoom={16} active={!!activeDelivery} />
+                                        <AutoBounds
+                                            pos={myPos}
+                                            dest={activeDelivery?.status === 'aceita' ? { lat: activeDelivery.pickup_lat, lng: activeDelivery.pickup_lng } : { lat: activeDelivery.delivery_lat, lng: activeDelivery.delivery_lng }}
+                                        />
                                     </MapContainer>
 
                                     <div className="absolute top-24 left-4 right-4 z-10">
@@ -332,13 +402,23 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                     <h4 className="text-sm font-black uppercase tracking-tighter text-white">
                                                         {activeDelivery?.status === 'aceita' ? 'Siga para a Coleta' : 'Siga para a Entrega'}
                                                     </h4>
-                                                    <p className="text-[11px] text-slate-400 font-bold truncate max-w-[140px]">
+                                                    <p className="text-[11px] text-slate-400 font-bold truncate max-w-[180px]">
                                                         {activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address}
                                                     </p>
+                                                    {routeInfo.distance > 0 && (
+                                                        <p className="text-[10px] text-[#25D366] font-black mt-1">
+                                                            📍 {routeInfo.distance} km • ⏱️ {routeInfo.duration} min
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <button onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)} className="p-4 bg-white text-black rounded-2xl shadow-xl active:scale-90 transition-all">
-                                                <Navigation size={20} />
+                                            {/* Botão compacto para abrir GPS externo (fallback) */}
+                                            <button
+                                                onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)}
+                                                className="p-3 bg-white/10 text-white rounded-2xl active:scale-90 transition-all border border-white/10"
+                                                title="Abrir no Google Maps"
+                                            >
+                                                <MapIcon size={18} />
                                             </button>
                                         </div>
                                     </div>
