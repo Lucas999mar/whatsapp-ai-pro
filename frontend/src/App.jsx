@@ -102,7 +102,11 @@ function Sidebar({ isOpen, setIsOpen }) {
               <h1 className="text-lg font-black tracking-tight text-white leading-tight">
                 {user?.name || 'Evoluir Mais'}
               </h1>
-              <span className="text-[10px] text-[#25D366] font-bold uppercase tracking-widest">{user?.role}</span>
+              <span className="text-[10px] text-[#25D366] font-black uppercase tracking-[0.2em]">
+                {user?.role === 'motoboy' ? 'ENTREGADOR' :
+                  user?.role === 'technician' ? 'TÉCNICO' :
+                    user?.role === 'superadmin' ? 'SUPER ADMIN' : 'ADMINISTRADOR'}
+              </span>
             </div>
           </div>
         </div>
