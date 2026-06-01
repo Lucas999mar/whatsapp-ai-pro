@@ -417,7 +417,7 @@ export default function OSPage() {
     const fetchAll = useCallback(async () => {
         try {
             const [t, c, te, s] = await Promise.all([
-                api.get(`/os/tasks?month=${currentMonth + 1}&year=2026`),
+                api.get(`/os/tasks?module=os&month=${currentMonth + 1}&year=2026`),
                 api.get('/os/clients'),
                 api.get('/os/technicians'),
                 api.get('/os/stats')

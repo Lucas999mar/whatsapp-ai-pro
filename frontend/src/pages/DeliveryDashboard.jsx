@@ -77,7 +77,7 @@ export default function DeliveryDashboard() {
         try {
             const [statsRes, deliveriesRes, motoboyRes, settingsRes] = await Promise.all([
                 api.get('/delivery/stats'),
-                api.get('/os/tasks'),
+                api.get('/os/tasks?module=delivery'),
                 api.get('/delivery/motoboys'),
                 api.get('/company/settings').catch(() => ({ data: {} }))
             ]);

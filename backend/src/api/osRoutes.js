@@ -276,8 +276,18 @@ router.get('/tasks', authMiddleware, async (req, res) => {
                 technician:os_technicians(id, name, email, color),
                 task_type:os_task_types(id, name, color)
             `)
-            .eq('tenant_id', tenantId)
-            .order('scheduled_date', { ascending: true })
+            .eq('tenant_id', tenantId);
+
+        // 🛡️ SEPARAÇÃO DE MÓDULOS: 
+        // Se a rota for chamada pelo dashboard de OS, exclui entregas
+        // Se houver um filtro explícito de delivery_type, respeita
+        if (req.query.module === 'delivery') {
+            query = query.in('delivery_type', ['entrega', 'coleta']);
+        } else if (req.query.module === 'os') {
+            query = query.or('delivery_type.eq.os,delivery_type.is.null');
+        }
+
+        query = query.order('scheduled_date', { ascending: true })
             .order('scheduled_time', { ascending: true });
 
         if (month && year) {
