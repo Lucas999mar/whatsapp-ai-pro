@@ -49,17 +49,22 @@ async function geocodeAddress(address) {
     if (!address || address.trim().length < 3) return null;
     const headers = { 'User-Agent': 'WhatsAppAIPro/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' };
 
-    console.log(`🔍 Buscando coordenadas para: "${address}"`);
+    console.log(`🔍 Iniciando Busca Estruturada para: "${address}"`);
 
-    // Função interna para tentar uma busca
-    async function tryGeocode(query, params = '') {
+    // Função interna para busca estruturada (mais precisa)
+    async function tryStructured(street, city, state, postalcode) {
         try {
-            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=br&limit=1${params}`;
+            let url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=1`;
+            if (street) url += `&street=${encodeURIComponent(street)}`;
+            if (city) url += `&city=${encodeURIComponent(city)}`;
+            if (state) url += `&state=${encodeURIComponent(state)}`;
+            if (postalcode) url += `&postalcode=${encodeURIComponent(postalcode)}`;
+
             const res = await fetch(url, { headers });
             const data = await res.json();
             if (data && data.length > 0) {
-                console.log(`✅ Sucesso: "${query}" -> [${data[0].lat}, ${data[0].lon}]`);
-                return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+                console.log(`✅ Sucesso na busca de [${street}] em [${city}]: [${data[0].lat}, ${data[0].lon}]`);
+                return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
             }
             return null;
         } catch (err) {
@@ -67,39 +72,49 @@ async function geocodeAddress(address) {
         }
     }
 
-    // 1. Extrair CEP (8 dígitos ou 5-3 dígitos)
-    const cepMatch = address.match(/(\d{8})|(\d{5}-\d{3})/);
-    const cep = cepMatch ? cepMatch[0].replace('-', '') : null;
+    // 1. Extrair Componentes através de padrões comuns brasileiros
+    // Extrai o CEP limpando caracteres não-numéricos
+    const cepMatch = address.match(/(\d{5}-?\d{3})|(\d{8})/);
+    let cep = cepMatch ? cepMatch[0].replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2') : null;
 
-    // 2. TENTATIVA PRIORITÁRIA: Testar apenas o CEP primeiro
-    // Isso garante que estamos na cidade/bairro correto em vez de ir para outro estado
-    if (cep) {
-        console.log(`📍 Tentando busca por CEP: ${cep}`);
-        const resultCep = await tryGeocode(cep);
-        if (resultCep) {
-            // Se encontrou o CEP, agora tentamos a rua COM o CEP para precisão
-            const addressWithoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').replace(/,?\s*\d{8}/g, '').trim();
-            const streetResult = await tryGeocode(`${addressWithoutCep}, ${cep}`);
-            if (streetResult) return streetResult;
+    // Limpar endereço para extrair rua e cidade
+    let cleanAddr = address.replace(/,?\s*(\d{5}-?\d{3})|(\d{8})/g, '').trim();
+    const parts = cleanAddr.split(',').map(p => p.trim());
 
-            return resultCep; // Se não achou a rua exata, fica com o centro do CEP (Bairro/Cidade)
-        }
+    let street = parts[0];
+    let city = "Macaé"; // Valor padrão para o contexto atual
+    let state = "RJ";
+
+    // Tentar extrair cidade/estado se houver "Cidade - UF" no texto
+    const geoMatch = cleanAddr.match(/([^,-]+)\s*-\s*([A-Z]{2})/);
+    if (geoMatch) {
+        city = geoMatch[1].trim();
+        state = geoMatch[2].trim();
     }
 
-    // 3. TENTATIVA POR TEXTO (Fallback)
-    const addressWithoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').replace(/,?\s*\d{8}/g, '').trim();
-    let result = await tryGeocode(addressWithoutCep);
+    // 2. TENTATIVA 1: Rua + CEP + Cidade (Máxima precisão)
+    let result = await tryStructured(street, city, state, cep);
     if (result) return result;
 
-    // 4. ÚLTIMA TENTATIVA: Rua + Cidade (Removendo números/números de casa que confundem o Nominatim)
-    const parts = addressWithoutCep.split(',').map(p => p.trim());
-    if (parts.length >= 2) {
-        const simplified = `${parts[0].replace(/\d+/, '')}, ${parts[parts.length - 1]}`;
-        result = await tryGeocode(simplified);
+    // 3. TENTATIVA 2: Apenas Rua + Cidade (Fallback caso o CEP falhe)
+    result = await tryStructured(street, city, state, null);
+    if (result) return result;
+
+    // 4. TENTATIVA 3: Apenas o CEP (Último recurso geográfico)
+    if (cep) {
+        result = await tryStructured(null, city, state, cep);
         if (result) return result;
     }
 
-    console.log(`❌ Falha total ao localizar: "${address}"`);
+    // 5. TENTATIVA 4: Busca Geral (Legado)
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=br&limit=1`;
+        const res = await fetch(url, { headers });
+        const data = await res.json();
+        if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch (e) { }
+
+    console.log(`❌ Falha ao localizar endereço.`);
     return null;
 }
 
