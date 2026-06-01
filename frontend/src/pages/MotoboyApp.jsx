@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     Bike, MapPin, Navigation, Package, CheckCircle2, XCircle,
     Power, User, Clock, DollarSign, Map as MapIcon, ChevronRight,
-    Loader2, Play, Square, Hash, Camera, Upload, LogOut, Bell, BellOff
+    Loader2, Play, Square, Hash, Camera, Upload, LogOut, Bell, BellOff,
+    X, AlertTriangle, Search, Compass, GitBranch, Volume2, CornerUpRight, Trash2
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -448,57 +449,95 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                         <ZoomHandler zoom={mapZoom} />
                                     </MapContainer>
 
-                                    <div className="absolute top-6 left-4 right-4 z-10">
-                                        <div className="bg-[#064E3B]/95 backdrop-blur-xl border border-white/20 rounded-[24px] overflow-hidden shadow-2xl p-4 flex items-center gap-4">
-                                            <div className="bg-white/10 p-2.5 rounded-xl">
-                                                <Navigation className="text-white transform -rotate-45" size={24} strokeWidth={3} />
+                                    {/* Google Maps Style: Top Instruction Banner */}
+                                    <div className="absolute top-2 left-2 right-2 z-20 flex flex-col gap-1">
+                                        <div className="bg-[#004D40] rounded-[20px] shadow-2xl p-4 flex items-center gap-4 border border-white/5">
+                                            <div className="flex flex-col items-center justify-center p-1">
+                                                <Navigation className="text-white transform -rotate-45" size={40} strokeWidth={3} />
                                             </div>
                                             <div className="flex-1 overflow-hidden">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-black uppercase text-white/50 tracking-widest">Em direção a</span>
-                                                </div>
-                                                <h4 className="text-base font-black text-white leading-tight uppercase truncate">
+                                                <p className="text-white/70 text-xs font-bold leading-none mb-1">em direção a</p>
+                                                <h4 className="text-2xl font-black text-white leading-tight uppercase truncate">
                                                     {activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address?.split(',')[0] : activeDelivery?.delivery_address?.split(',')[0]}
                                                 </h4>
                                             </div>
                                         </div>
+                                        {/* Sub-instrução "Depois" */}
+                                        <div className="flex">
+                                            <div className="bg-[#00332C] px-4 py-2 rounded-2xl flex items-center gap-2 border border-white/5 ml-4">
+                                                <span className="text-white/60 text-[10px] font-bold">Depois,</span>
+                                                <CornerUpRight className="text-white" size={14} />
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    {/* Controles do Lado Direito */}
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
-                                        <button onClick={() => { setAutoFollow(true); setMapZoom(18); }} className={`w-12 h-12 rounded-full border border-white/10 flex items-center justify-center transition-all ${autoFollow ? 'bg-[#25D366] text-black shadow-[0_0_15px_#25D36680]' : 'bg-black/80 text-white shadow-2xl'}`}><Navigation size={22} /></button>
-                                        <MapControls onZoomIn={() => setMapZoom(z => Math.min(z + 1, 20))} onZoomOut={() => setMapZoom(z => Math.max(z - 1, 10))} />
+                                    {/* Floating Buttons Right (Compass, Search, Volume) */}
+                                    <div className="absolute right-3 top-[35%] z-20 flex flex-col gap-3">
+                                        <button onClick={() => setAutoFollow(true)} className={`w-12 h-12 rounded-full border border-white/10 flex items-center justify-center shadow-2xl transition-all ${autoFollow ? 'bg-[#1E1E1E] text-[#25D366]' : 'bg-white text-black'}`}>
+                                            <Compass size={24} />
+                                        </button>
+                                        <button className="w-12 h-12 bg-[#1E1E1E] text-white rounded-full border border-white/10 flex items-center justify-center shadow-2xl">
+                                            <Search size={22} />
+                                        </button>
+                                        <button className="w-12 h-12 bg-[#1E1E1E] text-white rounded-full border border-white/10 flex items-center justify-center shadow-2xl">
+                                            <Volume2 size={22} />
+                                        </button>
                                     </div>
 
-                                    <div className="absolute bottom-6 left-4 right-4 z-20">
-                                        <div className="bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[30px] overflow-hidden shadow-2xl">
-                                            <div className="p-5">
-                                                <div className="flex justify-between items-center mb-5 px-1">
-                                                    <div className="text-center">
-                                                        <h3 className="text-2xl font-black text-[#25D366] leading-none">{routeInfo.duration}<span className="text-xs ml-0.5 opacity-60">min</span></h3>
-                                                        <p className="text-[8px] font-black uppercase tracking-widest text-[#25D366] opacity-60 mt-1">Duração</p>
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <h3 className="text-2xl font-black text-white leading-none">{routeInfo.distance}<span className="text-xs ml-0.5 opacity-60">km</span></h3>
-                                                        <p className="text-[8px] font-black uppercase tracking-widest text-white/40 mt-1">Distância</p>
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <h3 className="text-2xl font-black text-white leading-none">
+                                    {/* Speedometer Left */}
+                                    <div className="absolute left-4 bottom-32 z-20">
+                                        <div className="w-14 h-14 bg-black border-2 border-white/20 rounded-full flex flex-col items-center justify-center shadow-2xl">
+                                            <span className="text-xl font-black text-white leading-none">9</span>
+                                            <span className="text-[8px] font-bold text-white/60 uppercase">km/h</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Report Button */}
+                                    <div className="absolute right-4 bottom-32 z-20">
+                                        <button className="bg-[#1E1E1E] border border-white/10 rounded-full py-2.5 px-5 flex items-center gap-2 shadow-2xl active:scale-95 transition-all">
+                                            <AlertTriangle className="text-orange-500" size={18} />
+                                            <span className="text-xs font-bold text-white">Reportar</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Google Maps Style: Bottom Navigation Panel */}
+                                    <div className="absolute bottom-0 left-0 right-0 z-30 p-2">
+                                        <div className="bg-[#000000] border-t border-white/5 rounded-t-[32px] shadow-2xl overflow-hidden pb-4">
+                                            <div className="w-12 h-1 bg-white/10 rounded-full mx-auto my-3"></div>
+
+                                            <div className="flex items-center justify-between px-6 pb-4">
+                                                {/* Dimiss Button */}
+                                                <button onClick={() => setAutoFollow(false)} className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-white transition-all">
+                                                    <X size={28} />
+                                                </button>
+
+                                                {/* ETA / Info Center */}
+                                                <div className="flex flex-col items-center">
+                                                    <h3 className="text-3xl font-black text-[#22C55E] tracking-tight">
+                                                        {routeInfo.duration}<span className="text-xl ml-0.5">min</span>
+                                                    </h3>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-sm font-bold text-white/50">{routeInfo.distance} km</span>
+                                                        <span className="w-1 h-1 bg-white/30 rounded-full"></span>
+                                                        <span className="text-sm font-black text-white">
                                                             {new Date(new Date().getTime() + routeInfo.duration * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                        </h3>
-                                                        <p className="text-[8px] font-black uppercase tracking-widest text-white/40 mt-1">Chegada</p>
+                                                        </span>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)} className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-white active:scale-95 transition-all flex-shrink-0"><XCircle size={24} /></button>
+                                                {/* Alternate Routes Button */}
+                                                <button className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-white transition-all">
+                                                    <GitBranch size={24} className="transform rotate-180" />
+                                                </button>
+                                            </div>
 
-                                                    {activeDelivery?.status === 'aceita' ? (
-                                                        <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-tighter"><Package size={20} /> CONFIRMAR COLETA</button>
-                                                    ) : (
-                                                        <button onClick={confirmDelivery} className="flex-1 bg-[#25D366] text-black font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-tighter"><CheckCircle2 size={20} /> FINALIZAR ENTREGA</button>
-                                                    )}
-                                                </div>
+                                            {/* Action Button: Confirm Pickup/Delivery */}
+                                            <div className="px-4 pb-4">
+                                                {activeDelivery?.status === 'aceita' ? (
+                                                    <button onClick={confirmPickup} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-900/20 active:scale-95 transition-all">CHEGUEI NA COLETA</button>
+                                                ) : (
+                                                    <button onClick={confirmDelivery} className="w-full bg-[#25D366] text-black py-4 rounded-2xl font-black text-lg shadow-xl shadow-green-900/20 active:scale-95 transition-all">FINALIZAR ENTREGA</button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -633,8 +672,9 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
             )}
 
             <style>{`
-                .leaflet-container { width: 100%; height: 100%; z-index: 1; filter: grayscale(1) invert(1) brightness(0.7) contrast(1.2); }
-                .leaflet-control-zoom { display: none; }
+                .leaflet-container { width: 100%; height: 100%; z-index: 1; filter: saturate(1.2) contrast(1.1) brightness(0.9); }
+                .leaflet-tile-pane { filter: grayscale(1) invert(0.9) brightness(0.4) contrast(1.2) sepia(0.2) hue-rotate(180deg); }
+                .leaflet-bar { display: none !important; }
                 .leaflet-control-attribution { display: none; }
             `}</style>
         </div>
