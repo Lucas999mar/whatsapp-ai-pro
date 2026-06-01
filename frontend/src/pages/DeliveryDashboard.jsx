@@ -42,14 +42,19 @@ export default function DeliveryDashboard() {
         title: '',
         customer_name: '',
         customer_phone: '',
+        pickup_cep: '',
         pickup_address: '',
+        pickup_number: '',
+        pickup_complement: '',
+        delivery_cep: '',
         delivery_address: '',
+        delivery_number: '',
+        delivery_complement: '',
         scheduled_date: new Date().toISOString().split('T')[0],
         scheduled_time: new Date().toTimeString().slice(0, 5),
         technician_id: '',
         estimated_km: 0,
-        estimated_price: 0,
-        cep: ''
+        estimated_price: 0
     });
     const [calculating, setCalculating] = useState(false);
 
@@ -111,29 +116,47 @@ export default function DeliveryDashboard() {
         }
     };
 
-    const handleCepSearch = async (cep) => {
+    const handleAddressSearch = async (cep, type) => {
         const cleanCep = cep.replace(/\D/g, '');
         if (cleanCep.length === 8) {
             try {
                 const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
                 const data = await res.json();
                 if (!data.erro) {
+                    const formatted = `${data.logradouro}${data.bairro ? ', ' + data.bairro : ''}, ${data.localidade} - ${data.uf}`;
                     setNewDelivery(prev => ({
                         ...prev,
-                        delivery_address: `${data.logradouro}${data.bairro ? ', ' + data.bairro : ''}, ${data.localidade} - ${data.uf}`
+                        [`${type}_address`]: formatted,
+                        [`${type}_cep`]: cleanCep
                     }));
                 }
             } catch (e) { console.error('Erro CEP:', e); }
         }
     };
 
+    const formatFullAddress = (type) => {
+        const addr = newDelivery[`${type}_address`];
+        const num = newDelivery[`${type}_number`];
+        const comp = newDelivery[`${type}_complement`];
+        const cep = newDelivery[`${type}_cep`];
+
+        let full = addr;
+        if (num) full += `, ${num}`;
+        if (comp) full += ` - ${comp}`;
+        if (cep) full += `, ${cep}`;
+        return full;
+    };
+
     const calculateRoute = async () => {
+        const pickup = formatFullAddress('pickup');
+        const delivery = formatFullAddress('delivery');
+
         if (!newDelivery.pickup_address || !newDelivery.delivery_address) return alert('Informe os dois endereços!');
         setCalculating(true);
         try {
             const res = await api.post('/delivery/calculate-route', {
-                pickup_address: newDelivery.pickup_address,
-                delivery_address: newDelivery.delivery_address,
+                pickup_address: pickup,
+                delivery_address: delivery,
                 base_price: pricing.delivery_base_price,
                 km_price: pricing.delivery_km_price
             });
@@ -169,8 +192,8 @@ export default function DeliveryDashboard() {
                 title: newDelivery.title || `Entrega - ${newDelivery.customer_name}`,
                 customer_name: newDelivery.customer_name,
                 customer_phone: newDelivery.customer_phone,
-                pickup_address: newDelivery.pickup_address,
-                delivery_address: newDelivery.delivery_address,
+                pickup_address: formatFullAddress('pickup'),
+                delivery_address: formatFullAddress('delivery'),
                 scheduled_date: newDelivery.scheduled_date,
                 scheduled_time: newDelivery.scheduled_time,
                 technician_id: newDelivery.technician_id || null,
@@ -624,24 +647,41 @@ export default function DeliveryDashboard() {
                                     <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50 transition-all" placeholder="22 99999-9999" value={newDelivery.customer_phone} onChange={e => setNewDelivery({ ...newDelivery, customer_phone: e.target.value })} />
                                 </div>
 
-                                <div className="md:col-span-2 space-y-4">
-                                    <div className="relative group">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500"><MapPin size={20} /></div>
-                                        <input required className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 pl-12 text-white font-bold outline-none focus:border-blue-500/50 transition-all" placeholder="ENDEREÇO DE COLETA (PONTO A)" value={newDelivery.pickup_address} onChange={e => setNewDelivery({ ...newDelivery, pickup_address: e.target.value })} />
+                                <div className="md:col-span-2 space-y-6">
+                                    {/* COLETA */}
+                                    <div className="p-6 bg-blue-500/5 rounded-3xl border border-blue-500/10 space-y-4">
+                                        <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2 mb-2"><MapPin size={14} /> Local de Coleta</label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-blue-500/50" placeholder="CEP" value={newDelivery.pickup_cep} onChange={e => { setNewDelivery({ ...newDelivery, pickup_cep: e.target.value }); handleAddressSearch(e.target.value, 'pickup'); }} />
+                                            <input className="col-span-2 w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-blue-500/50" placeholder="Endereço / Logradouro" value={newDelivery.pickup_address} onChange={e => setNewDelivery({ ...newDelivery, pickup_address: e.target.value })} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-blue-500/50" placeholder="Nº (Opcional)" value={newDelivery.pickup_number} onChange={e => setNewDelivery({ ...newDelivery, pickup_number: e.target.value })} />
+                                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-blue-500/50" placeholder="Comp. (Opcional)" value={newDelivery.pickup_complement} onChange={e => setNewDelivery({ ...newDelivery, pickup_complement: e.target.value })} />
+                                        </div>
                                     </div>
-                                    <div className="relative group">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#25D366]"><Navigation size={20} /></div>
-                                        <input required className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 pl-12 text-white font-bold outline-none focus:border-[#25D366]/50 transition-all" placeholder="ENDEREÇO DE ENTREGA (PONTO B)" value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} />
+
+                                    {/* ENTREGA */}
+                                    <div className="p-6 bg-[#25D366]/5 rounded-3xl border border-[#25D366]/10 space-y-4">
+                                        <label className="text-[10px] font-black text-[#25D366] uppercase tracking-widest flex items-center gap-2 mb-2"><Navigation size={14} /> Local de Entrega</label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50" placeholder="CEP" value={newDelivery.delivery_cep} onChange={e => { setNewDelivery({ ...newDelivery, delivery_cep: e.target.value }); handleAddressSearch(e.target.value, 'delivery'); }} />
+                                            <input className="col-span-2 w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50" placeholder="Endereço / Logradouro" value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50" placeholder="Nº (Opcional)" value={newDelivery.delivery_number} onChange={e => setNewDelivery({ ...newDelivery, delivery_number: e.target.value })} />
+                                            <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50" placeholder="Comp. (Opcional)" value={newDelivery.delivery_complement} onChange={e => setNewDelivery({ ...newDelivery, delivery_complement: e.target.value })} />
+                                        </div>
                                     </div>
 
                                     <button
                                         type="button"
                                         onClick={calculateRoute}
                                         disabled={calculating}
-                                        className="w-full py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2 border border-white/5"
+                                        className="w-full py-5 bg-white/5 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-3 border border-white/10 text-white"
                                     >
-                                        {calculating ? <Loader2 className="animate-spin" size={16} /> : <TrendingUp size={16} />}
-                                        {calculating ? 'Calculando Rota...' : 'Calcular KM e Preço Sugerido'}
+                                        {calculating ? <Loader2 className="animate-spin" size={18} /> : <TrendingUp size={18} />}
+                                        {calculating ? 'Calculando Rota...' : 'CALCULAR KM E PREÇO SUGERIDO'}
                                     </button>
                                 </div>
 

@@ -50,9 +50,9 @@ async function geocodeAddress(address) {
     const headers = { 'User-Agent': 'WhatsAppAIPro/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' };
 
     // Função interna para tentar uma busca
-    async function tryGeocode(query) {
+    async function tryGeocode(query, params = '') {
         try {
-            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=br&limit=3&addressdetails=1`;
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=br&limit=1${params}`;
             const res = await fetch(url, { headers });
             const data = await res.json();
             if (data && data.length > 0) {
@@ -60,43 +60,41 @@ async function geocodeAddress(address) {
             }
             return null;
         } catch (err) {
-            console.error('❌ Geocode attempt error:', err.message);
             return null;
         }
     }
 
-    // Tentativa 1: Endereço completo original
-    let result = await tryGeocode(address);
+    // Extrair CEP se existir para usar como âncora ou fallback
+    const cepMatch = address.match(/\d{5}-?\d{3}/);
+    const cep = cepMatch ? cepMatch[0] : null;
+
+    // Tentativa 1: Endereço completo sem o CEP (evita que o Nominatim se confunda com o número do CEP como se fosse número da casa)
+    const addressWithoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').trim();
+    let result = await tryGeocode(addressWithoutCep);
     if (result) return result;
 
-    // Tentativa 2: Remover CEP (padrão XXXXX-XXX) e tentar novamente
-    const withoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').trim();
-    if (withoutCep !== address) {
-        result = await tryGeocode(withoutCep);
+    // Tentativa 2: Se tem CEP, tenta apenas Rua + CEP
+    if (cep) {
+        const streetMatch = address.match(/^([^,0-9]+)/);
+        if (streetMatch) {
+            result = await tryGeocode(`${streetMatch[0].trim()}, ${cep}`);
+            if (result) return result;
+        }
+
+        // Tentativa 3: Apenas CEP (Pega o centro da rua/bairro)
+        result = await tryGeocode(cep);
         if (result) return result;
     }
 
-    // Tentativa 3: Simplificar - pegar rua + cidade extraindo padrões comuns
-    // Ex: "R. Alcides Mourão, 877 - Aroeira, Macaé - RJ" -> "Rua Alcides Mourão, 877, Macaé, RJ"
-    const simplified = address
-        .replace(/\s*-\s*/g, ', ')  // troca traços por vírgulas
-        .replace(/,\s*Brasil$/i, '') // remove Brasil no final
-        .trim();
-    if (simplified !== address && simplified !== withoutCep) {
+    // Tentativa 4: Simplificar removendo números e bairros, deixando apenas Rua e Cidade
+    const parts = addressWithoutCep.split(',').map(p => p.trim());
+    if (parts.length >= 2) {
+        // Tenta pegar a primeira parte (rua) e a última que não seja 'Brasil' (geralmente cidade)
+        const simplified = `${parts[0]}, ${parts[parts.length - 1]}`;
         result = await tryGeocode(simplified);
         if (result) return result;
     }
 
-    // Tentativa 4: Apenas rua e cidade (pegar as primeiras partes significativas)
-    const parts = address.split(/[,\-]+/).map(p => p.trim()).filter(Boolean);
-    if (parts.length >= 2) {
-        // Tenta rua + cidade (primeiro e penúltimo/último elemento)
-        const streetAndCity = `${parts[0]}, ${parts[parts.length - 2] || ''}, ${parts[parts.length - 1] || ''}, Brasil`;
-        result = await tryGeocode(streetAndCity);
-        if (result) return result;
-    }
-
-    console.error(`❌ Geocode: Nenhum resultado para "${address}" após todas as tentativas`);
     return null;
 }
 
