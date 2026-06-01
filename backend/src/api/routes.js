@@ -431,6 +431,11 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
 
   if (!hasAgent) return res.status(403).json({ error: 'Acesso negado ao agente' });
 
+  // 🛡️ [NOVO] Verifica se o agente está realmente ativo no processo
+  if (hasAgent.status !== 'connected') {
+    return res.status(400).json({ error: `O agente ${hasAgent.name} não está conectado no momento. Status: ${hasAgent.status}` });
+  }
+
   // Inicia o processo em background para não travar a requisição
   res.json({ status: 'iniciado', total: numbers.length });
 

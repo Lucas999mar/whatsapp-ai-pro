@@ -359,6 +359,8 @@ async function sendDirectMessage(agentId, number, text, media = null) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
 
+  console.log(`📡 [DirectMessage] Preparando envio para ${number} via agente ${agentId}`);
+
   // Limpa o número e garante que tenha o formato de JID básico
   let cleanNumber = number.replace(/\D/g, '');
 
@@ -367,52 +369,61 @@ async function sendDirectMessage(agentId, number, text, media = null) {
     cleanNumber = '55' + cleanNumber;
   }
 
-  let jid = cleanNumber.includes('@') ? cleanNumber : `${cleanNumber}@s.whatsapp.net`;
+  let testJid = cleanNumber.includes('@') ? cleanNumber : `${cleanNumber}@s.whatsapp.net`;
+  let finalJid = testJid;
 
   // 🛡️ [MELHORIA] Tenta resolver o JID correto (com ou sem o 9) via WhatsApp
   try {
-    const [result] = await agent.socket.onWhatsApp(jid);
-    if (result && result.exists) {
-      jid = result.jid;
+    console.log(`🔍 [DirectMessage] Verificando existência de ${testJid}...`);
+    const results = await agent.socket.onWhatsApp(testJid);
+    if (results && results.length > 0 && results[0].exists) {
+      finalJid = results[0].jid;
+      console.log(`✅ [DirectMessage] Número validado: ${finalJid}`);
     } else {
-      console.warn(`⚠️ Número ${number} não parece existir no WhatsApp. Tentando mesmo assim...`);
+      console.warn(`⚠️ [DirectMessage] Número ${testJid} não encontrado pelo WhatsApp. Prosseguindo com JID padrão.`);
     }
   } catch (e) {
-    console.warn(`⚠️ Erro ao verificar número ${number} no WhatsApp:`, e.message);
+    console.error(`❌ [DirectMessage] Erro na verificação onWhatsApp para ${testJid}:`, e.message);
   }
 
   const tenantId = agent.tenantId || 'default';
-  const whatsappId = `${tenantId}__${jid}__${agentId}`;
+  const whatsappId = `${tenantId}__${finalJid}__${agentId}`;
 
   // Envia a mensagem
-  if (media && media.url) {
-    const options = {};
-    const type = media.type;
+  try {
+    if (media && media.url) {
+      console.log(`📂 [DirectMessage] Enviando mídia (${media.type}) para ${finalJid}`);
+      const options = {};
+      const type = media.type;
 
-    if (type === 'image') options.image = { url: media.url };
-    else if (type === 'video') options.video = { url: media.url };
-    else if (type === 'audio') {
-      options.audio = { url: media.url };
-      options.mimetype = 'audio/ogg; codecs=opus';
-      options.ptt = true;
-    } else {
-      // Documento ou outros
-      options.document = { url: media.url };
-      options.mimetype = media.mimetype || 'application/pdf';
-      options.fileName = media.fileName || 'Arquivo';
+      if (type === 'image') options.image = { url: media.url };
+      else if (type === 'video') options.video = { url: media.url };
+      else if (type === 'audio') {
+        options.audio = { url: media.url };
+        options.mimetype = 'audio/ogg; codecs=opus';
+        options.ptt = true;
+      } else {
+        options.document = { url: media.url };
+        options.mimetype = media.mimetype || 'application/pdf';
+        options.fileName = media.fileName || 'Arquivo';
 
-      // Tenta inferir extensão da URL se possível
-      if (!media.fileName && media.url.includes('.')) {
-        const parts = media.url.split('.');
-        const ext = parts[parts.length - 1].split('?')[0];
-        options.fileName = `Arquivo.${ext}`;
+        if (!media.fileName && media.url.includes('.')) {
+          const parts = media.url.split('.');
+          const ext = parts[parts.length - 1].split('?')[0];
+          options.fileName = `Arquivo.${ext}`;
+        }
       }
-    }
 
-    if (text) options.caption = text;
-    await agent.socket.sendMessage(jid, options);
-  } else {
-    await agent.socket.sendMessage(jid, { text });
+      if (text) options.caption = text;
+      await agent.socket.sendMessage(finalJid, options);
+    } else {
+      console.log(`💬 [DirectMessage] Enviando texto para ${finalJid}`);
+      await agent.socket.sendMessage(finalJid, { text });
+    }
+    console.log(`✅ [DirectMessage] Mensagem entregue ao WhatsApp para ${finalJid}`);
+  } catch (err) {
+    console.error(`❌ [DirectMessage] Erro fatal ao enviar para ${finalJid}:`, err.message);
+    throw err; // Repassa para o loop de broadcast tratar
   }
 
   // 💾 [NOVO] Salva no histórico do CRM para aparecer no painel
