@@ -39,11 +39,19 @@ export default function DeliveryDashboard() {
     const [savingConfig, setSavingConfig] = useState(false);
 
     const [newDelivery, setNewDelivery] = useState({
+        title: '',
         customer_name: '',
+        customer_phone: '',
+        pickup_address: '',
         delivery_address: '',
-        estimated_price: '',
+        scheduled_date: new Date().toISOString().split('T')[0],
+        scheduled_time: new Date().toTimeString().slice(0, 5),
+        technician_id: '',
+        estimated_km: 0,
+        estimated_price: 0,
         cep: ''
     });
+    const [calculating, setCalculating] = useState(false);
 
     const fetchReports = useCallback(async (period) => {
         setLoadingReports(true);
@@ -119,25 +127,73 @@ export default function DeliveryDashboard() {
         }
     };
 
+    const calculateRoute = async () => {
+        if (!newDelivery.pickup_address || !newDelivery.delivery_address) return alert('Informe os dois endereços!');
+        setCalculating(true);
+        try {
+            const res1 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newDelivery.pickup_address)}`);
+            const data1 = await res1.json();
+            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newDelivery.delivery_address)}`);
+            const data2 = await res2.json();
+
+            if (data1[0] && data2[0]) {
+                const apiBase = import.meta.env.VITE_API_URL || '';
+                const routeRes = await fetch(`${apiBase}/api/delivery/route?from_lat=${data1[0].lat}&from_lng=${data1[0].lon}&to_lat=${data2[0].lat}&to_lng=${data2[0].lon}`);
+                const routeData = await routeRes.json();
+
+                if (routeData.distance_km) {
+                    const km = routeData.distance_km;
+                    const base = parseFloat(pricing.delivery_base_price);
+                    const perKm = parseFloat(pricing.delivery_km_price);
+                    const finalPrice = +(km * perKm + base).toFixed(2);
+
+                    setNewDelivery(prev => ({
+                        ...prev,
+                        estimated_km: km,
+                        estimated_price: finalPrice
+                    }));
+                }
+            } else {
+                alert('Não foi possível localizar as coordenadas de um dos endereços.');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao calcular rota. Verifique sua conexão.');
+        } finally {
+            setCalculating(false);
+        }
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
             const payload = {
+                title: newDelivery.title || `Entrega - ${newDelivery.customer_name}`,
                 customer_name: newDelivery.customer_name,
+                customer_phone: newDelivery.customer_phone,
                 pickup_address: newDelivery.pickup_address,
                 delivery_address: newDelivery.delivery_address,
+                scheduled_date: newDelivery.scheduled_date,
+                scheduled_time: newDelivery.scheduled_time,
+                technician_id: newDelivery.technician_id || null,
+                estimated_km: newDelivery.estimated_km,
+                estimated_price: parseFloat(newDelivery.estimated_price) || 0,
                 delivery_type: 'entrega',
-                status: 'aguardando_motoboy'
+                status: newDelivery.technician_id ? 'aceita' : 'aguardando_motoboy'
             };
-            // Só envia preço se o campo foi preenchido manualmente
-            if (newDelivery.estimated_price && parseFloat(newDelivery.estimated_price) > 0) {
-                payload.estimated_price = parseFloat(newDelivery.estimated_price);
-            }
+
             const res = await api.post('/delivery/create', payload);
             setShowModal(false);
-            setNewDelivery({ customer_name: '', pickup_address: '', delivery_address: '', estimated_price: '', cep: '' });
+            setNewDelivery({
+                title: '', customer_name: '', customer_phone: '',
+                pickup_address: pricing.default_pickup_address,
+                delivery_address: '', estimated_km: 0, estimated_price: 0,
+                scheduled_date: new Date().toISOString().split('T')[0],
+                scheduled_time: new Date().toTimeString().slice(0, 5),
+                technician_id: '',
+                cep: ''
+            });
 
-            // Mostra o valor calculado
             const km = res.data.estimated_km ? `${res.data.estimated_km} km` : 'N/A';
             const price = res.data.estimated_price ? `R$ ${parseFloat(res.data.estimated_price).toFixed(2)}` : 'N/A';
             alert(`✅ Entrega criada!\n📍 Distância: ${km}\n💰 Valor: ${price}\n📦 Código: ${res.data.tracking_code}`);
@@ -544,16 +600,87 @@ export default function DeliveryDashboard() {
             )}
 
             {showModal && (
-                <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300">
-                    <div className="bg-[#1E293B] w-full max-w-2xl rounded-[60px] border border-white/10 p-12 shadow-2xl relative overflow-hidden">
-                        <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 p-3 bg-white/5 rounded-full text-slate-400"><X size={28} /></button>
-                        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="md:col-span-2"><input required className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-black" placeholder="NOME DO CLIENTE" value={newDelivery.customer_name} onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })} /></div>
-                            <div className="md:col-span-2"><input required className="w-full bg-black/30 border border-blue-500/20 rounded-[25px] p-6 text-white font-bold" placeholder="ENDEREÇO DE COLETA (EMPRESA)" value={newDelivery.pickup_address} onChange={e => setNewDelivery({ ...newDelivery, pickup_address: e.target.value })} /></div>
-                            <div><input className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-white font-mono font-black" placeholder="CEP DESTINO" value={newDelivery.cep} onChange={e => { setNewDelivery({ ...newDelivery, cep: e.target.value }); handleCepSearch(e.target.value); }} /></div>
-                            <div><input type="number" step="0.01" className="w-full bg-black/30 border border-white/5 rounded-[25px] p-6 text-[#25D366] font-black" placeholder="PREÇO MANUAL" value={newDelivery.estimated_price} onChange={e => setNewDelivery({ ...newDelivery, estimated_price: e.target.value })} /></div>
-                            <div className="md:col-span-2"><textarea required rows="3" className="w-full bg-black/30 border border-white/5 rounded-[35px] p-6 text-white font-bold" placeholder="ENDEREÇO DE ENTREGA (CLIENTE)..." value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} /></div>
-                            <button type="submit" className="md:col-span-2 py-8 bg-[#25D366] text-black font-black rounded-[30px] text-xl tracking-tighter uppercase">SOLICITAR ENTREGA AGORA</button>
+                <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-[#0F172A] w-full max-w-2xl rounded-[40px] border border-white/10 p-8 shadow-2xl overflow-y-auto max-h-[95vh] relative scroll-hide">
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-2xl font-black text-white tracking-tighter">Nova Entrega / Delivery</h3>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Preencha os dados do pedido abaixo</p>
+                            </div>
+                            <button onClick={() => setShowModal(false)} className="p-3 bg-white/5 hover:bg-red-500/10 hover:text-red-500 rounded-full text-slate-400 transition-all"><X size={24} /></button>
+                        </div>
+
+                        <form onSubmit={handleCreate} className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Título ou Descrição</label>
+                                    <input required className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50 transition-all" placeholder="Ex: Entrega Almoço #123" value={newDelivery.title} onChange={e => setNewDelivery({ ...newDelivery, title: e.target.value })} />
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Nome do Cliente</label>
+                                    <input required className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50 transition-all" placeholder="Quem recebe?" value={newDelivery.customer_name} onChange={e => setNewDelivery({ ...newDelivery, customer_name: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">WhatsApp do Cliente</label>
+                                    <input className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50 transition-all" placeholder="22 99999-9999" value={newDelivery.customer_phone} onChange={e => setNewDelivery({ ...newDelivery, customer_phone: e.target.value })} />
+                                </div>
+
+                                <div className="md:col-span-2 space-y-4">
+                                    <div className="relative group">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500"><MapPin size={20} /></div>
+                                        <input required className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 pl-12 text-white font-bold outline-none focus:border-blue-500/50 transition-all" placeholder="ENDEREÇO DE COLETA (PONTO A)" value={newDelivery.pickup_address} onChange={e => setNewDelivery({ ...newDelivery, pickup_address: e.target.value })} />
+                                    </div>
+                                    <div className="relative group">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#25D366]"><Navigation size={20} /></div>
+                                        <input required className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 pl-12 text-white font-bold outline-none focus:border-[#25D366]/50 transition-all" placeholder="ENDEREÇO DE ENTREGA (PONTO B)" value={newDelivery.delivery_address} onChange={e => setNewDelivery({ ...newDelivery, delivery_address: e.target.value })} />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={calculateRoute}
+                                        disabled={calculating}
+                                        className="w-full py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2 border border-white/5"
+                                    >
+                                        {calculating ? <Loader2 className="animate-spin" size={16} /> : <TrendingUp size={16} />}
+                                        {calculating ? 'Calculando Rota...' : 'Calcular KM e Preço Sugerido'}
+                                    </button>
+                                </div>
+
+                                <div className="md:col-span-2 grid grid-cols-2 gap-4 p-6 bg-white/5 rounded-3xl border border-white/5">
+                                    <div>
+                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Distância Est.</p>
+                                        <p className="text-3xl font-black text-white tracking-tighter">{newDelivery.estimated_km} <span className="text-xs text-slate-500">km</span></p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Preço Sugerido</p>
+                                        <p className="text-3xl font-black text-[#25D366] tracking-tighter">R$ {newDelivery.estimated_price}</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Motoboy (Opcional)</label>
+                                    <select className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]/50 appearance-none pointer-events-auto" value={newDelivery.technician_id} onChange={e => setNewDelivery({ ...newDelivery, technician_id: e.target.value })}>
+                                        <option value="">Aguardando Disponível...</option>
+                                        {motoboys.map(t => <option key={t.id} value={t.id} className="bg-[#0F172A]">{t.name} ({getTechStatus(t).label})</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Data</label>
+                                        <input type="date" className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white text-xs font-bold" value={newDelivery.scheduled_date} onChange={e => setNewDelivery({ ...newDelivery, scheduled_date: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Hora</label>
+                                        <input type="time" className="w-full bg-[#1E293B] border border-white/10 rounded-2xl p-4 text-white text-xs font-bold" value={newDelivery.scheduled_time} onChange={e => setNewDelivery({ ...newDelivery, scheduled_time: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" className="w-full py-6 bg-gradient-to-r from-[#25D366] to-green-600 text-black font-black rounded-3xl text-xl tracking-tighter uppercase shadow-2xl shadow-[#25D366]/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mt-4">
+                                SOLICITAR ENTREGA AGORA
+                            </button>
                         </form>
                     </div>
                 </div>
