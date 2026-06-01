@@ -4,7 +4,7 @@ import {
     Users, User, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
     Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart, ExternalLink
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,28 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
+
+// Componente para auto-ajuste do mapa baseado nas entregas ativas
+function MapBoundsTracker({ deliveries, motoboys }) {
+    const map = useMap();
+    useEffect(() => {
+        const points = [];
+        deliveries.filter(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status)).forEach(d => {
+            if (d.pickup_lat) points.push([d.pickup_lat, d.pickup_lng]);
+            if (d.delivery_lat) points.push([d.delivery_lat, d.delivery_lng]);
+            if (d.route_polyline && Array.isArray(d.route_polyline)) {
+                d.route_polyline.forEach(p => points.push([p.lat, p.lng]));
+            }
+        });
+        motoboys.filter(m => m.lat && m.is_available).forEach(m => points.push([m.lat, m.lng]));
+
+        if (points.length > 0) {
+            const bounds = L.latLngBounds(points);
+            map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16 });
+        }
+    }, [deliveries, motoboys, map]);
+    return null;
+}
 
 export default function DeliveryDashboard() {
     const { user } = useAuth();
@@ -348,6 +370,7 @@ export default function DeliveryDashboard() {
                             <div className="bg-[#1E293B] rounded-[60px] overflow-hidden border border-white/5 shadow-2xl h-[600px] relative z-[1]">
                                 <MapContainer center={[-23.5505, -46.6333]} zoom={12} style={{ height: '100%', width: '100%' }}>
                                     <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                                    <MapBoundsTracker deliveries={deliveries} motoboys={motoboys} />
 
                                     {/* Rotas das Entregas Ativas */}
                                     {deliveries.filter(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status)).map(d => (
@@ -464,12 +487,13 @@ export default function DeliveryDashboard() {
                                                         e.stopPropagation();
                                                         const url = `${window.location.origin}/tracking/${d.tracking_code}`;
                                                         navigator.clipboard.writeText(url);
-                                                        alert('Link de rastreio copiado para o cliente!');
+                                                        alert('✅ Link de rastreio copiado!\nEnvie para o WhatsApp do cliente.');
                                                     }}
-                                                    className="p-2 bg-white/5 hover:bg-[#25D366]/20 hover:text-[#25D366] rounded-xl transition-all"
+                                                    className="p-3 bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 rounded-xl transition-all border border-[#25D366]/30 flex items-center gap-2"
                                                     title="Copiar Link de Rastreio"
                                                 >
-                                                    <Copy size={14} />
+                                                    <ExternalLink size={16} strokeWidth={3} />
+                                                    <span className="text-[10px] font-black uppercase tracking-tight">Rastrear</span>
                                                 </button>
                                                 <a
                                                     href={`/tracking/${d.tracking_code}`}

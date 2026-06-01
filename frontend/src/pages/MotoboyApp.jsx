@@ -567,6 +567,32 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                 </button>
                                             </div>
 
+                                            {/* Informações detalhadas do Cliente e Item */}
+                                            <div className="px-6 pb-4">
+                                                <div className="bg-white/5 rounded-3xl p-4 border border-white/5">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className="flex-1">
+                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">O que entregar</p>
+                                                            <h4 className="text-lg font-black text-white leading-tight uppercase">📦 {activeDelivery?.title || 'Pedido'}</h4>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Cliente</p>
+                                                            <p className="text-sm font-bold text-white">{activeDelivery?.customer_name}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex gap-3">
+                                                        <a href={`tel:${activeDelivery?.customer_phone}`} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black text-white transition-all">
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                                            LIGAR
+                                                        </a>
+                                                        <a href={`https://wa.me/55${activeDelivery?.customer_phone?.replace(/\D/g, '')}`} target="_blank" className="flex-1 bg-green-500/10 hover:bg-green-500/20 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black text-[#25D366] transition-all border border-[#25D366]/20">
+                                                            WHATSAPP
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             {/* Action Button: Confirm Pickup/Delivery */}
                                             <div className="px-4 pb-4">
                                                 {activeDelivery?.status === 'aceita' ? (
