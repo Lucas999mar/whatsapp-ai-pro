@@ -49,6 +49,8 @@ async function geocodeAddress(address) {
     if (!address || address.trim().length < 3) return null;
     const headers = { 'User-Agent': 'WhatsAppAIPro/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' };
 
+    console.log(`🔍 Buscando coordenadas para: "${address}"`);
+
     // Função interna para tentar uma busca
     async function tryGeocode(query, params = '') {
         try {
@@ -56,6 +58,7 @@ async function geocodeAddress(address) {
             const res = await fetch(url, { headers });
             const data = await res.json();
             if (data && data.length > 0) {
+                console.log(`✅ Sucesso: "${query}" -> [${data[0].lat}, ${data[0].lon}]`);
                 return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
             }
             return null;
@@ -64,37 +67,39 @@ async function geocodeAddress(address) {
         }
     }
 
-    // Extrair CEP se existir para usar como âncora ou fallback
-    const cepMatch = address.match(/\d{5}-?\d{3}/);
-    const cep = cepMatch ? cepMatch[0] : null;
+    // 1. Extrair CEP (8 dígitos ou 5-3 dígitos)
+    const cepMatch = address.match(/(\d{8})|(\d{5}-\d{3})/);
+    const cep = cepMatch ? cepMatch[0].replace('-', '') : null;
 
-    // Tentativa 1: Endereço completo sem o CEP (evita que o Nominatim se confunda com o número do CEP como se fosse número da casa)
-    const addressWithoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').trim();
+    // 2. TENTATIVA PRIORITÁRIA: Testar apenas o CEP primeiro
+    // Isso garante que estamos na cidade/bairro correto em vez de ir para outro estado
+    if (cep) {
+        console.log(`📍 Tentando busca por CEP: ${cep}`);
+        const resultCep = await tryGeocode(cep);
+        if (resultCep) {
+            // Se encontrou o CEP, agora tentamos a rua COM o CEP para precisão
+            const addressWithoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').replace(/,?\s*\d{8}/g, '').trim();
+            const streetResult = await tryGeocode(`${addressWithoutCep}, ${cep}`);
+            if (streetResult) return streetResult;
+
+            return resultCep; // Se não achou a rua exata, fica com o centro do CEP (Bairro/Cidade)
+        }
+    }
+
+    // 3. TENTATIVA POR TEXTO (Fallback)
+    const addressWithoutCep = address.replace(/,?\s*\d{5}-?\d{3}/g, '').replace(/,?\s*\d{8}/g, '').trim();
     let result = await tryGeocode(addressWithoutCep);
     if (result) return result;
 
-    // Tentativa 2: Se tem CEP, tenta apenas Rua + CEP
-    if (cep) {
-        const streetMatch = address.match(/^([^,0-9]+)/);
-        if (streetMatch) {
-            result = await tryGeocode(`${streetMatch[0].trim()}, ${cep}`);
-            if (result) return result;
-        }
-
-        // Tentativa 3: Apenas CEP (Pega o centro da rua/bairro)
-        result = await tryGeocode(cep);
-        if (result) return result;
-    }
-
-    // Tentativa 4: Simplificar removendo números e bairros, deixando apenas Rua e Cidade
+    // 4. ÚLTIMA TENTATIVA: Rua + Cidade (Removendo números/números de casa que confundem o Nominatim)
     const parts = addressWithoutCep.split(',').map(p => p.trim());
     if (parts.length >= 2) {
-        // Tenta pegar a primeira parte (rua) e a última que não seja 'Brasil' (geralmente cidade)
-        const simplified = `${parts[0]}, ${parts[parts.length - 1]}`;
+        const simplified = `${parts[0].replace(/\d+/, '')}, ${parts[parts.length - 1]}`;
         result = await tryGeocode(simplified);
         if (result) return result;
     }
 
+    console.log(`❌ Falha total ao localizar: "${address}"`);
     return null;
 }
 
