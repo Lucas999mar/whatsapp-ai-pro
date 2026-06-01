@@ -308,41 +308,43 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
 
     return (
         <div className="min-h-screen bg-[#0B0F19] text-white flex flex-col font-sans pb-24 lg:pb-0 lg:pl-64">
-            {/* Header Fixo */}
-            <div className="bg-[#1E293B] p-4 border-b border-white/10 sticky top-0 z-50 flex items-center justify-between">
-                <div
-                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
-                    onClick={() => setActiveTab('profile')}
-                >
-                    <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-[#25D366]/10 flex items-center justify-center bg-slate-700">
-                        {user?.photo_url ? (
-                            <img src={user.photo_url} className="w-full h-full object-cover" alt="Perfil" />
-                        ) : (
-                            <User className="text-slate-400" size={24} />
-                        )}
-                    </div>
-                    <div>
-                        <h2 className="font-bold text-sm leading-tight">{user?.name}</h2>
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-[#25D366]' : 'text-slate-500'}`}>
-                            {isOnline ? 'Online • Disponível' : 'Offline • Indisponível'}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={requestNotificationPermission} className={`p-2 rounded-xl transition-all ${notificationsEnabled ? 'text-[#25D366] bg-[#25D366]/10' : 'text-slate-500 bg-white/5'}`}>
-                        {notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}
-                    </button>
-                    <button
-                        onClick={toggleOnline}
-                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${isOnline ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[#25D366]/10 border-[#25D366]/20 text-[#25D366]'}`}
+            {/* Header Fixo - Escondido durante Navegação para ganhar espaço */}
+            {!activeDelivery && (
+                <div className="bg-[#1E293B] p-4 border-b border-white/10 sticky top-0 z-50 flex items-center justify-between">
+                    <div
+                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                        onClick={() => setActiveTab('profile')}
                     >
-                        <Power size={14} /> {isOnline ? 'FICAR OFF' : 'FICAR ON'}
-                    </button>
+                        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-[#25D366]/10 flex items-center justify-center bg-slate-700">
+                            {user?.photo_url ? (
+                                <img src={user.photo_url} className="w-full h-full object-cover" alt="Perfil" />
+                            ) : (
+                                <User className="text-slate-400" size={24} />
+                            )}
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-sm leading-tight">{user?.name}</h2>
+                            <p className={`text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-[#25D366]' : 'text-slate-500'}`}>
+                                {isOnline ? 'Online • Disponível' : 'Offline • Indisponível'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={requestNotificationPermission} className={`p-2 rounded-xl transition-all ${notificationsEnabled ? 'text-[#25D366] bg-[#25D366]/10' : 'text-slate-500 bg-white/5'}`}>
+                            {notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}
+                        </button>
+                        <button
+                            onClick={toggleOnline}
+                            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${isOnline ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[#25D366]/10 border-[#25D366]/20 text-[#25D366]'}`}
+                        >
+                            <Power size={14} /> {isOnline ? 'FICAR OFF' : 'FICAR ON'}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Conteúdo Principal por Aba */}
-            <div className="flex-1 relative overflow-y-auto pb-24">
+            <div className={`flex-1 relative overflow-y-auto ${activeDelivery ? 'pb-0' : 'pb-24'}`}>
                 {activeTab === 'home' && (
                     <>
                         {!activeDelivery && (
@@ -429,19 +431,18 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                         />
                                     </MapContainer>
 
-                                    <div className="absolute top-4 left-4 right-4 z-10">
-                                        <div className="bg-[#064E3B]/95 backdrop-blur-xl border border-white/10 rounded-[28px] overflow-hidden shadow-2xl p-5 flex items-center gap-5">
-                                            <div className="bg-white/10 p-3 rounded-2xl">
-                                                <Navigation className="text-white transform -rotate-45" size={28} strokeWidth={3} />
+                                    <div className="absolute top-6 left-4 right-4 z-10">
+                                        <div className="bg-[#064E3B]/95 backdrop-blur-xl border border-white/20 rounded-[24px] overflow-hidden shadow-2xl p-4 flex items-center gap-4">
+                                            <div className="bg-white/10 p-2.5 rounded-xl">
+                                                <Navigation className="text-white transform -rotate-45" size={24} strokeWidth={3} />
                                             </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="bg-white/10 px-2 py-0.5 rounded-md text-[9px] font-black uppercase text-white/60">Siga em direção a</span>
+                                            <div className="flex-1 overflow-hidden">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-black uppercase text-white/50 tracking-widest">Em direção a</span>
                                                 </div>
-                                                <h4 className="text-lg font-black text-white leading-tight uppercase tracking-tighter truncate max-w-[220px]">
+                                                <h4 className="text-base font-black text-white leading-tight uppercase truncate">
                                                     {activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address?.split(',')[0] : activeDelivery?.delivery_address?.split(',')[0]}
                                                 </h4>
-                                                <p className="text-[11px] text-white/50 font-bold mt-0.5">Destino final: {activeDelivery?.status === 'aceita' ? 'Coleta' : 'Cliente'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -452,33 +453,33 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                         <MapControls onZoomIn={() => setMapZoom(z => Math.min(z + 1, 20))} onZoomOut={() => setMapZoom(z => Math.max(z - 1, 10))} />
                                     </div>
 
-                                    <div className="absolute bottom-4 left-4 right-4 z-10">
-                                        <div className="bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[35px] overflow-hidden shadow-2xl">
-                                            <div className="p-6">
-                                                <div className="flex justify-between items-center mb-6 px-2">
+                                    <div className="absolute bottom-6 left-4 right-4 z-20">
+                                        <div className="bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[30px] overflow-hidden shadow-2xl">
+                                            <div className="p-5">
+                                                <div className="flex justify-between items-center mb-5 px-1">
                                                     <div className="text-center">
-                                                        <h3 className="text-2xl font-black text-[#25D366]">{routeInfo.duration} <span className="text-sm font-bold opacity-60">min</span></h3>
-                                                        <p className="text-[9px] font-black uppercase tracking-widest text-[#25D366] opacity-60">Duração</p>
+                                                        <h3 className="text-2xl font-black text-[#25D366] leading-none">{routeInfo.duration}<span className="text-xs ml-0.5 opacity-60">min</span></h3>
+                                                        <p className="text-[8px] font-black uppercase tracking-widest text-[#25D366] opacity-60 mt-1">Duração</p>
                                                     </div>
                                                     <div className="text-center">
-                                                        <h3 className="text-2xl font-black text-white">{routeInfo.distance} <span className="text-sm font-bold opacity-60">km</span></h3>
-                                                        <p className="text-[9px] font-black uppercase tracking-widest text-white/40">Distância</p>
+                                                        <h3 className="text-2xl font-black text-white leading-none">{routeInfo.distance}<span className="text-xs ml-0.5 opacity-60">km</span></h3>
+                                                        <p className="text-[8px] font-black uppercase tracking-widest text-white/40 mt-1">Distância</p>
                                                     </div>
                                                     <div className="text-center">
-                                                        <h3 className="text-2xl font-black text-white">
+                                                        <h3 className="text-2xl font-black text-white leading-none">
                                                             {new Date(new Date().getTime() + routeInfo.duration * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                         </h3>
-                                                        <p className="text-[9px] font-black uppercase tracking-widest text-white/40">Chegada</p>
+                                                        <p className="text-[8px] font-black uppercase tracking-widest text-white/40 mt-1">Chegada</p>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex gap-3">
-                                                    <button onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)} className="w-16 h-16 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center text-white active:scale-90 transition-all"><XCircle size={28} /></button>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)} className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-white active:scale-95 transition-all flex-shrink-0"><XCircle size={24} /></button>
 
                                                     {activeDelivery?.status === 'aceita' ? (
-                                                        <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase text-sm tracking-tighter"><Package size={22} /> CONFIRMAR COLETA</button>
+                                                        <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-tighter"><Package size={20} /> CONFIRMAR COLETA</button>
                                                     ) : (
-                                                        <button onClick={confirmDelivery} className="flex-1 bg-[#25D366] text-black font-black rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase text-sm tracking-tighter"><CheckCircle2 size={22} /> FINALIZAR ENTREGA</button>
+                                                        <button onClick={confirmDelivery} className="flex-1 bg-[#25D366] text-black font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-tighter"><CheckCircle2 size={20} /> FINALIZAR ENTREGA</button>
                                                     )}
                                                 </div>
                                             </div>
@@ -596,21 +597,23 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                 )}
             </div>
 
-            {/* Menu Inferior Fixo */}
-            <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-[#1E293B]/90 backdrop-blur-2xl border-t border-white/10 grid grid-cols-4 p-3 z-[100] pb-6 shadow-2xl">
-                <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'home' ? 'text-[#25D366] scale-110' : 'text-slate-500'}`}>
-                    <Play size={20} strokeWidth={activeTab === 'home' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Início</span>
-                </button>
-                <button onClick={() => { setActiveTab('wallet'); fetchData(); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'wallet' ? 'text-yellow-500 scale-110' : 'text-slate-500'}`}>
-                    <DollarSign size={20} strokeWidth={activeTab === 'wallet' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Carteira</span>
-                </button>
-                <button onClick={() => { setActiveTab('history'); fetchData(); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-blue-500 scale-110' : 'text-slate-500'}`}>
-                    <Clock size={20} strokeWidth={activeTab === 'history' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Histórico</span>
-                </button>
-                <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'profile' ? 'text-purple-500 scale-110' : 'text-slate-500'}`}>
-                    <User size={20} strokeWidth={activeTab === 'profile' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Perfil</span>
-                </button>
-            </div>
+            {/* Menu Inferior Fixo - Escondido durante Navegação */}
+            {!activeDelivery && (
+                <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-[#1E293B]/90 backdrop-blur-2xl border-t border-white/10 grid grid-cols-4 p-3 z-[100] pb-6 shadow-2xl">
+                    <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'home' ? 'text-[#25D366] scale-110' : 'text-slate-500'}`}>
+                        <Play size={20} strokeWidth={activeTab === 'home' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Início</span>
+                    </button>
+                    <button onClick={() => { setActiveTab('wallet'); fetchData(); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'wallet' ? 'text-yellow-500 scale-110' : 'text-slate-500'}`}>
+                        <DollarSign size={20} strokeWidth={activeTab === 'wallet' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Carteira</span>
+                    </button>
+                    <button onClick={() => { setActiveTab('history'); fetchData(); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-blue-500 scale-110' : 'text-slate-500'}`}>
+                        <Clock size={20} strokeWidth={activeTab === 'history' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Histórico</span>
+                    </button>
+                    <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'profile' ? 'text-purple-500 scale-110' : 'text-slate-500'}`}>
+                        <User size={20} strokeWidth={activeTab === 'profile' ? 3 : 2} /><span className="text-[9px] font-black uppercase tracking-tighter">Perfil</span>
+                    </button>
+                </div>
+            )}
 
             <style>{`
                 .leaflet-container { width: 100%; height: 100%; z-index: 1; filter: grayscale(1) invert(1) brightness(0.7) contrast(1.2); }
