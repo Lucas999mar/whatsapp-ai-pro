@@ -29,20 +29,26 @@ function ChangeView({ center, zoom, active }) {
     return null;
 }
 
-// 🗺️ AutoBounds: Ajusta o zoom para mostrar motoboy + destino na mesma tela
-function AutoBounds({ pos, dest }) {
+// � FollowMe: Mantém o motoboy no centro em "Primeira Pessoa"
+function FollowMe({ pos, heading, active, onManualMove }) {
     const map = useMap();
+    const isMovingManually = useRef(false);
+
     useEffect(() => {
-        if (pos && dest && dest.lat && dest.lng) {
-            const bounds = L.latLngBounds(
-                [pos.lat, pos.lng],
-                [dest.lat, dest.lng]
-            );
-            map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17, animate: true, duration: 1 });
-        } else if (pos) {
-            map.setView([pos.lat, pos.lng], 16, { animate: true });
+        const onDragStart = () => {
+            isMovingManually.current = true;
+            onManualMove(true);
+        };
+        map.on('dragstart', onDragStart);
+        return () => map.off('dragstart', onDragStart);
+    }, [map, onManualMove]);
+
+    useEffect(() => {
+        if (pos && active && !isMovingManually.current) {
+            map.setView([pos.lat, pos.lng], 18, { animate: true, duration: 1 });
         }
-    }, [pos?.lat, pos?.lng, dest?.lat, dest?.lng, map]);
+    }, [pos?.lat, pos?.lng, active, map]);
+
     return null;
 }
 
@@ -55,6 +61,8 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const [stats, setStats] = useState({ total_km: 0, total_earnings: 0, completed: 0, balance: 0 });
     const [loading, setLoading] = useState(true);
     const [myPos, setMyPos] = useState(null);
+    const [myHeading, setMyHeading] = useState(0);
+    const [autoFollow, setAutoFollow] = useState(true);
     const [activeTab, setActiveTab] = useState('home'); // home, wallet, history, profile
     const [history, setHistory] = useState([]);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -134,8 +142,10 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
         if (navigator.geolocation) {
             watchId.current = navigator.geolocation.watchPosition(
                 (pos) => {
-                    const { latitude, longitude, accuracy } = pos.coords;
+                    const { latitude, longitude, accuracy, heading } = pos.coords;
                     setMyPos({ lat: latitude, lng: longitude });
+                    if (heading !== null) setMyHeading(heading);
+
                     if (isOnline) {
                         api.post('/delivery/location', {
                             lat: latitude, lng: longitude, accuracy,
@@ -145,12 +155,13 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                         socket.emit('motoboy:location', {
                             tenantId: user.tenant_id, motoboyId: user.id,
                             trackingCode: activeDelivery?.tracking_code,
-                            lat: latitude, lng: longitude, accuracy
+                            lat: latitude, lng: longitude, accuracy,
+                            heading: heading || 0
                         });
                     }
                 },
                 (err) => console.error('GPS Watch Error:', err),
-                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+                { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
             );
         }
 
@@ -356,7 +367,18 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                 position={[myPos.lat, myPos.lng]}
                                                 icon={L.divIcon({
                                                     className: 'bg-none',
-                                                    html: `<div style="width:24px;height:24px;border-radius:50%;background:#25D366;border:4px solid white;box-shadow:0 0 20px #25D366;position:relative"><div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid #25D366"></div></div>`
+                                                    html: `
+                                                        <div style="transform: rotate(${myHeading}deg); transition: transform 0.5s ease-in-out; display: flex; align-items: center; justify-content: center; width: 50px; height: 50px;">
+                                                            <div style="width: 40px; height: 40px; background: rgba(37, 211, 102, 0.2); border: 2px solid #25D366; border-radius: 50%; display: flex; items-center: center; justify-content: center; box-shadow: 0 0 20px rgba(37, 211, 102, 0.5);">
+                                                                <svg viewBox="0 0 24 24" width="24" height="24" fill="#25D366" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))">
+                                                                    <path d="M11,15C10.5,15 10.1,14.7 10,14.3L9,11H5V13H3V11A2,2 0 0,1 5,9H11.5L12.5,12.3L15.3,11H14C13.4,11 13,10.6 13,10V5C13,4.4 13.4,4 14,4H17C17.6,4 18,4.4 18,5V10C18,10.6 17.6,11 17,11H16.8L13.7,12.4L14.7,15.7C14.8,16.2 14.5,16.7 14,16.8C13.9,16.8 13.7,16.8 13.6,16.8L11,15.7V15M17,9V6H14V9H17M20,19C20,20.1 19.1,21 18,21C16.9,21 16,20.1 16,19C16,17.9 16.9,17 18,17C19.1,17 20,17.9 20,19M6,19C6,20.1 5.1,21 4,21C2.9,21 2,20.1 2,19C2,17.9 2.9,17 4,17C5.1,17 6,17.9 6,19Z" />
+                                                                </svg>
+                                                            </div>
+                                                            <div style="position: absolute; top: -15px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid #25D366;"></div>
+                                                        </div>
+                                                    `,
+                                                    iconSize: [50, 50],
+                                                    iconAnchor: [25, 25]
                                                 })}
                                             />
                                         )}
@@ -386,9 +408,11 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                             />
                                         )}
 
-                                        <AutoBounds
+                                        <FollowMe
                                             pos={myPos}
-                                            dest={activeDelivery?.status === 'aceita' ? { lat: activeDelivery.pickup_lat, lng: activeDelivery.pickup_lng } : { lat: activeDelivery.delivery_lat, lng: activeDelivery.delivery_lng }}
+                                            heading={myHeading}
+                                            active={autoFollow}
+                                            onManualMove={() => setAutoFollow(false)}
                                         />
                                     </MapContainer>
 
@@ -435,6 +459,16 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                     <h3 className="text-xl font-black text-[#128C7E]">R$ {activeDelivery?.estimated_price}</h3>
                                                 </div>
                                             </div>
+
+                                            {!autoFollow && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setAutoFollow(true); }}
+                                                    className="w-full mb-3 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest animate-bounce"
+                                                >
+                                                    🎯 Voltar para Navegação
+                                                </button>
+                                            )}
+
                                             <div className="flex gap-2">
                                                 {activeDelivery?.status === 'aceita' ? (
                                                     <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black py-5 rounded-[22px] shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-widest"><Package size={18} /> CONFIRMAR COLETA</button>
