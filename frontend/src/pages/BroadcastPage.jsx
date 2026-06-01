@@ -40,7 +40,12 @@ export default function BroadcastPage() {
     try {
       const res = await api.post('/upload', formData);
       const type = file.type.split('/')[0];
-      setMedia({ url: res.data.url, type: type === 'application' ? 'document' : type });
+      setMedia({
+        url: res.data.url,
+        type: type === 'application' ? 'document' : type,
+        fileName: res.data.fileName,
+        mimetype: res.data.mimetype
+      });
     } catch (err) {
       console.error('Upload error:', err);
       alert('Erro ao enviar arquivo: ' + (err.response?.data?.error || err.message));
@@ -85,7 +90,7 @@ export default function BroadcastPage() {
         delay,
         media
       });
-      
+
       setStatus('finished');
       alert('O disparo em massa foi iniciado no servidor.');
     } catch (err) {
@@ -106,7 +111,7 @@ export default function BroadcastPage() {
           </h2>
           <p className="text-slate-400 mt-2 text-lg">Envie campanhas para múltiplos contatos com intervalos de segurança.</p>
         </div>
-        
+
         <label className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer text-slate-300 border border-white/10 transition-all font-semibold">
           <FileUp size={18} />
           Importar Contatos
@@ -123,7 +128,7 @@ export default function BroadcastPage() {
                 <Users size={18} className="text-[#25D366]" />
                 Lista de Contatos
               </label>
-              <textarea 
+              <textarea
                 className="w-full h-48 bg-[#0F172A] border border-white/10 rounded-xl p-4 text-slate-200 outline-none focus:border-[#25D366]/50 transition-all resize-none font-mono text-sm"
                 placeholder="Insira um número por linha (ex: 5511999999999)"
                 value={numbersText}
@@ -137,7 +142,7 @@ export default function BroadcastPage() {
                 <Send size={18} className="text-[#25D366]" />
                 Legenda da Mensagem
               </label>
-              <textarea 
+              <textarea
                 className="w-full h-32 bg-[#0F172A] border border-white/10 rounded-xl p-4 text-slate-200 outline-none focus:border-[#25D366]/50 transition-all resize-none"
                 placeholder="Digite o texto que será enviado (opcional se houver mídia)..."
                 value={message}
@@ -150,7 +155,7 @@ export default function BroadcastPage() {
                 <FileUp size={18} className="text-[#25D366]" />
                 Mídia do Disparo (Opcional)
               </label>
-              
+
               {!media ? (
                 <div className="flex items-center justify-center w-full">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition-all">
@@ -172,7 +177,7 @@ export default function BroadcastPage() {
                     <p className="text-sm text-white font-bold uppercase tracking-wider">{media.type}</p>
                     <p className="text-xs text-slate-400 truncate max-w-xs">{media.url}</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setMedia(null)}
                     className="p-2 hover:bg-red-500/20 text-slate-400 hover:text-red-500 rounded-lg transition-colors"
                   >
@@ -189,7 +194,7 @@ export default function BroadcastPage() {
           <div className="glass-panel p-8 space-y-6">
             <div className="space-y-4">
               <label className="text-slate-300 font-semibold block text-sm">Agente Emissor</label>
-              <select 
+              <select
                 className="w-full bg-[#0F172A] border border-white/10 rounded-lg p-3 text-white outline-none"
                 value={selectedAgent}
                 onChange={e => setSelectedAgent(e.target.value)}
@@ -205,10 +210,10 @@ export default function BroadcastPage() {
               <label className="text-slate-300 font-semibold block text-sm flex justify-between">
                 Intervalo Médio <span>{delay}s</span>
               </label>
-              <input 
-                type="range" 
-                min="5" 
-                max="60" 
+              <input
+                type="range"
+                min="5"
+                max="60"
                 step="5"
                 value={delay}
                 onChange={e => setDelay(parseInt(e.target.value))}
@@ -222,7 +227,7 @@ export default function BroadcastPage() {
               </div>
             </div>
 
-            <button 
+            <button
               onClick={handleStartBroadcast}
               disabled={loading || agents.length === 0}
               className="w-full bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-slate-900 font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-[#25D366]/20 flex items-center justify-center gap-2"

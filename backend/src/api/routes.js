@@ -39,7 +39,11 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
     const { data: { publicUrl } } = supabase.storage.from('knowledge-files').getPublicUrl(filePath);
 
     fs.unlinkSync(req.file.path);
-    res.json({ url: publicUrl });
+    res.json({
+      url: publicUrl,
+      fileName: req.file.originalname,
+      mimetype: req.file.mimetype
+    });
   } catch (err) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch (e) { }
     res.status(500).json({ error: err.message });

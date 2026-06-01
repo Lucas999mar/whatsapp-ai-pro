@@ -359,23 +359,54 @@ async function sendDirectMessage(agentId, number, text, media = null) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
 
-  const jid = number.includes('@') ? number : `${number.replace(/\D/g, '')}@s.whatsapp.net`;
+  // Limpa o número e garante que tenha o formato de JID básico
+  let cleanNumber = number.replace(/\D/g, '');
+
+  // Se for número do Brasil e não tiver o 55, adiciona
+  if (cleanNumber.length >= 10 && cleanNumber.length <= 11 && !cleanNumber.startsWith('55')) {
+    cleanNumber = '55' + cleanNumber;
+  }
+
+  let jid = cleanNumber.includes('@') ? cleanNumber : `${cleanNumber}@s.whatsapp.net`;
+
+  // 🛡️ [MELHORIA] Tenta resolver o JID correto (com ou sem o 9) via WhatsApp
+  try {
+    const [result] = await agent.socket.onWhatsApp(jid);
+    if (result && result.exists) {
+      jid = result.jid;
+    } else {
+      console.warn(`⚠️ Número ${number} não parece existir no WhatsApp. Tentando mesmo assim...`);
+    }
+  } catch (e) {
+    console.warn(`⚠️ Erro ao verificar número ${number} no WhatsApp:`, e.message);
+  }
+
   const tenantId = agent.tenantId || 'default';
   const whatsappId = `${tenantId}__${jid}__${agentId}`;
 
   // Envia a mensagem
   if (media && media.url) {
     const options = {};
-    if (media.type === 'image') options.image = { url: media.url };
-    else if (media.type === 'video') options.video = { url: media.url };
-    else if (media.type === 'audio') {
+    const type = media.type;
+
+    if (type === 'image') options.image = { url: media.url };
+    else if (type === 'video') options.video = { url: media.url };
+    else if (type === 'audio') {
       options.audio = { url: media.url };
       options.mimetype = 'audio/ogg; codecs=opus';
       options.ptt = true;
-    } else if (media.type === 'document') {
+    } else {
+      // Documento ou outros
       options.document = { url: media.url };
-      options.mimetype = 'application/pdf';
-      options.fileName = 'Arquivo.pdf';
+      options.mimetype = media.mimetype || 'application/pdf';
+      options.fileName = media.fileName || 'Arquivo';
+
+      // Tenta inferir extensão da URL se possível
+      if (!media.fileName && media.url.includes('.')) {
+        const parts = media.url.split('.');
+        const ext = parts[parts.length - 1].split('?')[0];
+        options.fileName = `Arquivo.${ext}`;
+      }
     }
 
     if (text) options.caption = text;
