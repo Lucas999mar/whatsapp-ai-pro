@@ -29,15 +29,15 @@ function ChangeView({ center, zoom, active }) {
     return null;
 }
 
-// � FollowMe: Mantém o motoboy no centro em "Primeira Pessoa"
-function FollowMe({ pos, heading, active, onManualMove }) {
+// 📍 FollowMe: Mantém o motoboy no centro em "Primeira Pessoa"
+function FollowMe({ pos, heading, active, zoom, onManualMove }) {
     const map = useMap();
     const isMovingManually = useRef(false);
 
     useEffect(() => {
         const onDragStart = () => {
             isMovingManually.current = true;
-            onManualMove(true);
+            onManualMove();
         };
         map.on('dragstart', onDragStart);
         return () => map.off('dragstart', onDragStart);
@@ -45,11 +45,21 @@ function FollowMe({ pos, heading, active, onManualMove }) {
 
     useEffect(() => {
         if (pos && active && !isMovingManually.current) {
-            map.setView([pos.lat, pos.lng], 18, { animate: true, duration: 1 });
+            map.setView([pos.lat, pos.lng], zoom, { animate: true, duration: 1 });
         }
-    }, [pos?.lat, pos?.lng, active, map]);
+    }, [pos?.lat, pos?.lng, active, zoom, map]);
 
     return null;
+}
+
+// 🎮 MapControls: Botões de Zoom Customizados
+function MapControls({ onZoomIn, onZoomOut }) {
+    return (
+        <div className="flex flex-col gap-2">
+            <button onClick={onZoomIn} className="w-12 h-12 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center text-white active:scale-90 transition-all font-bold text-xl shadow-2xl">+</button>
+            <button onClick={onZoomOut} className="w-12 h-12 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center text-white active:scale-90 transition-all font-bold text-xl shadow-2xl">-</button>
+        </div>
+    );
 }
 
 export default function MotoboyApp({ initialMode = 'deliveries' }) {
@@ -63,7 +73,8 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const [myPos, setMyPos] = useState(null);
     const [myHeading, setMyHeading] = useState(0);
     const [autoFollow, setAutoFollow] = useState(true);
-    const [activeTab, setActiveTab] = useState('home'); // home, wallet, history, profile
+    const [mapZoom, setMapZoom] = useState(18);
+    const [activeTab, setActiveTab] = useState('home');
     const [history, setHistory] = useState([]);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -156,7 +167,9 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                             tenantId: user.tenant_id, motoboyId: user.id,
                             trackingCode: activeDelivery?.tracking_code,
                             lat: latitude, lng: longitude, accuracy,
-                            heading: heading || 0
+                            heading: heading || 0,
+                            eta: routeInfo.duration,
+                            remaining_km: routeInfo.distance
                         });
                     }
                 },
@@ -368,17 +381,16 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                 icon={L.divIcon({
                                                     className: 'bg-none',
                                                     html: `
-                                                        <div style="transform: rotate(${myHeading}deg); transition: transform 0.5s ease-in-out; display: flex; align-items: center; justify-content: center; width: 50px; height: 50px;">
-                                                            <div style="width: 40px; height: 40px; background: rgba(37, 211, 102, 0.2); border: 2px solid #25D366; border-radius: 50%; display: flex; items-center: center; justify-content: center; box-shadow: 0 0 20px rgba(37, 211, 102, 0.5);">
-                                                                <svg viewBox="0 0 24 24" width="24" height="24" fill="#25D366" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))">
-                                                                    <path d="M11,15C10.5,15 10.1,14.7 10,14.3L9,11H5V13H3V11A2,2 0 0,1 5,9H11.5L12.5,12.3L15.3,11H14C13.4,11 13,10.6 13,10V5C13,4.4 13.4,4 14,4H17C17.6,4 18,4.4 18,5V10C18,10.6 17.6,11 17,11H16.8L13.7,12.4L14.7,15.7C14.8,16.2 14.5,16.7 14,16.8C13.9,16.8 13.7,16.8 13.6,16.8L11,15.7V15M17,9V6H14V9H17M20,19C20,20.1 19.1,21 18,21C16.9,21 16,20.1 16,19C16,17.9 16.9,17 18,17C19.1,17 20,17.9 20,19M6,19C6,20.1 5.1,21 4,21C2.9,21 2,20.1 2,19C2,17.9 2.9,17 4,17C5.1,17 6,17.9 6,19Z" />
+                                                        <div style="transform: rotate(${myHeading}deg); transition: transform 0.5s ease-in-out; display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; pointer-events: none;">
+                                                            <div style="width: 45px; height: 45px; background: rgba(37, 211, 102, 0.3); border: 2.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(37, 211, 102, 0.8);">
+                                                                <svg viewBox="0 0 24 24" width="28" height="28" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4))">
+                                                                    <path fill="#25D366" stroke="white" stroke-width="1.5" d="M12,2L4.5,20.29L5.21,21L12,18L18.79,21L19.5,20.29L12,2Z" />
                                                                 </svg>
                                                             </div>
-                                                            <div style="position: absolute; top: -15px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid #25D366;"></div>
                                                         </div>
                                                     `,
-                                                    iconSize: [50, 50],
-                                                    iconAnchor: [25, 25]
+                                                    iconSize: [60, 60],
+                                                    iconAnchor: [30, 30]
                                                 })}
                                             />
                                         )}
@@ -412,69 +424,63 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                             pos={myPos}
                                             heading={myHeading}
                                             active={autoFollow}
+                                            zoom={mapZoom}
                                             onManualMove={() => setAutoFollow(false)}
                                         />
                                     </MapContainer>
 
-                                    <div className="absolute top-24 left-4 right-4 z-10">
-                                        <div className="glass-panel p-4 bg-black/80 backdrop-blur-xl border-white/10 rounded-[28px] shadow-2xl flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-2xl ${activeDelivery?.status === 'aceita' ? 'bg-blue-500' : 'bg-[#25D366]'} text-white`}>
-                                                    {activeDelivery?.status === 'aceita' ? <Package size={24} /> : <Navigation size={24} />}
-                                                </div>
-                                                <div className="overflow-hidden">
-                                                    <h4 className="text-sm font-black uppercase tracking-tighter text-white">
-                                                        {activeDelivery?.status === 'aceita' ? 'Siga para a Coleta' : 'Siga para a Entrega'}
-                                                    </h4>
-                                                    <p className="text-[11px] text-slate-400 font-bold truncate max-w-[180px]">
-                                                        {activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address}
-                                                    </p>
-                                                    {routeInfo.distance > 0 && (
-                                                        <p className="text-[10px] text-[#25D366] font-black mt-1">
-                                                            📍 {routeInfo.distance} km • ⏱️ {routeInfo.duration} min
-                                                        </p>
-                                                    )}
-                                                </div>
+                                    <div className="absolute top-4 left-4 right-4 z-10">
+                                        <div className="bg-[#064E3B]/95 backdrop-blur-xl border border-white/10 rounded-[28px] overflow-hidden shadow-2xl p-5 flex items-center gap-5">
+                                            <div className="bg-white/10 p-3 rounded-2xl">
+                                                <Navigation className="text-white transform -rotate-45" size={28} strokeWidth={3} />
                                             </div>
-                                            {/* Botão compacto para abrir GPS externo (fallback) */}
-                                            <button
-                                                onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)}
-                                                className="p-3 bg-white/10 text-white rounded-2xl active:scale-90 transition-all border border-white/10"
-                                                title="Abrir no Google Maps"
-                                            >
-                                                <MapIcon size={18} />
-                                            </button>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="bg-white/10 px-2 py-0.5 rounded-md text-[9px] font-black uppercase text-white/60">Siga em direção a</span>
+                                                </div>
+                                                <h4 className="text-lg font-black text-white leading-tight uppercase tracking-tighter truncate max-w-[220px]">
+                                                    {activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address?.split(',')[0] : activeDelivery?.delivery_address?.split(',')[0]}
+                                                </h4>
+                                                <p className="text-[11px] text-white/50 font-bold mt-0.5">Destino final: {activeDelivery?.status === 'aceita' ? 'Coleta' : 'Cliente'}</p>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="absolute bottom-24 left-4 right-4 z-10 space-y-3">
-                                        <div className="bg-white p-6 rounded-[35px] text-black shadow-2xl animate-in slide-in-from-bottom-10">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase opacity-40">Pedido #{activeDelivery?.tracking_code}</p>
-                                                    <h3 className="text-xl font-black tracking-tighter">{activeDelivery?.customer_name}</h3>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black uppercase opacity-40">Valor</p>
-                                                    <h3 className="text-xl font-black text-[#128C7E]">R$ {activeDelivery?.estimated_price}</h3>
-                                                </div>
-                                            </div>
+                                    {/* Controles do Lado Direito */}
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
+                                        <button onClick={() => { setAutoFollow(true); setMapZoom(18); }} className={`w-12 h-12 rounded-full border border-white/10 flex items-center justify-center transition-all ${autoFollow ? 'bg-[#25D366] text-black shadow-[0_0_15px_#25D36680]' : 'bg-black/80 text-white shadow-2xl'}`}><Navigation size={22} /></button>
+                                        <MapControls onZoomIn={() => setMapZoom(z => Math.min(z + 1, 20))} onZoomOut={() => setMapZoom(z => Math.max(z - 1, 10))} />
+                                    </div>
 
-                                            {!autoFollow && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setAutoFollow(true); }}
-                                                    className="w-full mb-3 py-2 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest animate-bounce"
-                                                >
-                                                    🎯 Voltar para Navegação
-                                                </button>
-                                            )}
+                                    <div className="absolute bottom-4 left-4 right-4 z-10">
+                                        <div className="bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[35px] overflow-hidden shadow-2xl">
+                                            <div className="p-6">
+                                                <div className="flex justify-between items-center mb-6 px-2">
+                                                    <div className="text-center">
+                                                        <h3 className="text-2xl font-black text-[#25D366]">{routeInfo.duration} <span className="text-sm font-bold opacity-60">min</span></h3>
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-[#25D366] opacity-60">Duração</p>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <h3 className="text-2xl font-black text-white">{routeInfo.distance} <span className="text-sm font-bold opacity-60">km</span></h3>
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-white/40">Distância</p>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <h3 className="text-2xl font-black text-white">
+                                                            {new Date(new Date().getTime() + routeInfo.duration * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                        </h3>
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-white/40">Chegada</p>
+                                                    </div>
+                                                </div>
 
-                                            <div className="flex gap-2">
-                                                {activeDelivery?.status === 'aceita' ? (
-                                                    <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black py-5 rounded-[22px] shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-widest"><Package size={18} /> CONFIRMAR COLETA</button>
-                                                ) : (
-                                                    <button onClick={confirmDelivery} className="flex-1 bg-[#25D366] text-black font-black py-5 rounded-[22px] shadow-xl flex items-center justify-center gap-2 uppercase text-xs tracking-widest"><Square size={18} /> FINALIZAR ENTREGA</button>
-                                                )}
+                                                <div className="flex gap-3">
+                                                    <button onClick={() => openNavigation(activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lat : activeDelivery?.delivery_lat, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_lng : activeDelivery?.delivery_lng, activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address : activeDelivery?.delivery_address)} className="w-16 h-16 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center text-white active:scale-90 transition-all"><XCircle size={28} /></button>
+
+                                                    {activeDelivery?.status === 'aceita' ? (
+                                                        <button onClick={confirmPickup} className="flex-1 bg-blue-600 text-white font-black rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase text-sm tracking-tighter"><Package size={22} /> CONFIRMAR COLETA</button>
+                                                    ) : (
+                                                        <button onClick={confirmDelivery} className="flex-1 bg-[#25D366] text-black font-black rounded-3xl shadow-xl flex items-center justify-center gap-3 uppercase text-sm tracking-tighter"><CheckCircle2 size={22} /> FINALIZAR ENTREGA</button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

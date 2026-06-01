@@ -422,14 +422,37 @@ export default function DeliveryDashboard() {
                                             <div className="flex items-center gap-2">
                                                 {d.technician ? (
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10" style={{ backgroundColor: d.technician.color }}>
-                                                            {d.technician.photo_url ? <img src={d.technician.photo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] font-black">{d.technician.name?.charAt(0)}</div>}
+                                                        <div className="w-8 h-8 rounded-full overflow-hidden border border-white/10" style={{ backgroundColor: d.technician.color }}>
+                                                            {d.technician.photo_url ? <img src={d.technician.photo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-black">{d.technician.name?.charAt(0)}</div>}
                                                         </div>
                                                         <p className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">{d.technician.name}</p>
                                                     </div>
                                                 ) : <span className="text-[10px] text-yellow-500 font-black animate-pulse flex items-center gap-1"><AlertCircle size={10} /> BUSCANDO...</span>}
                                             </div>
-                                            <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-widest ${d.status === 'entregue' ? 'bg-[#25D366]/10 text-[#25D366]' : 'bg-blue-500/10 text-blue-400'}`}>{d.status?.replace('_', ' ')}</span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const url = `${window.location.origin}/tracking/${d.tracking_code}`;
+                                                        navigator.clipboard.writeText(url);
+                                                        alert('Link de rastreio copiado para o cliente!');
+                                                    }}
+                                                    className="p-2 bg-white/5 hover:bg-[#25D366]/20 hover:text-[#25D366] rounded-xl transition-all"
+                                                    title="Copiar Link de Rastreio"
+                                                >
+                                                    <Copy size={14} />
+                                                </button>
+                                                <a
+                                                    href={`/tracking/${d.tracking_code}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 rounded-xl transition-all"
+                                                    title="Ver Rastreio"
+                                                >
+                                                    <ExternalLink size={14} />
+                                                </a>
+                                                <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full tracking-widest ${d.status === 'entregue' ? 'bg-[#25D366]/10 text-[#25D366]' : 'bg-blue-500/10 text-blue-400'}`}>{d.status?.replace('_', ' ')}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
