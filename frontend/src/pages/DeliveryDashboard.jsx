@@ -8,6 +8,9 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import L from 'leaflet';
 import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
+import { io } from 'socket.io-client';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // Leaflet fix
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -224,8 +227,26 @@ export default function DeliveryDashboard() {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 10000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchData, 30000); // Fallback mais longo
+
+        // Configuração WebSocket para Tempo Real
+        const socket = io(API_BASE);
+
+        socket.on('delivery:new', () => fetchData());
+        socket.on('delivery:accepted', () => fetchData());
+        socket.on('delivery:status_change', () => fetchData());
+
+        // Atualiza apenas a posição do motoboy no mapa para ser fluido
+        socket.on('delivery:motoboy_location', (data) => {
+            setMotoboys(prev => prev.map(m =>
+                m.id === data.motoboyId ? { ...m, lat: data.lat, lng: data.lng, heading: data.heading } : m
+            ));
+        });
+
+        return () => {
+            clearInterval(interval);
+            socket.disconnect();
+        };
     }, [fetchData]);
 
     const copyTenantId = () => {
@@ -356,13 +377,14 @@ export default function DeliveryDashboard() {
                                         <Marker key={tech.id} position={[tech.lat, tech.lng]} icon={L.divIcon({
                                             className: 'bg-none',
                                             html: `
-                                                <div class="relative flex items-center justify-center">
-                                                    <div class="absolute w-12 h-12 bg-white rounded-full animate-ping opacity-20"></div>
+                                                <div class="relative flex items-center justify-center" style="transform: rotate(${tech.heading || 0}deg); transition: transform 0.5s ease-in-out;">
+                                                    <div class="absolute w-12 h-12 bg-white rounded-full animate-ping opacity-10"></div>
                                                     <div class="relative w-11 h-11 bg-white p-1 rounded-full shadow-2xl transition-transform hover:scale-125 duration-500">
                                                         <div class="w-full h-full rounded-full flex items-center justify-center text-xl overflow-hidden bg-slate-800" style="border: 3px solid ${tech.color || '#25D366'}">
-                                                            ${tech.photo_url ? `<img src="${tech.photo_url}" class="w-full h-full object-cover">` : '🏍️'}
+                                                            ${tech.photo_url ? `<img src="${tech.photo_url}" class="w-full h-full object-cover">` : '<div style="transform: rotate(${-(tech.heading || 0)}deg)">🏍️</div>'}
                                                         </div>
                                                     </div>
+                                                    <div class="absolute -top-1 -right-1 w-4 h-4 bg-[#25D366] rounded-full border-2 border-white"></div>
                                                 </div>
                                             `,
                                             iconSize: [44, 44], iconAnchor: [22, 22]

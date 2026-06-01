@@ -677,20 +677,14 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
 
         if (error) throw error;
 
-        // Incrementa contador de entregas do motoboy
-        await supabase.rpc('increment_delivery_count', { motoboy_id: req.user.id }).catch(() => {
-            // Fallback se a function RPC não existir
-            supabase.from('os_technicians')
-                .select('total_deliveries')
-                .eq('id', req.user.id)
-                .single()
-                .then(({ data: tech }) => {
-                    supabase.from('os_technicians')
-                        .update({ total_deliveries: (tech?.total_deliveries || 0) + 1 })
-                        .eq('id', req.user.id)
-                        .then(() => { });
-                });
-        });
+        // Incrementa contador de entregas do motoboy de forma segura
+        try {
+            await supabase.rpc('increment_delivery_count', { motoboy_id: req.user.id });
+        } catch (rpcErr) {
+            console.log('⚠️ RPC increment_delivery_count falhou, tentando fallback manual');
+            const { data: tech } = await supabase.from('os_technicians').select('total_deliveries').eq('id', req.user.id).single();
+            await supabase.from('os_technicians').update({ total_deliveries: (tech?.total_deliveries || 0) + 1 }).eq('id', req.user.id);
+        }
 
         await supabase.from('os_task_events').insert({
             task_id: req.params.id,
