@@ -230,6 +230,24 @@ router.post('/obsidian/sync', authMiddleware, async (req, res) => {
 
 // ── COMPANY SETTINGS ──────────────────────────────────────────
 
+// 🛡️ [NOVO] GET - Retorna configurações da empresa logada
+router.get('/company/settings', authMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const tenantId = req.user.tenant_id || req.user.id;
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, name, logo, delivery_base_price, delivery_km_price, default_pickup_address')
+      .eq('id', tenantId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+    res.json(data || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/company/settings', authMiddleware, async (req, res) => {
   try {
     const supabase = getSupabase();

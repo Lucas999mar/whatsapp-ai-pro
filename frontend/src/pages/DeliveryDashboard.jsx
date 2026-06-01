@@ -59,28 +59,24 @@ export default function DeliveryDashboard() {
 
     const fetchData = useCallback(async () => {
         try {
-            const [statsRes, deliveriesRes, techRes, settingsRes] = await Promise.all([
+            const [statsRes, deliveriesRes, motoboyRes, settingsRes] = await Promise.all([
                 api.get('/delivery/stats'),
                 api.get('/os/tasks'),
-                api.get('/os/technicians'),
-                api.get('/admin/tenants')
+                api.get('/delivery/motoboys'),
+                api.get('/company/settings').catch(() => ({ data: {} }))
             ]);
 
             setStats(statsRes.data);
             const deliveryOnly = (deliveriesRes.data || []).filter(t => t.delivery_type && t.delivery_type !== 'os');
             setDeliveries(deliveryOnly);
+            setMotoboys(motoboyRes.data || []);
 
-            const onlyMotoboys = (techRes.data || []).filter(t =>
-                t.role === 'motoboy' || (t.vehicle_type && t.vehicle_type !== '')
-            );
-            setMotoboys(onlyMotoboys);
-
-            const myTenant = (settingsRes.data || []).find(t => t.id === (user?.tenant_id || user?.id));
-            if (myTenant) {
+            const settings = settingsRes.data || {};
+            if (settings.delivery_base_price || settings.delivery_km_price) {
                 setPricing({
-                    delivery_base_price: myTenant.delivery_base_price || '7.00',
-                    delivery_km_price: myTenant.delivery_km_price || '1.50',
-                    default_pickup_address: myTenant.default_pickup_address || ''
+                    delivery_base_price: settings.delivery_base_price || '7.00',
+                    delivery_km_price: settings.delivery_km_price || '1.50',
+                    default_pickup_address: settings.default_pickup_address || ''
                 });
             }
         } catch (e) {

@@ -64,6 +64,24 @@ async function geocodeAddress(address) {
 // ── MOTOBOY AUTH (Auto-cadastro + Login)
 // ══════════════════════════════════════════════════════════════
 
+// 🛡️ [NOVO] Listar motoboys da empresa (para o dashboard de delivery)
+router.get('/motoboys', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
+        const { data, error } = await supabase
+            .from('os_technicians')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('role', 'motoboy')
+            .order('name');
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Registro público de motoboy
 router.post('/motoboy/register', async (req, res) => {
     try {
