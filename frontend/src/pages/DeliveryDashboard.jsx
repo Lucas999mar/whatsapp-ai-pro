@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Bike, MapPin, Navigation, Package, Clock, DollarSign,
-    Users, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
+    Users, User, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
     Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart, ExternalLink
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -268,7 +268,7 @@ export default function DeliveryDashboard() {
                                         </React.Fragment>
                                     ))}
 
-                                    {motoboys.map(tech => tech.lat && (
+                                    {motoboys.map(tech => (tech.lat !== null && tech.lng !== null) && (
                                         <Marker key={tech.id} position={[tech.lat, tech.lng]} icon={L.divIcon({
                                             className: 'bg-none',
                                             html: `
@@ -305,7 +305,7 @@ export default function DeliveryDashboard() {
                                         return (
                                             <div key={m.id} className="bg-black/20 p-5 rounded-[30px] border border-white/5 flex items-center gap-4 group transition-all hover:bg-black/40">
                                                 <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-xl bg-slate-800 border-2" style={{ borderColor: m.color || '#25D366' }}>
-                                                    {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-black text-xl">{m.name.charAt(0)}</div>}
+                                                    {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-black text-xl italic text-slate-600">{m.name?.charAt(0) || '?'}</div>}
                                                 </div>
                                                 <div className="flex-1">
                                                     <p className="font-black text-sm uppercase tracking-tight">{m.name}</p>
@@ -420,8 +420,8 @@ export default function DeliveryDashboard() {
                                     <div className="absolute top-6 right-6">
                                         <div className={`w-3 h-3 rounded-full ${m.is_available ? 'bg-[#25D366]' : 'bg-slate-600'}`}></div>
                                     </div>
-                                    <div className="w-24 h-24 rounded-[35px] bg-slate-800 mb-6 overflow-hidden relative border-[6px] border-white/5 group-hover:border-[#25D366]/20 transition-all shadow-2xl">
-                                        {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-600" />}
+                                    <div className="w-24 h-24 rounded-[35px] bg-slate-800 mb-6 overflow-hidden relative border-[6px] border-white/5 group-hover:border-[#25D366]/20 transition-all shadow-2xl flex items-center justify-center">
+                                        {m.photo_url ? <img src={m.photo_url} className="w-full h-full object-cover" /> : <User className="w-12 h-12 text-slate-600" />}
                                     </div>
                                     <h4 className="font-black text-xl tracking-tighter uppercase text-center mb-1">{m.name}</h4>
                                     <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mb-6">{m.email}</p>
