@@ -389,7 +389,6 @@ router.get('/motoboy/my-deliveries', authMiddleware, async (req, res) => {
             .from('os_tasks')
             .select('id, title, status, pickup_address, delivery_address, estimated_km, estimated_price, motoboy_amount, tracking_code, customer_name, customer_phone, created_at, delivered_at, accepted_at')
             .eq('technician_id', req.user.id)
-            .in('delivery_type', ['entrega', 'coleta'])
             .order('created_at', { ascending: false })
             .limit(50);
         if (error) throw error;
@@ -1096,8 +1095,9 @@ router.get('/stats', authMiddleware, async (req, res) => {
         const tenantId = req.user.tenant_id || req.user.id;
         const today = new Date().toISOString().split('T')[0];
 
-        let qAll = supabase.from('os_tasks').select('id, status, estimated_km, actual_km, estimated_price, motoboy_amount, system_fee, delivery_type').not('delivery_type', 'is', null);
-        let qToday = supabase.from('os_tasks').select('id, status').eq('scheduled_date', today).not('delivery_type', 'is', null);
+        // Removemos o filtro rigoroso de delivery_type para que as antigas apareçam no faturamento/contagem
+        let qAll = supabase.from('os_tasks').select('id, status, estimated_km, actual_km, estimated_price, motoboy_amount, system_fee, delivery_type');
+        let qToday = supabase.from('os_tasks').select('id, status').eq('scheduled_date', today);
         let qMoto = supabase.from('os_technicians').select('id, status, is_available').eq('role', 'motoboy');
 
         if (!isAdmin) {
@@ -1121,7 +1121,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
             today_total: todayD.length,
             today_completed: todayD.filter(d => d.status === 'entregue' || d.status === 'concluida').length,
             total_revenue: isAdmin ? +(completed.reduce((s, d) => s + (parseFloat(d.estimated_price) || 0), 0)).toFixed(2) : undefined,
-            system_profit: isAdmin ? +(completed.reduce((s, d) => s + (parseFloat(d.system_fee) || 0), 0)).toFixed(2) : 0,
+            system_profit: isAdmin ? +(completed.reduce((s, d) => s + (parseFloat(d.system_fee || 0) || 0), 0)).toFixed(2) : 0,
             motoboys_online: motoboys.filter(m => m.is_available).length,
             motoboys_total: motoboys.length
         });
