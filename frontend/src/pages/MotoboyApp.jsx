@@ -4,7 +4,8 @@ import {
     Bike, MapPin, Navigation, Package, CheckCircle2, XCircle,
     Power, User, Clock, DollarSign, Map as MapIcon, ChevronRight,
     Loader2, Play, Square, Hash, Camera, Upload, LogOut, Bell, BellOff,
-    X, AlertTriangle, Search, Compass, GitBranch, Volume2, CornerUpRight, Trash2, Phone, MessageCircle
+    X, AlertTriangle, Search, Compass, GitBranch, Volume2, CornerUpRight, Trash2, Phone, MessageCircle,
+    Calendar, Filter, ChevronLeft
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -80,7 +81,7 @@ function MapControls({ onZoomIn, onZoomOut }) {
 }
 
 export default function MotoboyApp({ initialMode = 'deliveries' }) {
-    const { user, logout, updateUser } = useAuth();
+    const { user, logout, updateProfile } = useAuth();
     const navigate = useNavigate();
     const [isOnline, setIsOnline] = useState(false);
     const [availableDeliveries, setAvailableDeliveries] = useState([]);
@@ -98,6 +99,14 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const [routeCoords, setRouteCoords] = useState([]);
     const [routeInfo, setRouteInfo] = useState({ distance: 0, duration: 0 });
 
+    // DRE / Extrato
+    const [earningsData, setEarningsData] = useState({ items: [], summary: { total: 0, count: 0, average: 0 } });
+    const [dateFilter, setDateFilter] = useState({
+        start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
+    const [showDreMode, setShowDreMode] = useState(false);
+    const [loadingEarnings, setLoadingEarnings] = useState(false);
     const socketRef = useRef(null);
     const watchId = useRef(null);
     const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'));
@@ -151,6 +160,10 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
             setHistory(historyRes.data);
             setIsOnline(!!profileRes.data?.is_available);
 
+            if (profileRes.data) {
+                updateProfile(profileRes.data);
+            }
+
             // Re-sincroniza com o banco se não tiver estado local ou se o estado mudou
             const active = (historyRes.data || []).find(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento'].includes(d.status));
             if (active && (!activeDelivery || activeDelivery.id !== active.id)) {
@@ -159,9 +172,22 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
+            setLoadingEarnings(false); // Reuso aqui
             setLoading(false);
         }
-    }, [activeDelivery]);
+    }, [activeDelivery, updateProfile]);
+
+    const fetchEarnings = useCallback(async () => {
+        setLoadingEarnings(true);
+        try {
+            const res = await api.get(`/delivery/motoboy/earnings?startDate=${dateFilter.start}&endDate=${dateFilter.end}`);
+            setEarningsData(res.data);
+        } catch (e) {
+            console.error('Erro ao buscar extrato:', e);
+        } finally {
+            setLoadingEarnings(false);
+        }
+    }, [dateFilter]);
 
     useEffect(() => {
         fetchData();
@@ -241,8 +267,10 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
             const res = await api.post('/upload', formData);
             const photoUrl = res.data.url;
             await api.put('/delivery/motoboy/profile-photo', { photo_url: photoUrl });
+
+            // Sincroniza localmente sem recarregar a página
+            updateProfile({ photo_url: photoUrl });
             alert('Foto atualizada com sucesso!');
-            window.location.reload();
         } catch (err) {
             alert('Erro ao subir foto');
         } finally {
@@ -627,18 +655,107 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                 )}
 
                 {activeTab === 'wallet' && (
-                    <div className="p-6 animate-in fade-in slide-in-from-right duration-300">
-                        <div className="bg-gradient-to-br from-yellow-500 to-orange-600 p-8 rounded-[40px] text-black shadow-2xl mb-8">
-                            <p className="text-xs font-black uppercase tracking-widest opacity-60 mb-2">Saldo Disponível</p>
-                            <h2 className="text-5xl font-black tracking-tighter">R$ {stats?.balance || '0.00'}</h2>
-                            <button className="mt-8 w-full py-4 bg-black text-white font-black rounded-2xl uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Solicitar Saque PIX</button>
-                        </div>
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-4 px-2">Histórico de Transações</h4>
-                        <div className="space-y-3">
-                            <div className="bg-white/5 border border-white/5 p-5 rounded-3xl text-center py-10 opacity-40">
-                                <p className="text-xs font-bold">Nenhuma transação recente.</p>
+                    <div className="p-6 animate-in fade-in slide-in-from-right duration-300 min-h-screen">
+                        {!showDreMode ? (
+                            <>
+                                <div className="bg-gradient-to-br from-yellow-500 to-orange-600 p-8 rounded-[40px] text-black shadow-2xl mb-8 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign size={80} /></div>
+                                    <p className="text-xs font-black uppercase tracking-widest opacity-60 mb-2">Saldo Disponível</p>
+                                    <h2 className="text-5xl font-black tracking-tighter">R$ {stats?.balance || '0.00'}</h2>
+                                    <button className="mt-8 w-full py-4 bg-black text-white font-black rounded-2xl uppercase tracking-widest text-[10px] shadow-xl active:scale-95 transition-all">Solicitar Saque PIX</button>
+                                </div>
+
+                                <button
+                                    onClick={() => { setShowDreMode(true); fetchEarnings(); }}
+                                    className="w-full bg-[#1E293B] border border-white/5 p-6 rounded-3xl flex items-center justify-between group hover:border-[#25D366]/30 transition-all mb-8"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-[#25D366]/10 text-[#25D366] rounded-2xl"><BarChart3 size={24} /></div>
+                                        <div className="text-left">
+                                            <p className="text-sm font-black text-white uppercase tracking-tighter">Extrato Detalhado (DRE)</p>
+                                            <p className="text-[10px] text-slate-500 font-bold">Veja seus ganhos por período</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="text-slate-600 group-hover:text-[#25D366]" />
+                                </button>
+
+                                <h4 className="text-[10px] font-black uppercase tracking-widest mb-4 px-2 text-slate-500 italic">Resumo de Performance</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-[#1E293B] p-5 rounded-3xl border border-white/5">
+                                        <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Total Ganho</p>
+                                        <p className="text-xl font-black text-[#25D366]">R$ {stats?.total_earnings || 0}</p>
+                                    </div>
+                                    <div className="bg-[#1E293B] p-5 rounded-3xl border border-white/5">
+                                        <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Km Rodados</p>
+                                        <p className="text-xl font-black text-blue-400">{stats?.total_km || 0}</p>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="animate-in fade-in zoom-in duration-300">
+                                <div className="flex items-center gap-4 mb-8">
+                                    <button onClick={() => setShowDreMode(false)} className="p-3 bg-white/5 rounded-2xl text-white"><ChevronLeft size={24} /></button>
+                                    <h3 className="text-xl font-black italic uppercase tracking-tighter">DRE / Extrato</h3>
+                                </div>
+
+                                {/* Filtros */}
+                                <div className="bg-[#1E293B] p-4 rounded-3xl border border-white/5 mb-6 space-y-4">
+                                    <div className="flex items-center gap-2 text-[10px] font-black text-[#25D366] uppercase tracking-widest ml-2">
+                                        <Calendar size={12} /> Período do Relatório
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="date"
+                                            className="bg-black/40 border border-white/5 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                            value={dateFilter.start}
+                                            onChange={e => setDateFilter({ ...dateFilter, start: e.target.value })}
+                                        />
+                                        <input
+                                            type="date"
+                                            className="bg-black/40 border border-white/5 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                                            value={dateFilter.end}
+                                            onChange={e => setDateFilter({ ...dateFilter, end: e.target.value })}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={fetchEarnings}
+                                        disabled={loadingEarnings}
+                                        className="w-full py-3 bg-blue-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
+                                    >
+                                        {loadingEarnings ? <Loader2 className="animate-spin" size={14} /> : <><Filter size={14} /> Filtrar Ganhos</>}
+                                    </button>
+                                </div>
+
+                                {/* Resumo DRE */}
+                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                    <div className="bg-[#25D366]/10 border border-[#25D366]/20 p-4 rounded-2xl">
+                                        <p className="text-[8px] text-[#25D366] font-black uppercase mb-1">Total Ganho</p>
+                                        <p className="text-lg font-black text-white">R$ {earningsData.summary.total}</p>
+                                    </div>
+                                    <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl">
+                                        <p className="text-[8px] text-blue-400 font-black uppercase mb-1">Média / Corrida</p>
+                                        <p className="text-lg font-black text-white">R$ {earningsData.summary.average}</p>
+                                    </div>
+                                </div>
+
+                                {/* Lista de Itens do DRE */}
+                                <div className="space-y-3 pb-24">
+                                    {earningsData.items.length === 0 ? (
+                                        <div className="text-center py-10 opacity-30 italic text-xs">Nenhum ganho neste período.</div>
+                                    ) : (
+                                        earningsData.items.map(item => (
+                                            <div key={item.id} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-[9px] font-bold text-slate-500 uppercase">{new Date(item.created_at).toLocaleDateString()}</p>
+                                                    <h5 className="text-xs font-black text-white uppercase truncate max-w-[150px]">{item.customer_name || item.title}</h5>
+                                                </div>
+                                                <p className="text-sm font-black text-[#25D366]">R$ {item.estimated_price}</p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
 

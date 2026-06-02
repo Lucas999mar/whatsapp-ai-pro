@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Bike, MapPin, Navigation, Package, Clock, DollarSign,
     Users, User, TrendingUp, AlertCircle, Search, Filter, ChevronRight,
-    Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart, ExternalLink
+    Map as MapIcon, Loader2, X, Plus, UserPlus, Info, Copy, Settings, Save, CheckCircle, BarChart3, Calendar, PieChart, ExternalLink,
+    Edit, Trash2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -62,6 +63,11 @@ export default function DeliveryDashboard() {
         default_pickup_address: ''
     });
     const [savingConfig, setSavingConfig] = useState(false);
+
+    // Gestão de Motoboys
+    const [editingMotoboy, setEditingMotoboy] = useState(null);
+    const [showEditTechModal, setShowEditTechModal] = useState(false);
+    const [savingTech, setSavingTech] = useState(false);
 
     const [newDelivery, setNewDelivery] = useState({
         title: '',
@@ -131,13 +137,45 @@ export default function DeliveryDashboard() {
     const handleSavePricing = async () => {
         setSavingConfig(true);
         try {
-            await api.put('/company/settings', pricing);
-            alert('Configurações salvas com sucesso!');
-            fetchData();
+            await api.put('/delivery/settings', pricing);
+            alert('✅ Configurações salvas!');
         } catch (e) {
-            alert('Erro ao salvar as configurações: ' + (e.response?.data?.error || e.message));
+            alert('Erro ao salvar configurações');
         } finally {
             setSavingConfig(false);
+        }
+    };
+
+    const handleUpdateTech = async (e) => {
+        e.preventDefault();
+        setSavingTech(true);
+        try {
+            await api.put(`/delivery/motoboy-management/${editingMotoboy.id}`, editingMotoboy);
+            setShowEditTechModal(false);
+            fetchData();
+        } catch (e) {
+            alert('Erro ao atualizar motoboy');
+        } finally {
+            setSavingTech(false);
+        }
+    };
+
+    const handleDeleteTech = async (id) => {
+        if (!confirm('Tem certeza que deseja excluir este motoboy?')) return;
+        try {
+            await api.delete(`/delivery/motoboy-management/${id}`);
+            fetchData();
+        } catch (e) {
+            alert('Erro ao excluir motoboy');
+        }
+    };
+
+    const handleToggleTechStatus = async (id, currentStatus) => {
+        try {
+            await api.put(`/delivery/motoboy-management/${id}`, { active: !currentStatus });
+            fetchData();
+        } catch (e) {
+            alert('Erro ao mudar status do motoboy');
         }
     };
 
@@ -589,9 +627,56 @@ export default function DeliveryDashboard() {
                                             <p className="text-xs font-black text-blue-500">{m.total_deliveries || 0}</p>
                                         </div>
                                     </div>
+
+                                    {/* Ações de Gestão */}
+                                    <div className="flex items-center gap-2 mt-6 w-full">
+                                        <button onClick={() => { setEditingMotoboy(m); setShowEditTechModal(true); }} className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl flex items-center justify-center transition-all border border-white/5">
+                                            <Edit size={16} />
+                                        </button>
+                                        <button onClick={() => handleToggleTechStatus(m.id, m.is_available)} className={`flex-1 py-3 rounded-2xl flex items-center justify-center transition-all border ${m.is_available ? 'bg-[#25D366]/10 text-[#25D366] border-[#25D366]/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                                            {m.is_available ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                                        </button>
+                                        <button onClick={() => handleDeleteTech(m.id)} className="flex-1 py-3 bg-red-500/5 hover:bg-red-500/20 text-red-500 rounded-2xl flex items-center justify-center transition-all border border-red-500/10">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Editar Motoboy */}
+            {showEditTechModal && (
+                <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+                    <div className="bg-[#1E293B] w-full max-w-md rounded-[40px] border border-white/10 p-8 shadow-2xl relative">
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Editar Motoboy</h3>
+                            <button onClick={() => setShowEditTechModal(false)} className="p-2 text-slate-500"><X size={24} /></button>
+                        </div>
+                        <form onSubmit={handleUpdateTech} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-slate-400 font-black uppercase ml-2 tracking-widest">Nome Completo</label>
+                                <input className="w-full bg-black/20 border border-white/5 rounded-2xl p-4 text-white font-bold" value={editingMotoboy.name} onChange={e => setEditingMotoboy({ ...editingMotoboy, name: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-slate-400 font-black uppercase ml-2 tracking-widest">E-mail de Acesso</label>
+                                <input className="w-full bg-black/20 border border-white/5 rounded-2xl p-4 text-white font-bold" value={editingMotoboy.email} onChange={e => setEditingMotoboy({ ...editingMotoboy, email: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-slate-400 font-black uppercase ml-2 tracking-widest">Veículo</label>
+                                <select className="w-full bg-black/20 border border-white/5 rounded-2xl p-4 text-white font-bold" value={editingMotoboy.vehicle_type} onChange={e => setEditingMotoboy({ ...editingMotoboy, vehicle_type: e.target.value })}>
+                                    <option value="Moto">Moto</option>
+                                    <option value="Carro">Carro</option>
+                                    <option value="Bicicleta">Bicicleta</option>
+                                    <option value="Van">Van</option>
+                                </select>
+                            </div>
+                            <button type="submit" disabled={savingTech} className="w-full py-5 bg-[#25D366] text-black font-black rounded-3xl uppercase tracking-widest shadow-xl shadow-green-500/20 active:scale-95 transition-all">
+                                {savingTech ? <Loader2 className="animate-spin mx-auto" /> : 'Salvar Alterações'}
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}

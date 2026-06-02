@@ -385,6 +385,96 @@ router.put('/motoboy/profile-photo', authMiddleware, async (req, res) => {
     }
 });
 
+// DRE Detalhado do Motoboy (Filtro por período)
+router.get('/motoboy/earnings', authMiddleware, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id; // Para empresa ver, mas aqui é para o motoboy logado
+
+        let query = supabase
+            .from('os_tasks')
+            .select('id, title, status, estimated_price, created_at, delivered_at, customer_name')
+            .eq('technician_id', req.user.id)
+            .in('status', ['entregue', 'concluida']);
+
+        if (startDate) query = query.gte('created_at', startDate);
+        if (endDate) query = query.lte('created_at', endDate);
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+        if (error) throw error;
+
+        // Agrupamento para DRE
+        const total = data.reduce((sum, item) => sum + (parseFloat(item.estimated_price) || 0), 0);
+        const count = data.length;
+
+        res.json({
+            items: data,
+            summary: {
+                total: +total.toFixed(2),
+                count: count,
+                average: count > 0 ? +(total / count).toFixed(2) : 0
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── GESTÃO DE MOTOBOYS PELA EMPRESA
+// ══════════════════════════════════════════════════════════════
+
+// Editar Motoboy
+router.put('/motoboy-management/:id', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
+        const { name, email, vehicle_type, active } = req.body;
+
+        const updateData = { updated_at: new Date().toISOString() };
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (vehicle_type) updateData.vehicle_type = vehicle_type;
+        if (active !== undefined) {
+            updateData.is_available = active;
+            updateData.status = active ? 'online' : 'offline';
+        }
+
+        const { data, error } = await supabase
+            .from('os_technicians')
+            .update(updateData)
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Excluir Motoboy
+router.delete('/motoboy-management/:id', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
+
+        const { error } = await supabase
+            .from('os_technicians')
+            .delete()
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ══════════════════════════════════════════════════════════════
 // ── DELIVERY CRUD (Empresa cria, motoboy aceita)
 // ══════════════════════════════════════════════════════════════
