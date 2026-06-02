@@ -4,7 +4,7 @@ import {
     Bike, MapPin, Navigation, Package, CheckCircle2, XCircle,
     Power, User, Clock, DollarSign, Map as MapIcon, ChevronRight,
     Loader2, Play, Square, Hash, Camera, Upload, LogOut, Bell, BellOff,
-    X, AlertTriangle, Search, Compass, GitBranch, Volume2, CornerUpRight, Trash2
+    X, AlertTriangle, Search, Compass, GitBranch, Volume2, CornerUpRight, Trash2, Phone, MessageCircle
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
