@@ -536,71 +536,41 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                         </button>
                                     </div>
 
-                                    {/* Google Maps Style: Bottom Navigation Panel */}
-                                    <div className="absolute bottom-0 left-0 right-0 z-30 p-2">
-                                        <div className="bg-[#000000] border-t border-white/5 rounded-t-[32px] shadow-2xl overflow-hidden pb-4">
-                                            <div className="w-12 h-1 bg-white/10 rounded-full mx-auto my-3"></div>
-
-                                            <div className="flex items-center justify-between px-6 pb-4">
-                                                {/* Dimiss Button */}
-                                                <button onClick={() => setAutoFollow(false)} className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-white transition-all">
-                                                    <X size={28} />
-                                                </button>
-
-                                                {/* ETA / Info Center */}
-                                                <div className="flex flex-col items-center">
-                                                    <h3 className="text-3xl font-black text-[#22C55E] tracking-tight">
-                                                        {routeInfo.duration}<span className="text-xl ml-0.5">min</span>
-                                                    </h3>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-sm font-bold text-white/50">{routeInfo.distance} km</span>
-                                                        <span className="w-1 h-1 bg-white/30 rounded-full"></span>
-                                                        <span className="text-sm font-black text-white">
-                                                            {new Date(new Date().getTime() + routeInfo.duration * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
+                                    {/* Google Maps Style: Painel de Entrega Ativa - ULTRA COMPACTO */}
+                                    <div className="absolute bottom-0 left-0 right-0 z-30">
+                                        <div className="bg-[#000000] border-t border-white/10 rounded-t-[20px] shadow-2xl p-3">
+                                            {/* Linha Única: ETA + Nome + Telefone */}
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xl font-black text-[#22C55E] leading-none">{routeInfo.duration}′</span>
+                                                        <span className="text-[9px] font-bold text-white/40 uppercase">{routeInfo.distance}km</span>
+                                                    </div>
+                                                    <div className="w-[1px] h-8 bg-white/10"></div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-white leading-tight uppercase truncate max-w-[120px]">
+                                                            {activeDelivery?.customer_name}
+                                                        </p>
+                                                        <p className="text-[10px] font-mono text-white/50">{activeDelivery?.customer_phone}</p>
                                                     </div>
                                                 </div>
 
-                                                {/* Alternate Routes Button */}
-                                                <button className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-white transition-all">
-                                                    <GitBranch size={24} className="transform rotate-180" />
-                                                </button>
-                                            </div>
-
-                                            {/* Informações detalhadas do Cliente e Item */}
-                                            <div className="px-6 pb-4">
-                                                <div className="bg-white/5 rounded-3xl p-4 border border-white/5">
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <div className="flex-1">
-                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">O que entregar</p>
-                                                            <h4 className="text-lg font-black text-white leading-tight uppercase">📦 {activeDelivery?.title || 'Pedido'}</h4>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Cliente</p>
-                                                            <p className="text-sm font-bold text-white">{activeDelivery?.customer_name}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex gap-3">
-                                                        <a href={`tel:${activeDelivery?.customer_phone}`} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black text-white transition-all">
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                                            LIGAR
-                                                        </a>
-                                                        <a href={`https://wa.me/55${activeDelivery?.customer_phone?.replace(/\D/g, '')}`} target="_blank" className="flex-1 bg-green-500/10 hover:bg-green-500/20 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black text-[#25D366] transition-all border border-[#25D366]/20">
-                                                            WHATSAPP
-                                                        </a>
-                                                    </div>
+                                                <div className="flex gap-2">
+                                                    <a href={`tel:${activeDelivery?.customer_phone}`} className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-white">
+                                                        <Phone size={18} />
+                                                    </a>
+                                                    <a href={`https://wa.me/55${activeDelivery?.customer_phone?.replace(/\D/g, '')}`} target="_blank" className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center text-[#25D366] border border-green-500/20">
+                                                        <MessageCircle size={18} />
+                                                    </a>
                                                 </div>
                                             </div>
 
-                                            {/* Action Button: Confirm Pickup/Delivery */}
-                                            <div className="px-4 pb-4">
-                                                {activeDelivery?.status === 'aceita' ? (
-                                                    <button onClick={confirmPickup} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-900/20 active:scale-95 transition-all">CHEGUEI NA COLETA</button>
-                                                ) : (
-                                                    <button onClick={confirmDelivery} className="w-full bg-[#25D366] text-black py-4 rounded-2xl font-black text-lg shadow-xl shadow-green-900/20 active:scale-95 transition-all">FINALIZAR ENTREGA</button>
-                                                )}
-                                            </div>
+                                            {/* Botão de Ação Compacto */}
+                                            {activeDelivery?.status === 'aceita' ? (
+                                                <button onClick={confirmPickup} className="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-sm uppercase tracking-wider">CHEGUEI NA COLETA</button>
+                                            ) : (
+                                                <button onClick={confirmDelivery} className="w-full bg-[#25D366] text-black py-3 rounded-xl font-black text-sm uppercase tracking-wider">FINALIZAR ENTREGA</button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -623,9 +593,21 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                     <div className="flex justify-between items-start mb-4">
                                                         <div>
                                                             <h4 className="text-xl font-black text-[#25D366]">R$ {d.estimated_price}</h4>
-                                                            <p className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1 mt-1 opacity-60">
-                                                                <Navigation size={10} /> {d.estimated_km} KM • {d.customer_name}
-                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 bg-white/5 px-2 py-0.5 rounded-lg border border-white/5">
+                                                                    <Navigation size={10} className="text-[#25D366]" />
+                                                                    {d.estimated_km} KM
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300">
+                                                                    <User size={10} className="text-slate-500" />
+                                                                    {d.customer_name}
+                                                                    {d.customer_phone && (
+                                                                        <span className="text-[10px] font-mono text-slate-500 ml-1">
+                                                                            ({d.customer_phone})
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div className="p-3 bg-blue-500/10 rounded-2xl"><Package className="text-blue-500" size={20} /></div>
                                                     </div>

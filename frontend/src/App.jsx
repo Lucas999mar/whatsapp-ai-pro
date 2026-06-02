@@ -249,6 +249,7 @@ function AppContent() {
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
             <Route path="/track/:code" element={<TrackingPage />} />
+            <Route path="/tracking/:code" element={<TrackingPage />} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard adminOnly><SuperAdmin /></AuthGuard>} />

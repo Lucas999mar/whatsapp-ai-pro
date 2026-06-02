@@ -485,7 +485,7 @@ export default function DeliveryDashboard() {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        const url = `${window.location.origin}/tracking/${d.tracking_code}`;
+                                                        const url = `${window.location.origin}/track/${d.tracking_code}`;
                                                         navigator.clipboard.writeText(url);
                                                         alert('✅ Link de rastreio copiado!\nEnvie para o WhatsApp do cliente.');
                                                     }}
@@ -496,7 +496,7 @@ export default function DeliveryDashboard() {
                                                     <span className="text-[10px] font-black uppercase tracking-tight">Rastrear</span>
                                                 </button>
                                                 <a
-                                                    href={`/tracking/${d.tracking_code}`}
+                                                    href={`/track/${d.tracking_code}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 rounded-xl transition-all"

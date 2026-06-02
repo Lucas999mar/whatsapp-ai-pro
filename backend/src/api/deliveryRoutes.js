@@ -327,7 +327,7 @@ router.get('/motoboy/my-deliveries', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
         const { data, error } = await supabase
             .from('os_tasks')
-            .select('id, title, status, pickup_address, delivery_address, estimated_km, estimated_price, tracking_code, customer_name, created_at, delivered_at, accepted_at')
+            .select('id, title, status, pickup_address, delivery_address, estimated_km, estimated_price, tracking_code, customer_name, customer_phone, created_at, delivered_at, accepted_at')
             .eq('technician_id', req.user.id)
             .in('delivery_type', ['entrega', 'coleta'])
             .order('created_at', { ascending: false })
@@ -506,7 +506,7 @@ router.get('/available', authMiddleware, async (req, res) => {
 
         const { data, error } = await supabase
             .from('os_tasks')
-            .select('id, title, pickup_address, delivery_address, estimated_km, estimated_price, customer_name, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
+            .select('id, title, pickup_address, delivery_address, estimated_km, estimated_price, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
             .eq('tenant_id', tenantId)
             .eq('status', 'aguardando_motoboy')
             .order('created_at', { ascending: false });
