@@ -47,7 +47,7 @@ export default function DeliveryDashboard() {
     const [deliveries, setDeliveries] = useState([]);
     const [motoboys, setMotoboys] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'fleet', 'config', 'reports'
+    const [activeTab, setActiveTab] = useState('monitor'); // 'monitor', 'fleet', 'reports'
     const [deliveryTab, setDeliveryTab] = useState('active'); // 'active', 'completed'
     const [showModal, setShowModal] = useState(false);
 
@@ -593,8 +593,8 @@ export default function DeliveryDashboard() {
                             <div className="col-span-2 bg-[#25D366]/10 p-8 rounded-[40px] border border-[#25D366]/20 flex items-center gap-6">
                                 <div className="p-4 bg-[#25D366] text-black rounded-3xl"><UserPlus size={28} /></div>
                                 <div className="flex-1">
-                                    <p className="text-xs font-black text-white uppercase tracking-widest mb-1 italic">Dica de Gestão</p>
-                                    <p className="text-[11px] text-[#25D366] font-medium leading-relaxed">Envie o Link de Cadastro + Sua Chave para os entregadores que você deseja recrutar. Eles farão o cadastro sozinhos e aparecerão aqui instantaneamente.</p>
+                                    <p className="text-xs font-black text-white uppercase tracking-widest mb-1 italic">Gestão da Unidade</p>
+                                    <p className="text-[11px] text-[#25D366] font-medium leading-relaxed">Você pode ver e gerenciar os motoboys vinculados ao seu código de recrutamento abaixo.</p>
                                 </div>
                             </div>
                         </div>
@@ -602,13 +602,13 @@ export default function DeliveryDashboard() {
 
                     <div className="bg-[#1E293B] rounded-[60px] p-10 border border-white/5">
                         <div className="flex items-center justify-between mb-12 px-4">
-                            <h3 className="text-3xl font-black tracking-tighter flex items-center gap-4"><Users className="text-[#25D366]" size={32} /> Squad de Atendimento</h3>
+                            <h3 className="text-3xl font-black tracking-tighter flex items-center gap-4"><Users className="text-[#25D366]" size={32} /> Squad de Motoboys</h3>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
                             {motoboys.map(m => (
                                 <div key={m.id} className="bg-black/30 p-8 rounded-[50px] border border-white/5 flex flex-col items-center group relative hover:border-[#25D366]/30 transition-all duration-500">
-                                    <div className="absolute top-6 right-6">
+                                    <div className="absolute top-6 right-6 flex gap-2">
                                         <div className={`w-3 h-3 rounded-full ${m.is_available ? 'bg-[#25D366]' : 'bg-slate-600'}`}></div>
                                     </div>
                                     <div className="w-24 h-24 rounded-[35px] bg-slate-800 mb-6 overflow-hidden relative border-[6px] border-white/5 group-hover:border-[#25D366]/20 transition-all shadow-2xl flex items-center justify-center">
@@ -619,11 +619,11 @@ export default function DeliveryDashboard() {
 
                                     <div className="grid grid-cols-2 gap-3 w-full">
                                         <div className="bg-white/5 p-4 rounded-3xl text-center border border-white/5">
-                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Carga</p>
+                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Veículo</p>
                                             <p className="text-xs font-black uppercase text-[#25D366]">{m.vehicle_type || 'Moto'}</p>
                                         </div>
                                         <div className="bg-white/5 p-4 rounded-3xl text-center border border-white/5">
-                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Viagens</p>
+                                            <p className="text-[8px] text-slate-500 font-black uppercase mb-1">Geral</p>
                                             <p className="text-xs font-black text-blue-500">{m.total_deliveries || 0}</p>
                                         </div>
                                     </div>
@@ -714,40 +714,39 @@ export default function DeliveryDashboard() {
                                     <h4 className="text-4xl font-black">{reports.total_count}</h4>
                                 </div>
                                 <div className="bg-[#25D366]/10 p-8 rounded-[40px] border border-[#25D366]/20 text-center">
-                                    <p className="text-[10px] text-[#25D366] font-black uppercase tracking-widest mb-2">Ganhos Período</p>
-                                    <h4 className="text-4xl font-black text-[#25D366]">R$ {reports.total_revenue}</h4>
+                                    <p className="text-[10px] text-[#25D366] font-black uppercase tracking-widest mb-2">Concluídos</p>
+                                    <h4 className="text-4xl font-black text-[#25D366]">{reports.completed_count}</h4>
                                 </div>
                                 <div className="bg-orange-500/10 p-8 rounded-[40px] border border-orange-500/20 text-center">
-                                    <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest mb-2">Concluídos</p>
-                                    <h4 className="text-4xl font-black">{reports.completed_count}</h4>
+                                    <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest mb-2">Em Rota</p>
+                                    <h4 className="text-4xl font-black">{deliveries.filter(d => ['aceita', 'coletando', 'em_rota'].includes(d.status)).length}</h4>
                                 </div>
                                 <div className="bg-red-500/10 p-8 rounded-[40px] border border-red-500/20 text-center">
                                     <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mb-2">Cancelados</p>
                                     <h4 className="text-4xl font-black">{reports.canceled_count}</h4>
                                 </div>
 
-                                <div className="md:col-span-2 bg-black/20 p-8 rounded-[40px] border border-white/5">
-                                    <h5 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2"><PieChart size={18} className="text-[#25D366]" /> Top Motoboys (Ganhos)</h5>
-                                    <div className="space-y-4">
-                                        {Object.entries(reports.by_motoboy).sort(([, a], [, b]) => b - a).map(([name, val]) => (
-                                            <div key={name} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
-                                                <p className="font-bold text-sm uppercase tracking-tight">{name}</p>
-                                                <p className="font-black text-[#25D366]">R$ {val.toFixed(2)}</p>
-                                            </div>
-                                        ))}
-                                        {Object.keys(reports.by_motoboy).length === 0 && <p className="text-center text-slate-600 text-xs py-4">Nenhuma entrega no período.</p>}
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2 bg-black/20 p-8 rounded-[40px] border border-white/5">
-                                    <h5 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500" /> Histórico Diário (Ganhos)</h5>
-                                    <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                                        {Object.entries(reports.daily).sort((a, b) => b[0].localeCompare(a[0])).map(([date, val]) => (
-                                            <div key={date} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
-                                                <p className="font-mono text-xs">{new Date(date).toLocaleDateString()}</p>
-                                                <p className="font-black text-blue-500">R$ {val.toFixed(2)}</p>
-                                            </div>
-                                        ))}
+                                <div className="md:col-span-4 bg-black/20 p-8 rounded-[40px] border border-white/5">
+                                    <h5 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center justify-between">
+                                        <div className="flex items-center gap-2"><Users size={18} className="text-[#25D366]" /> Top Motoboys do Período</div>
+                                        <span className="text-[9px] text-slate-400 italic">Ranking por volume de entregas</span>
+                                    </h5>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {Object.entries(reports.by_motoboy || {}).sort(([, a], [, b]) => b - a).map(([name, val]) => {
+                                            const mb = motoboys.find(m => m.name === name);
+                                            return (
+                                                <div key={name} className="flex items-center gap-4 p-4 bg-white/5 rounded-[25px] border border-white/5 hover:border-[#25D366]/30 transition-all">
+                                                    <div className="w-12 h-12 rounded-2xl bg-slate-800 overflow-hidden border-2 border-white/10 shrink-0">
+                                                        {mb?.photo_url ? <img src={mb.photo_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-600" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-black text-xs uppercase truncate text-white">{name}</p>
+                                                        <p className="text-[10px] font-bold text-[#25D366] uppercase">{val} Entregas</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {Object.keys(reports.by_motoboy || {}).length === 0 && <p className="text-center text-slate-600 text-xs py-10 col-span-full">Nenhuma entrega no período.</p>}
                                     </div>
                                 </div>
                             </div>
@@ -756,30 +755,7 @@ export default function DeliveryDashboard() {
                 </div>
             )}
 
-            {activeTab === 'config' && (
-                <div className="max-w-4xl mx-auto animate-in fade-in zoom-in duration-500">
-                    <div className="bg-[#1E293B] rounded-[60px] p-12 border border-white/5 shadow-2xl relative overflow-hidden">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div className="space-y-4">
-                                <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Taxa Base (Bandeirada)</label>
-                                <input type="number" step="0.01" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-3xl font-black text-[#25D366] outline-none" value={pricing.delivery_base_price} onChange={e => setPricing({ ...pricing, delivery_base_price: e.target.value })} />
-                            </div>
-                            <div className="space-y-4">
-                                <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Valor por KM Rodado</label>
-                                <input type="number" step="0.01" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-3xl font-black text-blue-500 outline-none" value={pricing.delivery_km_price} onChange={e => setPricing({ ...pricing, delivery_km_price: e.target.value })} />
-                            </div>
-                            <div className="md:col-span-2 space-y-4">
-                                <label className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Endereço de Coleta Padrão (Empresa)</label>
-                                <textarea rows="2" className="w-full bg-black/20 border border-white/5 rounded-[30px] p-6 text-xl font-bold text-white outline-none" value={pricing.default_pickup_address} onChange={e => setPricing({ ...pricing, default_pickup_address: e.target.value })} placeholder="Ex: Rua das Flores, 123, Centro..." />
-                                <p className="text-[9px] text-slate-500 font-bold uppercase ml-4 italic">* Use o endereço completo para que o GPS encontre a localização correta.</p>
-                            </div>
-                        </div>
-                        <button onClick={handleSavePricing} disabled={savingConfig} className="w-full mt-10 py-6 bg-gradient-to-r from-[#25D366] to-green-600 text-black font-black rounded-[30px] flex items-center justify-center gap-4 uppercase tracking-[0.2em] transition-all">
-                            {savingConfig ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Salvar Configurações</>}
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* ABA DE CONFIGURAÇÕES FOI REMOVIDA PARA EMPRESAS (SÓ SUPER ADMIN ACESSA) */}
 
             {showModal && (
                 <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 animate-in fade-in duration-300">

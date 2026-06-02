@@ -10,8 +10,65 @@ const { emitDeliveryEvent } = require('./socketManager');
 const router = express.Router();
 
 // Helper: Gerar tracking code único (6 chars)
-function generateTrackingCode() {
-    return crypto.randomBytes(3).toString('hex').toUpperCase();
+// Obter configurações do Super Admin (Preços Globais e Taxa)
+// Nota: Em um sistema multi-tenant real, isso estaria em uma tabela 'system_config' ou no perfil do root tenant
+router.get('/super-settings', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        // Buscamos as configurações do usuário logado (assumindo que o Super Admin as salva em seu perfil ou tenant)
+        const { data } = await supabase.from('delivery_settings').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
+
+        if (!data) {
+            return res.json({
+                base_price: 7.00,
+                km_price: 1.50,
+                system_tax: 0.20 // 20% default
+            });
+        }
+        res.json(data);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/super-settings', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const { base_price, km_price, system_tax } = req.body;
+
+        const { data, error } = await supabase
+            .from('delivery_settings')
+            .upsert({
+                tenant_id: 'SYSTEM_GLOBAL',
+                base_price: parseFloat(base_price),
+                km_price: parseFloat(km_price),
+                system_tax: parseFloat(system_tax),
+                updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Helper: Calcular Preços Globais com Divisão
+async function calculateGlobalPrice(km) {
+    const supabase = getSupabase();
+    const { data: config } = await supabase.from('delivery_settings').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
+
+    const base = config?.base_price || 7.00;
+    const kmRate = config?.km_price || 1.50;
+    const tax = config?.system_tax || 0.20;
+
+    const totalPrice = parseFloat(base) + (km * parseFloat(kmRate));
+    const systemFee = totalPrice * tax;
+    const motoboyAmount = totalPrice - systemFee;
+
+    return {
+        total_price: +totalPrice.toFixed(2),
+        system_fee: +systemFee.toFixed(2),
+        motoboy_amount: +motoboyAmount.toFixed(2)
+    };
 }
 
 // Helper: Calcular distância entre dois pontos em km (Haversine)
@@ -357,7 +414,7 @@ router.get('/motoboy/stats', authMiddleware, async (req, res) => {
             total: all.length,
             completed: completed.length,
             total_km: +(completed.reduce((s, d) => s + (d.actual_km || d.estimated_km || 0), 0)).toFixed(1),
-            total_earnings: +(completed.reduce((s, d) => s + (parseFloat(d.estimated_price) || 0), 0)).toFixed(2),
+            total_earnings: +(completed.reduce((s, d) => s + (parseFloat(d.motoboy_amount || d.estimated_price) || 0), 0)).toFixed(2),
             balance: tech?.balance || 0,
             active: all.filter(d => ['aceita', 'coletando', 'em_rota', 'em_deslocamento', 'em_execucao'].includes(d.status)).length
         });
@@ -394,7 +451,7 @@ router.get('/motoboy/earnings', authMiddleware, async (req, res) => {
 
         let query = supabase
             .from('os_tasks')
-            .select('id, title, status, estimated_price, created_at, delivered_at, customer_name')
+            .select('id, title, status, estimated_price, motoboy_amount, created_at, delivered_at, customer_name')
             .eq('technician_id', req.user.id)
             .in('status', ['entregue', 'concluida']);
 
@@ -404,12 +461,12 @@ router.get('/motoboy/earnings', authMiddleware, async (req, res) => {
         const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
 
-        // Agrupamento para DRE
-        const total = data.reduce((sum, item) => sum + (parseFloat(item.estimated_price) || 0), 0);
+        // Agrupamento para DRE (Usa motoboy_amount se existir, senão estimated_price para legado)
+        const total = data.reduce((sum, item) => sum + (parseFloat(item.motoboy_amount || item.estimated_price) || 0), 0);
         const count = data.length;
 
         res.json({
-            items: data,
+            items: data.map(i => ({ ...i, display_price: i.motoboy_amount || i.estimated_price })),
             summary: {
                 total: +total.toFixed(2),
                 count: count,
@@ -528,10 +585,15 @@ router.post('/create', authMiddleware, async (req, res) => {
         }
 
         // Se não informar preço, calcula com base nas regras do tenant
-        if (!estimated_price && estimated_km) {
-            estimated_price = (parseFloat(basePrice) + (estimated_km * parseFloat(kmPrice))).toFixed(2);
-        } else if (!estimated_price) {
-            estimated_price = parseFloat(basePrice).toFixed(2);
+        let split = { total_price: estimated_price || 0, motoboy_amount: 0, system_fee: 0 };
+
+        if (estimated_km) {
+            split = await calculateGlobalPrice(estimated_km);
+            estimated_price = split.total_price;
+        } else {
+            // Se sem KM, usa preço base
+            split = await calculateGlobalPrice(0);
+            estimated_price = split.total_price;
         }
 
         const taskData = {
@@ -547,7 +609,9 @@ router.post('/create', authMiddleware, async (req, res) => {
             delivery_lat,
             delivery_lng,
             estimated_km,
-            estimated_price,
+            estimated_price: split.total_price,
+            motoboy_amount: split.motoboy_amount,
+            system_fee: split.system_fee,
             tracking_code: trackingCode,
             delivery_type: delivery_type || 'entrega',
             status: 'aguardando_motoboy',
@@ -596,8 +660,9 @@ router.get('/available', authMiddleware, async (req, res) => {
 
         const { data, error } = await supabase
             .from('os_tasks')
-            .select('id, title, pickup_address, delivery_address, estimated_km, estimated_price, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
-            .eq('tenant_id', tenantId)
+            // Mostramos o 'motoboy_amount' como o 'estimated_price' para o app do motoboy
+            .select('id, title, pickup_address, delivery_address, estimated_km, estimated_price:motoboy_amount, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
+            .is('technician_id', null)
             .eq('status', 'aguardando_motoboy')
             .order('created_at', { ascending: false });
 
@@ -783,12 +848,14 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
             lat, lng
         });
 
-        // Credit logic: Adiciona o valor à carteira do motoboy e atualiza saldo
-        if (delivery.estimated_price > 0) {
+        // Credit logic: Adiciona o valor LÍQUIDO à carteira do motoboy
+        const creditAmount = parseFloat(delivery.motoboy_amount || delivery.estimated_price || 0);
+
+        if (creditAmount > 0) {
             await supabase.from('os_transactions').insert({
                 tenant_id: delivery.tenant_id,
                 technician_id: req.user.id,
-                amount: delivery.estimated_price,
+                amount: creditAmount,
                 type: 'credit',
                 description: `Entrega concluída: #${delivery.tracking_code}`,
                 task_id: delivery.id
@@ -797,7 +864,7 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
             // Atualiza saldo real na tabela do motoboy
             const { data: tech } = await supabase.from('os_technicians').select('balance').eq('id', req.user.id).single();
             await supabase.from('os_technicians')
-                .update({ balance: (parseFloat(tech?.balance || 0) + parseFloat(delivery.estimated_price)).toFixed(2) })
+                .update({ balance: (parseFloat(tech?.balance || 0) + creditAmount).toFixed(2) })
                 .eq('id', req.user.id);
         }
 
@@ -1036,7 +1103,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
             today_total: todayD.length,
             today_completed: todayD.filter(d => d.status === 'entregue' || d.status === 'concluida').length,
             total_km: +(completed.reduce((s, d) => s + (d.actual_km || d.estimated_km || 0), 0)).toFixed(1),
-            total_revenue: +(completed.reduce((s, d) => s + (parseFloat(d.estimated_price) || 0), 0)).toFixed(2),
+            // total_revenue removido por segurança do proprietário do sistema
             motoboys_online: motoboys.filter(m => m.is_available).length,
             motoboys_total: motoboys.length
         });
@@ -1073,18 +1140,17 @@ router.get('/reports', authMiddleware, async (req, res) => {
             total_count: deliveries.length,
             completed_count: deliveries.filter(d => d.status === 'entregue').length,
             canceled_count: deliveries.filter(d => d.status === 'cancelada').length,
-            total_revenue: deliveries.filter(d => d.status === 'entregue').reduce((acc, d) => acc + (parseFloat(d.estimated_price) || 0), 0).toFixed(2),
             by_motoboy: {},
-            daily: {}
+            daily_count: {}
         };
 
         deliveries.forEach(d => {
             if (d.status === 'entregue' && d.technician) {
                 const name = d.technician.name;
-                stats.by_motoboy[name] = (stats.by_motoboy[name] || 0) + (parseFloat(d.estimated_price) || 0);
+                stats.by_motoboy[name] = (stats.by_motoboy[name] || 0) + 1; // Unidades de entrega, não R$
             }
             const date = d.created_at.split('T')[0];
-            stats.daily[date] = (stats.daily[date] || 0) + (parseFloat(d.estimated_price) || 0);
+            stats.daily_count[date] = (stats.daily_count[date] || 0) + 1;
         });
 
         res.json(stats);
