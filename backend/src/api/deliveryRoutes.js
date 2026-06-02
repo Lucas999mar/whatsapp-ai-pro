@@ -10,13 +10,15 @@ const { emitDeliveryEvent } = require('./socketManager');
 const router = express.Router();
 
 // Helper: Gerar tracking code único (6 chars)
+function generateTrackingCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
 // Obter configurações do Super Admin (Preços Globais e Taxa)
-// Nota: Em um sistema multi-tenant real, isso estaria em uma tabela 'system_config' ou no perfil do root tenant
 router.get('/super-settings', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
-        // Buscamos as configurações do usuário logado (assumindo que o Super Admin as salva em seu perfil ou tenant)
-        const { data } = await supabase.from('delivery_settings').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
+        const { data } = await supabase.from('os_config').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
 
         if (!data) {
             return res.json({
@@ -25,7 +27,11 @@ router.get('/super-settings', authMiddleware, async (req, res) => {
                 system_tax: 0.20 // 20% default
             });
         }
-        res.json(data);
+        res.json({
+            base_price: data.base_price,
+            km_price: data.km_price,
+            system_tax: data.system_tax
+        });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -54,7 +60,7 @@ router.put('/super-settings', authMiddleware, async (req, res) => {
 // Helper: Calcular Preços Globais com Divisão
 async function calculateGlobalPrice(km) {
     const supabase = getSupabase();
-    const { data: config } = await supabase.from('delivery_settings').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
+    const { data: config } = await supabase.from('os_config').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
 
     const base = config?.base_price || 7.00;
     const kmRate = config?.km_price || 1.50;
