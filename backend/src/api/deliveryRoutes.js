@@ -183,13 +183,16 @@ async function geocodeAddress(address) {
 router.get('/motoboys', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin';
         const tenantId = req.user.tenant_id || req.user.id;
-        const { data, error } = await supabase
-            .from('os_technicians')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .eq('role', 'motoboy')
-            .order('name');
+
+        let query = supabase.from('os_technicians').select('*').eq('role', 'motoboy');
+
+        if (!isAdmin) {
+            query = query.eq('tenant_id', tenantId);
+        }
+
+        const { data, error } = await query.order('name');
         if (error) throw error;
         res.json(data || []);
     } catch (err) {
@@ -1080,15 +1083,21 @@ router.post('/calculate-route', authMiddleware, async (req, res) => {
 // Dashboard stats de delivery (admin)
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
-        const supabase = getSupabase();
+        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin';
         const tenantId = req.user.tenant_id || req.user.id;
         const today = new Date().toISOString().split('T')[0];
 
-        const [allRes, todayRes, motoboyRes] = await Promise.all([
-            supabase.from('os_tasks').select('id, status, estimated_km, actual_km, estimated_price, delivery_type').eq('tenant_id', tenantId).not('delivery_type', 'is', null),
-            supabase.from('os_tasks').select('id, status').eq('tenant_id', tenantId).eq('scheduled_date', today).not('delivery_type', 'is', null),
-            supabase.from('os_technicians').select('id, status, is_available').eq('tenant_id', tenantId).eq('role', 'motoboy')
-        ]);
+        let qAll = supabase.from('os_tasks').select('id, status, estimated_km, actual_km, estimated_price, motoboy_amount, system_fee, delivery_type').not('delivery_type', 'is', null);
+        let qToday = supabase.from('os_tasks').select('id, status').eq('scheduled_date', today).not('delivery_type', 'is', null);
+        let qMoto = supabase.from('os_technicians').select('id, status, is_available').eq('role', 'motoboy');
+
+        if (!isAdmin) {
+            qAll = qAll.eq('tenant_id', tenantId);
+            qToday = qToday.eq('tenant_id', tenantId);
+            qMoto = qMoto.eq('tenant_id', tenantId);
+        }
+
+        const [allRes, todayRes, motoboyRes] = await Promise.all([qAll, qToday, qMoto]);
 
         const all = allRes.data || [];
         const todayD = todayRes.data || [];
@@ -1102,8 +1111,8 @@ router.get('/stats', authMiddleware, async (req, res) => {
             completed: completed.length,
             today_total: todayD.length,
             today_completed: todayD.filter(d => d.status === 'entregue' || d.status === 'concluida').length,
-            total_km: +(completed.reduce((s, d) => s + (d.actual_km || d.estimated_km || 0), 0)).toFixed(1),
-            // total_revenue removido por segurança do proprietário do sistema
+            total_revenue: isAdmin ? +(completed.reduce((s, d) => s + (parseFloat(d.estimated_price) || 0), 0)).toFixed(2) : undefined,
+            system_profit: isAdmin ? +(completed.reduce((s, d) => s + (parseFloat(d.system_fee) || 0), 0)).toFixed(2) : 0,
             motoboys_online: motoboys.filter(m => m.is_available).length,
             motoboys_total: motoboys.length
         });
@@ -1116,6 +1125,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 router.get('/reports', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
+        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin';
         const tenantId = req.user.tenant_id || req.user.id;
         const { period } = req.query; // 'day', 'week', 'month'
 
@@ -1124,15 +1134,20 @@ router.get('/reports', authMiddleware, async (req, res) => {
         else if (period === 'month') gteDate.setMonth(gteDate.getMonth() - 1);
         else gteDate.setHours(0, 0, 0, 0); // hoje
 
-        const { data: deliveries, error } = await supabase
+        let query = supabase
             .from('os_tasks')
             .select(`
                 *,
                 technician:os_technicians(id, name)
             `)
-            .eq('tenant_id', tenantId)
             .eq('delivery_type', 'entrega')
             .gte('created_at', gteDate.toISOString());
+
+        if (!isAdmin) {
+            query = query.eq('tenant_id', tenantId);
+        }
+
+        const { data: deliveries, error } = await query;
 
         if (error) throw error;
 

@@ -391,7 +391,12 @@ export default function DeliveryDashboard() {
                             { label: 'Entregas Hoje', val: stats?.today_total || 0, icon: <Package />, color: 'from-blue-500 to-blue-700' },
                             { label: 'Em Andamento', val: stats?.in_progress || 0, icon: <Navigation />, color: 'from-orange-500 to-yellow-600' },
                             { label: 'Recursos Online', val: stats?.motoboys_online || 0, icon: <Users />, color: 'from-[#25D366] to-green-700' },
-                            { label: 'Faturamento', val: `R$ ${stats?.total_revenue || 0}`, icon: <DollarSign />, color: 'from-purple-500 to-pink-700' }
+                            {
+                                label: user?.role === 'admin' ? 'Lucro Sistema' : 'Faturamento',
+                                val: user?.role === 'admin' ? `R$ ${stats?.system_profit || 0}` : `R$ ${stats?.total_revenue || 0}`,
+                                icon: <DollarSign />,
+                                color: 'from-purple-500 to-pink-700'
+                            }
                         ].map((s, i) => (
                             <div key={i} className="bg-[#1E293B] p-8 rounded-[40px] border border-white/5 shadow-2xl relative overflow-hidden group">
                                 <div className={`absolute -top-4 -right-4 p-8 opacity-10 group-hover:scale-150 transition-all duration-700 bg-gradient-to-br ${s.color} rounded-full`}>
