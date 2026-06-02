@@ -387,7 +387,7 @@ router.get('/motoboy/my-deliveries', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
         const { data, error } = await supabase
             .from('os_tasks')
-            .select('id, title, status, pickup_address, delivery_address, estimated_km, estimated_price, tracking_code, customer_name, customer_phone, created_at, delivered_at, accepted_at')
+            .select('id, title, status, pickup_address, delivery_address, estimated_km, estimated_price, motoboy_amount, tracking_code, customer_name, customer_phone, created_at, delivered_at, accepted_at')
             .eq('technician_id', req.user.id)
             .in('delivery_type', ['entrega', 'coleta'])
             .order('created_at', { ascending: false })
@@ -405,7 +405,7 @@ router.get('/motoboy/stats', authMiddleware, async (req, res) => {
         const supabase = getSupabase();
         const { data: deliveries } = await supabase
             .from('os_tasks')
-            .select('status, estimated_km, estimated_price, actual_km')
+            .select('status, estimated_km, estimated_price, motoboy_amount, actual_km')
             .eq('technician_id', req.user.id);
 
         const all = deliveries || [];
@@ -663,14 +663,21 @@ router.get('/available', authMiddleware, async (req, res) => {
 
         const { data, error } = await supabase
             .from('os_tasks')
-            // Mostramos o 'motoboy_amount' como o 'estimated_price' para o app do motoboy
-            .select('id, title, pickup_address, delivery_address, estimated_km, estimated_price:motoboy_amount, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
+            // Fallback: Se motoboy_amount for null, tenta usar estimated_price (legado)
+            .select('id, title, pickup_address, delivery_address, estimated_km, motoboy_amount, estimated_price, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
             .is('technician_id', null)
             .eq('status', 'aguardando_motoboy')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        res.json(data || []);
+
+        // Mapeia para garantir que 'estimated_price' para o app seja o valor líquido
+        const formatted = (data || []).map(d => ({
+            ...d,
+            estimated_price: d.motoboy_amount || d.estimated_price
+        }));
+
+        res.json(formatted);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1083,7 +1090,9 @@ router.post('/calculate-route', authMiddleware, async (req, res) => {
 // Dashboard stats de delivery (admin)
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
-        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin';
+        const supabase = getSupabase();
+        // Check Admin: Pode ser pelo ID ou Role
+        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin' || req.user.tenant_id === 'admin';
         const tenantId = req.user.tenant_id || req.user.id;
         const today = new Date().toISOString().split('T')[0];
 
@@ -1125,7 +1134,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 router.get('/reports', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
-        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin';
+        const isAdmin = req.user.role === 'admin' || req.user.id === 'admin' || req.user.tenant_id === 'admin';
         const tenantId = req.user.tenant_id || req.user.id;
         const { period } = req.query; // 'day', 'week', 'month'
 
