@@ -88,6 +88,27 @@ export default function DeliveryDashboard() {
         estimated_price: 0
     });
     const [calculating, setCalculating] = useState(false);
+    const [showNavModal, setShowNavModal] = useState(false);
+    const [navTarget, setNavTarget] = useState(null);
+
+    const openNavigation = (lat, lng, address, carrier = 'google') => {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+        const target = lat && lng ? `${lat},${lng}` : encodeURIComponent(address);
+        let url;
+
+        if (carrier === 'waze') {
+            url = `https://waze.com/ul?ll=${target}&navigate=yes`;
+        } else {
+            if (isiOS) url = `maps://?q=${target}`;
+            else if (isMobile) url = `google.navigation:q=${target}`;
+            else url = `https://www.google.com/maps/dir/?api=1&destination=${target}`;
+        }
+
+        window.open(url, '_blank');
+        setShowNavModal(false);
+    };
 
     const fetchReports = useCallback(async (period) => {
         setLoadingReports(true);
@@ -536,7 +557,18 @@ export default function DeliveryDashboard() {
                                                     title="Copiar Link de Rastreio"
                                                 >
                                                     <ExternalLink size={16} strokeWidth={3} />
-                                                    <span className="text-[10px] font-black uppercase tracking-tight">Rastrear</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-tight">Convite</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setNavTarget({ lat: d.delivery_lat, lng: d.delivery_lng, address: d.delivery_address });
+                                                        setShowNavModal(true);
+                                                    }}
+                                                    className="p-3 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-all border border-blue-500/10 flex items-center gap-2"
+                                                    title="Navegar para Destino"
+                                                >
+                                                    <Navigation size={16} strokeWidth={3} />
                                                 </button>
                                                 <a
                                                     href={`/track/${d.tracking_code}`}
@@ -873,6 +905,49 @@ export default function DeliveryDashboard() {
                 .scroll-hide::-webkit-scrollbar { display: none; }
                 .leaflet-container { width: 100%; height: 100%; z-index: 1; filter: grayscale(1) invert(1) brightness(0.7) contrast(1.2); }
             `}</style>
+
+            {/* Modal de Seleção de Navegador */}
+            {showNavModal && (
+                <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-md flex items-end justify-center p-4" onClick={() => setShowNavModal(false)}>
+                    <div
+                        className="bg-[#1E293B] w-full max-w-md rounded-t-[40px] rounded-b-[20px] p-8 shadow-2xl border border-white/10"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6"></div>
+                        <h3 className="text-xl font-black text-white text-center mb-2 uppercase tracking-tighter italic">Ver no Mapa</h3>
+                        <p className="text-center text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">Escolha seu aplicativo preferido</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.address, 'google')}
+                                className="flex flex-col items-center gap-4 bg-white/5 border border-white/5 p-6 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 group"
+                            >
+                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center p-3 shadow-xl group-hover:rotate-6 transition-transform">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/39/Google_Maps_icon_%282020%29.svg" alt="Google Maps" className="w-full h-full" />
+                                </div>
+                                <span className="text-xs font-black text-white uppercase tracking-widest">Google Maps</span>
+                            </button>
+
+                            <button
+                                onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.address, 'waze')}
+                                className="flex flex-col items-center gap-4 bg-white/5 border border-white/5 p-6 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 group"
+                            >
+                                <div className="w-16 h-16 bg-[#33CCFF] rounded-2xl flex items-center justify-center p-3 shadow-xl group-hover:-rotate-6 transition-transform">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" alt="Waze" className="w-full h-full" />
+                                </div>
+                                <span className="text-xs font-black text-white uppercase tracking-widest">Waze</span>
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setShowNavModal(false)}
+                            className="w-full mt-6 py-4 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

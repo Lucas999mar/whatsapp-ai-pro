@@ -413,6 +413,27 @@ export default function OSPage() {
     const [loading, setLoading] = useState(true);
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [detailTask, setDetailTask] = useState(null);
+    const [showNavModal, setShowNavModal] = useState(false);
+    const [navTarget, setNavTarget] = useState(null);
+
+    const openNavigation = (lat, lng, address, carrier = 'google') => {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+        const target = lat && lng ? `${lat},${lng}` : encodeURIComponent(address);
+        let url;
+
+        if (carrier === 'waze') {
+            url = `https://waze.com/ul?ll=${target}&navigate=yes`;
+        } else {
+            if (isiOS) url = `maps://?q=${target}`;
+            else if (isMobile) url = `google.navigation:q=${target}`;
+            else url = `https://www.google.com/maps/dir/?api=1&destination=${target}`;
+        }
+
+        window.open(url, isMobile ? '_self' : '_blank');
+        setShowNavModal(false);
+    };
 
     const fetchAll = useCallback(async () => {
         try {
@@ -573,37 +594,23 @@ export default function OSPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     {detailTask.status === 'pendente' || detailTask.status === 'agendada' ? (
                                         <button onClick={() => {
-                                            // 1. Identificar Destino e abrir rota imediatamente (Bypass de Pop-up blocker)
                                             const lat = detailTask.lat || detailTask.client?.lat;
                                             const lng = detailTask.lng || detailTask.client?.lng;
                                             const addr = detailTask.address || detailTask.client?.address;
-                                            let url = null;
-                                            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-                                            if (lat && lng) {
-                                                url = isMobile ? `google.navigation:q=${lat},${lng}` : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                                            } else if (addr) {
-                                                url = isMobile ? `google.navigation:q=${encodeURIComponent(addr)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
-                                            }
+                                            setNavTarget({ lat, lng, address: addr });
+                                            setShowNavModal(true);
 
-                                            if (url) {
-                                                if (isMobile) window.location.href = url;
-                                                else window.open(url, '_blank');
-                                            } else {
-                                                alert('Endereço ou localização do cliente não encontrados!');
-                                            }
-
-                                            // 2. Atualizar Status para "em_deslocamento" usando endpoint especializado para gravar log
+                                            // Atualizar Status para "em_deslocamento"
                                             api.post(`/os/tasks/${detailTask.id}/status`, { status: 'em_deslocamento' }).then(() => {
                                                 setDetailTask(null);
                                                 fetchAll();
                                             }).catch(console.error);
 
-                                            // 3. Capturar rastreio do técnico em Background (Não trava a tela)
                                             if (navigator.geolocation && user?.role === 'technician') {
                                                 navigator.geolocation.getCurrentPosition((pos) => {
                                                     api.put(`/os/technicians/${user.id}`, { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(console.error);
-                                                }, (err) => console.log('GPS tracking denied or failed', err), { timeout: 10000 });
+                                                }, null, { timeout: 10000 });
                                             }
                                         }} className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 flex justify-center gap-2 items-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
                                             <MapIcon size={18} /> Iniciar Deslocamento (A Caminho)
@@ -673,6 +680,49 @@ export default function OSPage() {
             )}
 
             <TaskModal isOpen={!!showTaskModal} task={typeof showTaskModal === 'object' ? showTaskModal : null} onClose={() => setShowTaskModal(false)} onSave={handleSaveTask} clients={clients} technicians={technicians} />
+
+            {/* Modal de Seleção de Navegador */}
+            {showNavModal && (
+                <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end justify-center p-4" onClick={() => setShowNavModal(false)}>
+                    <div
+                        className="bg-[#1E293B] w-full max-w-md rounded-t-[40px] rounded-b-[20px] p-8 shadow-2xl border border-white/10"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6"></div>
+                        <h3 className="text-xl font-black text-white text-center mb-2 uppercase tracking-tighter italic">Escolha o Navegador</h3>
+                        <p className="text-center text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">Qual mapa você prefere usar agora?</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.address, 'google')}
+                                className="flex flex-col items-center gap-4 bg-white/5 border border-white/5 p-6 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 group"
+                            >
+                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center p-3 shadow-xl group-hover:rotate-6 transition-transform">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/39/Google_Maps_icon_%282020%29.svg" alt="Google Maps" className="w-full h-full" />
+                                </div>
+                                <span className="text-xs font-black text-white uppercase tracking-widest">Google Maps</span>
+                            </button>
+
+                            <button
+                                onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.address, 'waze')}
+                                className="flex flex-col items-center gap-4 bg-white/5 border border-white/5 p-6 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 group"
+                            >
+                                <div className="w-16 h-16 bg-[#33CCFF] rounded-2xl flex items-center justify-center p-3 shadow-xl group-hover:-rotate-6 transition-transform">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" alt="Waze" className="w-full h-full" />
+                                </div>
+                                <span className="text-xs font-black text-white uppercase tracking-widest">Waze</span>
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setShowNavModal(false)}
+                            className="w-full mt-6 py-4 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

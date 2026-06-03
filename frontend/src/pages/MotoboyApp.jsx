@@ -98,6 +98,8 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const [uploading, setUploading] = useState(false);
     const [routeCoords, setRouteCoords] = useState([]);
     const [routeInfo, setRouteInfo] = useState({ distance: 0, duration: 0 });
+    const [showNavModal, setShowNavModal] = useState(false);
+    const [navTarget, setNavTarget] = useState(null);
 
     // DRE / Extrato
     const [earningsData, setEarningsData] = useState({ items: [], summary: { total: 0, count: 0, average: 0 } });
@@ -362,21 +364,28 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
         }
     };
 
-    const openNavigation = (lat, lng, address) => {
+    const openNavigation = (lat, lng, address, carrier = 'google') => {
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+        const target = lat && lng ? `${lat},${lng}` : encodeURIComponent(address);
         let url;
-        if (isiOS) {
-            url = lat && lng ? `maps://?q=${lat},${lng}` : `maps://?q=${encodeURIComponent(address)}`;
-        } else if (isMobile) {
-            url = lat && lng ? `google.navigation:q=${lat},${lng}` : `google.navigation:q=${encodeURIComponent(address)}`;
+
+        if (carrier === 'waze') {
+            url = `https://waze.com/ul?ll=${target}&navigate=yes`;
         } else {
-            url = `https://www.google.com/maps/dir/?api=1&destination=${lat && lng ? `${lat},${lng}` : encodeURIComponent(address)}`;
+            // Default Google Maps
+            if (isiOS) {
+                url = `maps://?q=${target}`;
+            } else if (isMobile) {
+                url = `google.navigation:q=${target}`;
+            } else {
+                url = `https://www.google.com/maps/dir/?api=1&destination=${target}`;
+            }
         }
 
-        // No mobile, usamos _self para disparar o Deep Link do App nativo sem abrir aba
         window.open(url, isMobile ? '_self' : '_blank');
+        setShowNavModal(false);
     };
 
     if (loading && !activeDelivery && availableDeliveries?.length === 0) {
@@ -515,12 +524,24 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
 
                                     {/* Google Maps Style: Top Instruction Banner */}
                                     <div className="absolute top-2 left-2 right-2 z-20 flex flex-col gap-1">
-                                        <div className="bg-[#004D40] rounded-[20px] shadow-2xl p-4 flex items-center gap-4 border border-white/5">
+                                        <div
+                                            onClick={() => {
+                                                const destLat = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lat : activeDelivery.delivery_lat;
+                                                const destLng = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lng : activeDelivery.delivery_lng;
+                                                const destAddr = activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address;
+                                                setNavTarget({ lat: destLat, lng: destLng, address: destAddr });
+                                                setShowNavModal(true);
+                                            }}
+                                            className="bg-[#004D40] rounded-[20px] shadow-2xl p-4 flex items-center gap-4 border border-white/5 cursor-pointer active:scale-95 transition-all"
+                                        >
                                             <div className="flex flex-col items-center justify-center p-1">
                                                 <Navigation className="text-white transform -rotate-45" size={40} strokeWidth={3} />
                                             </div>
                                             <div className="flex-1 overflow-hidden">
-                                                <p className="text-white/70 text-xs font-bold leading-none mb-1">em direção a</p>
+                                                <div className="flex justify-between items-center">
+                                                    <p className="text-white/70 text-xs font-bold leading-none mb-1">navegar para</p>
+                                                    <ExternalLink size={12} className="text-[#25D366] opacity-50" />
+                                                </div>
                                                 <h4 className="text-2xl font-black text-white leading-tight uppercase truncate">
                                                     {activeDelivery?.status === 'aceita' ? activeDelivery?.pickup_address?.split(',')[0] : activeDelivery?.delivery_address?.split(',')[0]}
                                                 </h4>
@@ -837,7 +858,52 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                 .leaflet-tile-pane { filter: grayscale(1) invert(0.9) brightness(0.4) contrast(1.2) sepia(0.2) hue-rotate(180deg); }
                 .leaflet-bar { display: none !important; }
                 .leaflet-control-attribution { display: none; }
+                @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                .animate-slide-up { animation: slideUp 0.3s ease-out; }
             `}</style>
+
+            {/* Modal de Seleção de Navegador */}
+            {showNavModal && (
+                <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end justify-center p-4" onClick={() => setShowNavModal(false)}>
+                    <div
+                        className="bg-[#1E293B] w-full max-w-md rounded-t-[40px] rounded-b-[20px] p-8 animate-slide-up shadow-2xl border border-white/10"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6"></div>
+                        <h3 className="text-xl font-black text-white text-center mb-2 uppercase tracking-tighter italic">Escolha o Navegador</h3>
+                        <p className="text-center text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">Qual mapa você prefere usar agora?</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.address, 'google')}
+                                className="flex flex-col items-center gap-4 bg-white/5 border border-white/5 p-6 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 group"
+                            >
+                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center p-3 shadow-xl group-hover:rotate-6 transition-transform">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/39/Google_Maps_icon_%282020%29.svg" alt="Google Maps" className="w-full h-full" />
+                                </div>
+                                <span className="text-xs font-black text-white uppercase tracking-widest">Google Maps</span>
+                            </button>
+
+                            <button
+                                onClick={() => openNavigation(navTarget.lat, navTarget.lng, navTarget.address, 'waze')}
+                                className="flex flex-col items-center gap-4 bg-white/5 border border-white/5 p-6 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 group"
+                            >
+                                <div className="w-16 h-16 bg-[#33CCFF] rounded-2xl flex items-center justify-center p-3 shadow-xl group-hover:-rotate-6 transition-transform">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" alt="Waze" className="w-full h-full" />
+                                </div>
+                                <span className="text-xs font-black text-white uppercase tracking-widest">Waze</span>
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setShowNavModal(false)}
+                            className="w-full mt-6 py-4 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
