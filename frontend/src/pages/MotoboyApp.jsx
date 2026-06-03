@@ -86,6 +86,11 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const [isOnline, setIsOnline] = useState(false);
     const [availableDeliveries, setAvailableDeliveries] = useState([]);
     const [showQuickDeliveries, setShowQuickDeliveries] = useState(false);
+
+    const NAV_ICONS = {
+        google: "https://www.gstatic.com/images/branding/product/2x/maps_96dp.png",
+        waze: "https://cdn.freebiesupply.com/logos/large/2x/waze-logo-png-transparent.png"
+    };
     const [activeDelivery, setActiveDelivery] = useState(null);
     const [stats, setStats] = useState({ total_km: 0, total_earnings: 0, completed: 0, balance: 0 });
     const [loading, setLoading] = useState(true);
@@ -567,10 +572,10 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                 const destAddr = activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address;
                                                 openNavigation(destLat, destLng, destAddr, 'google');
                                             }}
-                                            className="w-12 h-12 bg-white rounded-2xl shadow-2xl flex items-center justify-center p-2.5 transition-all hover:scale-110 active:scale-90 border border-black/5"
+                                            className="w-12 h-12 bg-white rounded-2xl shadow-2xl flex items-center justify-center p-2 transition-all hover:scale-110 active:scale-90 border border-black/5"
                                             title="Abrir no Google Maps"
                                         >
-                                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/39/Google_Maps_icon_%282020%29.svg" alt="G" className="w-full h-full" />
+                                            <img src={NAV_ICONS.google} alt="G" className="w-full h-full object-contain" />
                                         </button>
 
                                         <button
@@ -580,10 +585,10 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                                 const destAddr = activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address;
                                                 openNavigation(destLat, destLng, destAddr, 'waze');
                                             }}
-                                            className="w-12 h-12 bg-[#33CCFF] rounded-2xl shadow-2xl flex items-center justify-center p-2 transition-all hover:scale-110 active:scale-90 border border-white/20"
+                                            className="w-12 h-12 bg-white rounded-2xl shadow-2xl flex items-center justify-center p-2 transition-all hover:scale-110 active:scale-90 border border-black/5"
                                             title="Abrir no Waze"
                                         >
-                                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" alt="W" className="w-full h-full" />
+                                            <img src={NAV_ICONS.waze} alt="W" className="w-full h-full object-contain" />
                                         </button>
 
                                         <div className="h-0.5 bg-white/10 mx-2 my-1"></div>
