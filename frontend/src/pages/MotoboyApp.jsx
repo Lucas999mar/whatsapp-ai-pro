@@ -85,6 +85,7 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
     const navigate = useNavigate();
     const [isOnline, setIsOnline] = useState(false);
     const [availableDeliveries, setAvailableDeliveries] = useState([]);
+    const [showQuickDeliveries, setShowQuickDeliveries] = useState(false);
     const [activeDelivery, setActiveDelivery] = useState(null);
     const [stats, setStats] = useState({ total_km: 0, total_earnings: 0, completed: 0, balance: 0 });
     const [loading, setLoading] = useState(true);
@@ -556,18 +557,96 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                                         </div>
                                     </div>
 
-                                    {/* Floating Buttons Right (Compass, Search, Volume) */}
-                                    <div className="absolute right-3 top-[35%] z-20 flex flex-col gap-3">
-                                        <button onClick={() => setAutoFollow(true)} className={`w-12 h-12 rounded-full border border-white/10 flex items-center justify-center shadow-2xl transition-all ${autoFollow ? 'bg-[#1E1E1E] text-[#25D366]' : 'bg-white text-black'}`}>
-                                            <Compass size={24} />
+                                    {/* Botões de Controle do Mapa e Atalhos de Navegação */}
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3">
+                                        {/* Atalhos Rápidos de Navegação Estilo Mobile */}
+                                        <button
+                                            onClick={() => {
+                                                const destLat = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lat : activeDelivery.delivery_lat;
+                                                const destLng = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lng : activeDelivery.delivery_lng;
+                                                const destAddr = activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address;
+                                                openNavigation(destLat, destLng, destAddr, 'google');
+                                            }}
+                                            className="w-12 h-12 bg-white rounded-2xl shadow-2xl flex items-center justify-center p-2.5 transition-all hover:scale-110 active:scale-90 border border-black/5"
+                                            title="Abrir no Google Maps"
+                                        >
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/39/Google_Maps_icon_%282020%29.svg" alt="G" className="w-full h-full" />
                                         </button>
-                                        <button className="w-12 h-12 bg-[#1E1E1E] text-white rounded-full border border-white/10 flex items-center justify-center shadow-2xl">
+
+                                        <button
+                                            onClick={() => {
+                                                const destLat = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lat : activeDelivery.delivery_lat;
+                                                const destLng = activeDelivery.status === 'aceita' ? activeDelivery.pickup_lng : activeDelivery.delivery_lng;
+                                                const destAddr = activeDelivery.status === 'aceita' ? activeDelivery.pickup_address : activeDelivery.delivery_address;
+                                                openNavigation(destLat, destLng, destAddr, 'waze');
+                                            }}
+                                            className="w-12 h-12 bg-[#33CCFF] rounded-2xl shadow-2xl flex items-center justify-center p-2 transition-all hover:scale-110 active:scale-90 border border-white/20"
+                                            title="Abrir no Waze"
+                                        >
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" alt="W" className="w-full h-full" />
+                                        </button>
+
+                                        <div className="h-0.5 bg-white/10 mx-2 my-1"></div>
+
+                                        <button onClick={() => setAutoFollow(true)} className={`w-12 h-12 rounded-full flex items-center justify-center shadow-2xl transition-all ${autoFollow ? 'bg-[#25D366] text-black scale-110' : 'bg-black/60 text-white hover:bg-black/80'}`}>
+                                            <Compass size={24} className={autoFollow ? 'animate-spin-slow' : ''} />
+                                        </button>
+                                        <button onClick={() => fetchData()} className="w-12 h-12 bg-black/60 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-black/80 transition-all">
                                             <Search size={22} />
                                         </button>
-                                        <button className="w-12 h-12 bg-[#1E1E1E] text-white rounded-full border border-white/10 flex items-center justify-center shadow-2xl">
-                                            <Volume2 size={22} />
+                                        <button className="w-12 h-12 bg-black/60 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-black/80 transition-all">
+                                            <Volume2 size={24} />
                                         </button>
                                     </div>
+
+                                    {/* Notificação de Novas Corridas - Lateral Esquerda */}
+                                    {availableDeliveries.length > 0 && (
+                                        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-30 flex flex-col items-start gap-2">
+                                            {!showQuickDeliveries ? (
+                                                <button
+                                                    onClick={() => setShowQuickDeliveries(true)}
+                                                    className="bg-orange-500 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-pulse border border-white/20"
+                                                >
+                                                    <div className="relative">
+                                                        <Package size={24} />
+                                                        <span className="absolute -top-2 -right-2 bg-white text-orange-500 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-orange-500">
+                                                            {availableDeliveries.length}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-tighter pr-1">Novas Corridas</span>
+                                                </button>
+                                            ) : (
+                                                <div className="bg-[#1E293B]/95 backdrop-blur-xl border border-white/10 rounded-[30px] p-4 shadow-2xl w-64 animate-slide-in-left max-h-[400px] flex flex-col">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <h5 className="text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></div>
+                                                            Pedidos em Espera
+                                                        </h5>
+                                                        <button onClick={() => setShowQuickDeliveries(false)} className="p-1.5 bg-white/5 rounded-lg text-slate-500 hover:text-white transition-all">
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-3 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+                                                        {availableDeliveries.map(d => (
+                                                            <div key={d.id} className="bg-black/30 p-3 rounded-[20px] border border-white/5 space-y-2">
+                                                                <div className="flex justify-between items-start">
+                                                                    <p className="text-[9px] font-black text-slate-500 uppercase">Aprox. {d.estimated_km}km</p>
+                                                                    <p className="text-xs font-black text-[#25D366]">R$ {parseFloat(d.estimated_price).toFixed(2)}</p>
+                                                                </div>
+                                                                <p className="text-[11px] font-bold text-white leading-tight line-clamp-2">{d.delivery_address}</p>
+                                                                <button
+                                                                    onClick={() => acceptDelivery(d.id)}
+                                                                    className="w-full py-2 bg-[#25D366] text-black text-[9px] font-black uppercase rounded-xl tracking-widest hover:scale-105 active:scale-95 transition-all"
+                                                                >
+                                                                    Aceitar Agora
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Speedometer Left */}
                                     <div className="absolute left-4 bottom-32 z-20">
@@ -859,7 +938,9 @@ export default function MotoboyApp({ initialMode = 'deliveries' }) {
                 .leaflet-bar { display: none !important; }
                 .leaflet-control-attribution { display: none; }
                 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                @keyframes slideInLeft { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
                 .animate-slide-up { animation: slideUp 0.3s ease-out; }
+                .animate-slide-in-left { animation: slideInLeft 0.3s ease-out; }
             `}</style>
 
             {/* Modal de Seleção de Navegador */}
