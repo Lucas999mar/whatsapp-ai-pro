@@ -17,6 +17,10 @@ function generateTrackingCode() {
 // Obter configurações do Super Admin (Preços Globais e Taxa)
 router.get('/super-settings', authMiddleware, async (req, res) => {
     try {
+        // Apenas superadmin ou mathias podem gerir configurações globais
+        const isSuper = req.user.role === 'superadmin' || req.user.id === 'admin' || req.user.id === 'mathias';
+        if (!isSuper) return res.status(403).json({ error: 'Acesso negado' });
+
         const supabase = getSupabase();
         const { data } = await supabase.from('os_config').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
 
@@ -37,18 +41,21 @@ router.get('/super-settings', authMiddleware, async (req, res) => {
 
 router.put('/super-settings', authMiddleware, async (req, res) => {
     try {
+        const isSuper = req.user.role === 'superadmin' || req.user.id === 'admin' || req.user.id === 'mathias';
+        if (!isSuper) return res.status(403).json({ error: 'Acesso negado' });
+
         const supabase = getSupabase();
         const { base_price, km_price, system_tax } = req.body;
 
         const { data, error } = await supabase
-            .from('delivery_settings')
+            .from('os_config')
             .upsert({
                 tenant_id: 'SYSTEM_GLOBAL',
                 base_price: parseFloat(base_price),
                 km_price: parseFloat(km_price),
                 system_tax: parseFloat(system_tax),
                 updated_at: new Date().toISOString()
-            })
+            }, { onConflict: 'tenant_id' })
             .select()
             .single();
 
@@ -867,6 +874,8 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
         const creditAmount = parseFloat(delivery.motoboy_amount || delivery.estimated_price || 0);
 
         if (creditAmount > 0) {
+            // Nota: O saldo na tabela os_technicians é atualizado automaticamente via Trigger SQL (trg_update_balance)
+            // ao inserir na tabela os_transactions. Não fazemos atualização manual aqui para evitar duplicidade.
             await supabase.from('os_transactions').insert({
                 tenant_id: delivery.tenant_id,
                 technician_id: req.user.id,
@@ -875,12 +884,6 @@ router.post('/complete/:id', authMiddleware, async (req, res) => {
                 description: `Entrega concluída: #${delivery.tracking_code}`,
                 task_id: delivery.id
             });
-
-            // Atualiza saldo real na tabela do motoboy
-            const { data: tech } = await supabase.from('os_technicians').select('balance').eq('id', req.user.id).single();
-            await supabase.from('os_technicians')
-                .update({ balance: (parseFloat(tech?.balance || 0) + creditAmount).toFixed(2) })
-                .eq('id', req.user.id);
         }
 
         emitDeliveryEvent('delivery:status_change', {
