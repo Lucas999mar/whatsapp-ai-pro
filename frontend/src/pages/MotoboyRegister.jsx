@@ -149,9 +149,8 @@ export default function MotoboyRegister() {
                             <div className="relative group">
                                 <ArrowRight className="absolute left-4 top-4 text-slate-500 group-focus-within:text-[#25D366] transition-colors" size={18} />
                                 <input
-                                    required
                                     className="w-full bg-black/20 border border-white/5 rounded-2xl p-4 pl-12 text-white focus:outline-none focus:border-[#21c25e]/30 focus:bg-black/40 transition-all font-mono placeholder:font-sans"
-                                    placeholder="Código da Empresa (Tenant ID)"
+                                    placeholder="Código da Empresa (Opcional)"
                                     value={form.tenant_id}
                                     onChange={e => setForm({ ...form, tenant_id: e.target.value })}
                                 />
