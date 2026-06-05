@@ -222,15 +222,17 @@ router.get('/motoboys', authMiddleware, async (req, res) => {
 router.post('/motoboy/register', async (req, res) => {
     try {
         const { name, email, password, phone, vehicle_type, vehicle_plate, tenant_id } = req.body;
-        if (!name || !email || !password || !tenant_id) {
-            return res.status(400).json({ error: 'Nome, email, senha e código da empresa são obrigatórios' });
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
         }
 
         const supabase = getSupabase();
 
-        // Verifica se tenant existe
-        const { data: tenant } = await supabase.from('tenants').select('id, name').eq('id', tenant_id).single();
-        if (!tenant) return res.status(404).json({ error: 'Código da empresa não encontrado' });
+        // Se informou tenant_id, verifica se existe
+        if (tenant_id && tenant_id !== 'global') {
+            const { data: tenant } = await supabase.from('tenants').select('id').eq('id', tenant_id).single();
+            if (!tenant) return res.status(404).json({ error: 'Código da empresa não encontrado. Deixe em branco se quiser ser um Motoboy Global.' });
+        }
 
         // Verifica se email já existe
         const { data: existing } = await supabase.from('os_technicians').select('id').ilike('email', email).single();
@@ -245,8 +247,8 @@ router.post('/motoboy/register', async (req, res) => {
                 phone,
                 vehicle_type: vehicle_type || 'moto',
                 vehicle_plate,
-                tenant_id,
-                role: 'motoboy', // <--- IMPORTANTE
+                tenant_id: (tenant_id && tenant_id !== 'global') ? tenant_id : null,
+                role: 'motoboy',
                 status: 'offline',
                 is_available: false,
                 terms_accepted_at: new Date().toISOString(),
@@ -257,16 +259,18 @@ router.post('/motoboy/register', async (req, res) => {
 
         if (error) throw error;
 
+        const finalTenantId = motoboy.tenant_id || 'global';
+
         const token = generateToken({
             id: motoboy.id,
             name: motoboy.name,
             role: 'motoboy',
-            tenant_id
+            tenant_id: finalTenantId
         });
 
         res.json({
             token,
-            user: { id: motoboy.id, name: motoboy.name, role: 'motoboy', tenant_id }
+            user: { id: motoboy.id, name: motoboy.name, role: 'motoboy', tenant_id: finalTenantId }
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -567,7 +571,7 @@ router.post('/create', authMiddleware, async (req, res) => {
             title, description, customer_name, customer_phone,
             pickup_address, pickup_lat, pickup_lng,
             delivery_address, delivery_lat, delivery_lng,
-            estimated_price, priority, delivery_type
+            estimated_price, priority, delivery_type, is_public = true
         } = req.body;
 
         // Busca configurações de preço do tenant
@@ -628,6 +632,7 @@ router.post('/create', authMiddleware, async (req, res) => {
             delivery_type: delivery_type || 'entrega',
             status: 'aguardando_motoboy',
             priority: priority || 'media',
+            is_public: is_public,
             route_polyline: route_polyline || [],
             scheduled_date: new Date().toISOString().split('T')[0],
             scheduled_time: new Date().toTimeString().slice(0, 5)
@@ -673,9 +678,10 @@ router.get('/available', authMiddleware, async (req, res) => {
         const { data, error } = await supabase
             .from('os_tasks')
             // Fallback: Se motoboy_amount for null, tenta usar estimated_price (legado)
-            .select('id, title, pickup_address, delivery_address, estimated_km, motoboy_amount, estimated_price, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng')
+            .select('id, title, pickup_address, delivery_address, estimated_km, motoboy_amount, estimated_price, customer_name, customer_phone, tracking_code, priority, created_at, pickup_lat, pickup_lng, delivery_lat, delivery_lng, tenant_id, is_public')
             .is('technician_id', null)
             .eq('status', 'aguardando_motoboy')
+            .or(`is_public.eq.true,tenant_id.eq.${tenantId}`) // Vê o que é global OU da empresa dele
             .order('created_at', { ascending: false });
 
         if (error) throw error;
