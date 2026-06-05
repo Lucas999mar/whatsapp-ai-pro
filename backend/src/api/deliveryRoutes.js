@@ -98,98 +98,365 @@ function haversineKm(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Helper: Obter rota via OSRM (gratuito)
-async function getOSRMRoute(fromLat, fromLng, toLat, toLng) {
-    try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.routes && data.routes.length > 0) {
-            const route = data.routes[0];
-            return {
-                distance_km: +(route.distance / 1000).toFixed(2),
-                duration_min: +(route.duration / 60).toFixed(1),
-                geometry: route.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }))
-            };
+// ══════════════════════════════════════════════════════════════
+// ── HELPERS DE GEOCODIFICAÇÃO E ROTA (ALTA PRECISÃO) ─────────
+// ══════════════════════════════════════════════════════════════
+
+// Delay helper para respeitar rate limits do Nominatim (1 req/seg)
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Fetch com retry automático (exponential backoff para 429/5xx)
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const res = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+            if (res.status === 429 || res.status >= 500) {
+                console.warn(`⚠️ HTTP ${res.status} - Retry ${attempt + 1}/${maxRetries} em ${(attempt + 1) * 1500}ms`);
+                await delay((attempt + 1) * 1500);
+                continue;
+            }
+            return res;
+        } catch (err) {
+            if (attempt < maxRetries - 1) {
+                await delay((attempt + 1) * 1000);
+                continue;
+            }
+            throw err;
         }
-        return null;
+    }
+    return null;
+}
+
+// Helper: Obter rota via OSRM (gratuito) — COM retry e validação
+async function getOSRMRoute(fromLat, fromLng, toLat, toLng) {
+    // Validar coordenadas antes de chamar
+    if (!fromLat || !fromLng || !toLat || !toLng) return null;
+    if (isNaN(fromLat) || isNaN(fromLng) || isNaN(toLat) || isNaN(toLng)) return null;
+
+    try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+        const res = await fetchWithRetry(url);
+        if (!res) return null;
+
+        const data = await res.json();
+        if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+            console.warn('⚠️ OSRM não encontrou rota:', data.code);
+            return null;
+        }
+
+        const route = data.routes[0];
+        const distance_km = +(route.distance / 1000).toFixed(2);
+        const duration_min = +(route.duration / 60).toFixed(1);
+
+        // Validação: distância absurda (> 500km) provavelmente é erro de geocodificação
+        if (distance_km > 500) {
+            console.warn(`⚠️ OSRM retornou distância excessiva: ${distance_km}km - possível erro de geocodificação`);
+        }
+
+        return {
+            distance_km,
+            duration_min,
+            geometry: route.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }))
+        };
     } catch (err) {
         console.error('❌ OSRM Error:', err.message);
         return null;
     }
 }
 
-// Helper: Geocodificação via Nominatim (Gratuito) - Otimizado para endereços BR
-async function geocodeAddress(address) {
-    if (!address || address.trim().length < 3) return null;
-    const headers = { 'User-Agent': 'WhatsAppAIPro/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' };
+// ══════════════════════════════════════════════════════════════
+// ──  GEOCODIFICAÇÃO DE ALTA PRECISÃO PARA ENDEREÇOS BR ──────
+// ══════════════════════════════════════════════════════════════
 
-    console.log(`🔍 Iniciando Busca Estruturada para: "${address}"`);
+// Mapeia siglas de estados para nomes completos (Nominatim prefere nomes completos)
+const ESTADOS_BR = {
+    'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas',
+    'BA': 'Bahia', 'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo',
+    'GO': 'Goiás', 'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul',
+    'MG': 'Minas Gerais', 'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná',
+    'PE': 'Pernambuco', 'PI': 'Piauí', 'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte',
+    'RS': 'Rio Grande do Sul', 'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina',
+    'SP': 'São Paulo', 'SE': 'Sergipe', 'TO': 'Tocantins'
+};
 
-    // Função interna para busca estruturada (mais precisa)
-    async function tryStructured(street, city, state, postalcode) {
-        try {
-            let url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=1`;
-            if (street) url += `&street=${encodeURIComponent(street)}`;
-            if (city) url += `&city=${encodeURIComponent(city)}`;
-            if (state) url += `&state=${encodeURIComponent(state)}`;
-            if (postalcode) url += `&postalcode=${encodeURIComponent(postalcode)}`;
+// Busca endereço completo via ViaCEP e geocodifica
+async function geocodeViaCep(cep) {
+    try {
+        const cleanCep = cep.replace(/\D/g, '');
+        if (cleanCep.length !== 8) return null;
 
-            const res = await fetch(url, { headers });
-            const data = await res.json();
-            if (data && data.length > 0) {
-                console.log(`✅ Sucesso na busca de [${street}] em [${city}]: [${data[0].lat}, ${data[0].lon}]`);
-                return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-            }
-            return null;
-        } catch (err) {
-            return null;
+        const cepRes = await fetchWithRetry(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        if (!cepRes) return null;
+        const cepData = await cepRes.json();
+        if (cepData.erro) return null;
+
+        console.log(`📫 ViaCEP: ${cepData.logradouro}, ${cepData.bairro}, ${cepData.localidade} - ${cepData.uf}`);
+
+        // Monta endereço estruturado a partir do ViaCEP para Nominatim
+        const state = ESTADOS_BR[cepData.uf] || cepData.uf;
+        await delay(300); // Respeitar rate limit Nominatim
+
+        // Tentativa 1: Rua + Cidade + Estado (máxima precisão)
+        if (cepData.logradouro) {
+            const result = await nominatimStructured(cepData.logradouro, cepData.localidade, state, cleanCep);
+            if (result) return { ...result, source: 'viacep+nominatim', address_full: `${cepData.logradouro}, ${cepData.bairro}, ${cepData.localidade} - ${cepData.uf}` };
+        }
+
+        // Tentativa 2: Bairro + Cidade (se logradouro não retornou)
+        if (cepData.bairro) {
+            await delay(300);
+            const result = await nominatimFreeSearch(`${cepData.bairro}, ${cepData.localidade}, ${state}, Brasil`);
+            if (result) return { ...result, source: 'viacep+bairro' };
+        }
+
+        // Tentativa 3: Cidade + Estado (último recurso — centro da cidade)
+        await delay(300);
+        const result = await nominatimFreeSearch(`${cepData.localidade}, ${state}, Brasil`);
+        if (result) return { ...result, source: 'viacep+cidade', approximate: true };
+
+        return null;
+    } catch (err) {
+        console.warn('⚠️ ViaCEP error:', err.message);
+        return null;
+    }
+}
+
+// Nominatim busca estruturada (mais precisa para endereços decompostos)
+async function nominatimStructured(street, city, state, postalcode) {
+    const headers = { 'User-Agent': 'WhatsAppAIPro/2.0 (delivery-platform)', 'Accept-Language': 'pt-BR,pt;q=0.9' };
+
+    try {
+        let url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=3&addressdetails=1`;
+        if (street) url += `&street=${encodeURIComponent(street)}`;
+        if (city) url += `&city=${encodeURIComponent(city)}`;
+        if (state) url += `&state=${encodeURIComponent(state)}`;
+        if (postalcode) url += `&postalcode=${encodeURIComponent(postalcode)}`;
+
+        const res = await fetchWithRetry(url, { headers });
+        if (!res) return null;
+        const data = await res.json();
+
+        if (!data || data.length === 0) return null;
+
+        // Filtra resultados por qualidade: preferir rua > bairro > cidade
+        const best = data.find(r => ['house', 'residential', 'road', 'highway'].includes(r.type))
+            || data.find(r => ['suburb', 'neighbourhood'].includes(r.type))
+            || data[0];
+
+        console.log(`✅ Nominatim Estruturado: [${best.lat}, ${best.lon}] tipo=${best.type} classe=${best.class}`);
+        return { lat: parseFloat(best.lat), lng: parseFloat(best.lon), type: best.type, display: best.display_name };
+    } catch (err) {
+        return null;
+    }
+}
+
+// Nominatim busca livre (fallback, menos precisa)
+async function nominatimFreeSearch(query) {
+    const headers = { 'User-Agent': 'WhatsAppAIPro/2.0 (delivery-platform)', 'Accept-Language': 'pt-BR,pt;q=0.9' };
+
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=br&limit=3&addressdetails=1`;
+        const res = await fetchWithRetry(url, { headers });
+        if (!res) return null;
+        const data = await res.json();
+
+        if (!data || data.length === 0) return null;
+
+        // Prioriza resultados mais granulares
+        const best = data.find(r => ['house', 'residential', 'road'].includes(r.type))
+            || data.find(r => ['suburb', 'neighbourhood'].includes(r.type))
+            || data[0];
+
+        console.log(`✅ Nominatim Free: [${best.lat}, ${best.lon}] tipo=${best.type} "${best.display_name}"`);
+        return { lat: parseFloat(best.lat), lng: parseFloat(best.lon), type: best.type, display: best.display_name };
+    } catch (err) {
+        return null;
+    }
+}
+
+// Parser inteligente de endereços brasileiros
+function parseAddressBR(raw) {
+    const input = raw.trim();
+
+    // Extrair CEP (xxxxx-xxx ou xxxxxxxx)
+    const cepMatch = input.match(/(\d{5})-?(\d{3})/);
+    const cep = cepMatch ? `${cepMatch[1]}-${cepMatch[2]}` : null;
+
+    // Remover CEP do texto para parsing do resto
+    let cleaned = input.replace(/\d{5}-?\d{3}/g, '').replace(/\s{2,}/g, ' ').trim();
+
+    // Extrair Estado (UF) — último "- XX" onde XX são letras maiúsculas
+    let state = null;
+    let city = null;
+    const ufMatch = cleaned.match(/[\s,]+[-–]\s*([A-Z]{2})\s*$/);
+    if (ufMatch) {
+        state = ufMatch[1];
+        cleaned = cleaned.replace(ufMatch[0], '').trim();
+    }
+
+    // Dividir por vírgula
+    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+
+    let street = null;
+    let number = null;
+    let bairro = null;
+
+    if (parts.length >= 4) {
+        // "Rua X, 123, Bairro, Cidade"
+        street = parts[0];
+        number = parts[1].match(/^\d+/) ? parts[1] : null;
+        bairro = number ? parts[2] : parts[1];
+        city = parts[parts.length - 1];
+    } else if (parts.length === 3) {
+        // "Rua X, 123, Bairro" ou "Rua X, Bairro, Cidade"
+        street = parts[0];
+        if (parts[1].match(/^\d+/)) {
+            number = parts[1];
+            // Terceira parte pode ser bairro ou cidade
+            city = parts[2];
+        } else {
+            bairro = parts[1];
+            city = parts[2];
+        }
+    } else if (parts.length === 2) {
+        // "Rua X, 123" ou "Rua X, Cidade"
+        street = parts[0];
+        if (parts[1].match(/^\d+\s*$/)) {
+            number = parts[1];
+        } else {
+            city = parts[1];
+        }
+    } else if (parts.length === 1) {
+        // Tentar extrair número no final: "Rua X 123"
+        const numMatch = parts[0].match(/^(.+?)\s+(\d+)\s*$/);
+        if (numMatch) {
+            street = numMatch[1];
+            number = numMatch[2];
+        } else {
+            street = parts[0];
         }
     }
 
-    // 1. Extrair Componentes através de padrões comuns brasileiros
-    // Extrai o CEP limpando caracteres não-numéricos
-    const cepMatch = address.match(/(\d{5}-?\d{3})|(\d{8})/);
-    let cep = cepMatch ? cepMatch[0].replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2') : null;
-
-    // Limpar endereço para extrair rua e cidade
-    let cleanAddr = address.replace(/,?\s*(\d{5}-?\d{3})|(\d{8})/g, '').trim();
-    const parts = cleanAddr.split(',').map(p => p.trim());
-
-    let street = parts[0];
-    let city = "Macaé"; // Valor padrão para o contexto atual
-    let state = "RJ";
-
-    // Tentar extrair cidade/estado se houver "Cidade - UF" no texto
-    const geoMatch = cleanAddr.match(/([^,-]+)\s*-\s*([A-Z]{2})/);
-    if (geoMatch) {
-        city = geoMatch[1].trim();
-        state = geoMatch[2].trim();
+    // Se a cidade ainda contiver " - UF" limpar
+    if (city) {
+        const cityUfMatch = city.match(/^(.+?)\s*[-–]\s*([A-Z]{2})$/);
+        if (cityUfMatch) {
+            city = cityUfMatch[1].trim();
+            state = state || cityUfMatch[2];
+        }
     }
 
-    // 2. TENTATIVA 1: Rua + CEP + Cidade (Máxima precisão)
-    let result = await tryStructured(street, city, state, cep);
-    if (result) return result;
-
-    // 3. TENTATIVA 2: Apenas Rua + Cidade (Fallback caso o CEP falhe)
-    result = await tryStructured(street, city, state, null);
-    if (result) return result;
-
-    // 4. TENTATIVA 3: Apenas o CEP (Último recurso geográfico)
-    if (cep) {
-        result = await tryStructured(null, city, state, cep);
-        if (result) return result;
+    // Montar street com número para Nominatim (formato: "123 Rua Tal")
+    let streetForNominatim = street;
+    if (number && street) {
+        streetForNominatim = `${number} ${street}`;
     }
 
-    // 5. TENTATIVA 4: Busca Geral (Legado)
-    try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=br&limit=1`;
-        const res = await fetch(url, { headers });
-        const data = await res.json();
-        if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    } catch (e) { }
+    return {
+        street: streetForNominatim,
+        streetName: street,
+        number,
+        bairro,
+        city,
+        state,
+        cep,
+        raw: input
+    };
+}
 
-    console.log(`❌ Falha ao localizar endereço.`);
+// ── FUNÇÃO PRINCIPAL: Geocodificação de Alta Precisão ───────
+async function geocodeAddress(address) {
+    if (!address || address.trim().length < 3) return null;
+
+    console.log(`\n🔍 ══════ GEOCODIFICAÇÃO PRECISA ══════`);
+    console.log(`📍 Input: "${address}"`);
+
+    // 1. Parse inteligente do endereço
+    const parsed = parseAddressBR(address);
+    console.log(`📋 Parsed: rua="${parsed.street}" cidade="${parsed.city}" estado="${parsed.state}" cep="${parsed.cep}"`);
+
+    // Defaults para contexto local (configurável por tenant futuramente)
+    const defaultCity = 'Macaé';
+    const defaultState = 'RJ';
+    const city = parsed.city || defaultCity;
+    const stateCode = parsed.state || defaultState;
+    const stateFull = ESTADOS_BR[stateCode] || stateCode;
+
+    let result = null;
+
+    // ── ESTRATÉGIA 1: ViaCEP (se tem CEP — MAIS preciso para BR) ──
+    if (parsed.cep) {
+        console.log(`📫 Tentativa 1: ViaCEP + Nominatim (CEP: ${parsed.cep})`);
+        result = await geocodeViaCep(parsed.cep);
+        if (result) {
+            // Se temos rua E CEP, usamos ViaCEP para validar cidade e refinar com rua
+            if (parsed.street && !result.approximate) {
+                await delay(400);
+                const refined = await nominatimStructured(parsed.street, city, stateFull, parsed.cep.replace('-', ''));
+                if (refined) {
+                    console.log(`🎯 Refinado com rua: [${refined.lat}, ${refined.lng}]`);
+                    return { lat: refined.lat, lng: refined.lng };
+                }
+            }
+            console.log(`✅ Resultado ViaCEP: [${result.lat}, ${result.lng}] (${result.source})`);
+            return { lat: result.lat, lng: result.lng };
+        }
+    }
+
+    // ── ESTRATÉGIA 2: Busca Estruturada (Rua + Cidade + Estado) ──
+    if (parsed.street) {
+        console.log(`🏠 Tentativa 2: Nominatim Estruturado (${parsed.street} em ${city}/${stateCode})`);
+        await delay(300);
+        result = await nominatimStructured(parsed.street, city, stateFull, null);
+        if (result) {
+            console.log(`✅ Resultado Estruturado: [${result.lat}, ${result.lng}] tipo=${result.type}`);
+            return { lat: result.lat, lng: result.lng };
+        }
+
+        // Tentativa 2b: sem o número (endereços novos podem não ter número no OSM)
+        if (parsed.streetName && parsed.number) {
+            console.log(`🏠 Tentativa 2b: Sem número (${parsed.streetName} em ${city})`);
+            await delay(300);
+            result = await nominatimStructured(parsed.streetName, city, stateFull, null);
+            if (result) {
+                console.log(`✅ Resultado sem número: [${result.lat}, ${result.lng}]`);
+                return { lat: result.lat, lng: result.lng };
+            }
+        }
+    }
+
+    // ── ESTRATÉGIA 3: Busca Livre com contexto de cidade ──
+    console.log(`🌐 Tentativa 3: Busca Livre com contexto`);
+    await delay(300);
+    const freeQuery = `${parsed.streetName || parsed.street || address}, ${city}, ${stateFull}, Brasil`;
+    result = await nominatimFreeSearch(freeQuery);
+    if (result) {
+        console.log(`✅ Resultado Free Search: [${result.lat}, ${result.lng}]`);
+        return { lat: result.lat, lng: result.lng };
+    }
+
+    // ── ESTRATÉGIA 4: Busca Geral (texto original completo) ──
+    console.log(`🔄 Tentativa 4: Busca geral (texto original)`);
+    await delay(300);
+    result = await nominatimFreeSearch(address);
+    if (result) {
+        console.log(`✅ Resultado Geral: [${result.lat}, ${result.lng}]`);
+        return { lat: result.lat, lng: result.lng };
+    }
+
+    // ── ESTRATÉGIA 5: Último recurso — bairro/cidade como texto ──
+    if (parsed.bairro) {
+        console.log(`📌 Tentativa 5: Bairro + Cidade`);
+        await delay(300);
+        result = await nominatimFreeSearch(`${parsed.bairro}, ${city}, ${stateFull}`);
+        if (result) {
+            console.log(`⚠️ Resultado aproximado (bairro): [${result.lat}, ${result.lng}]`);
+            return { lat: result.lat, lng: result.lng };
+        }
+    }
+
+    console.log(`❌ FALHA: Não foi possível geocodificar "${address}"`);
+    console.log(`══════════════════════════════════════\n`);
     return null;
 }
 
@@ -722,6 +989,7 @@ router.post('/accept/:id', authMiddleware, async (req, res) => {
             if (routeData) routePolyline = routeData.geometry;
         }
 
+        // 🛡️ TENTATIVA ATÔMICA DE ACEITE: Só atualiza se o status ainda for 'aguardando_motoboy'
         const { data, error } = await supabase
             .from('os_tasks')
             .update({
@@ -732,10 +1000,13 @@ router.post('/accept/:id', authMiddleware, async (req, res) => {
                 route_polyline: routePolyline
             })
             .eq('id', req.params.id)
+            .eq('status', 'aguardando_motoboy') // <--- GARANTIA ATÔMICA
             .select(`*, technician:os_technicians(id, name, phone, vehicle_type, vehicle_plate, photo_url)`)
             .single();
 
-        if (error) throw error;
+        if (error || !data) {
+            return res.status(409).json({ error: 'Esta entrega não está mais disponível ou já foi aceita por outro profissional.' });
+        }
 
         await supabase.from('os_task_events').insert({
             task_id: req.params.id,

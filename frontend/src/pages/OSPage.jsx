@@ -81,24 +81,31 @@ function TaskModal({ isOpen, onClose, onSave, task, clients, technicians, taskTy
         if (!form.pickup_address || !form.delivery_address) return alert('Informe os dois endereços!');
         setCalculating(true);
         try {
-            const res1 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.pickup_address)}`);
-            const data1 = await res1.json();
-            const res2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.delivery_address)}`);
-            const data2 = await res2.json();
+            // Usa o endpoint do backend com geocodificação de alta precisão
+            const res = await api.post('/delivery/calculate-route', {
+                pickup_address: form.pickup_address,
+                delivery_address: form.delivery_address
+            });
+            const data = res.data;
 
-            if (data1[0] && data2[0]) {
-                const routeRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/delivery/route?from_lat=${data1[0].lat}&from_lng=${data1[0].lon}&to_lat=${data2[0].lat}&to_lng=${data2[0].lon}`);
-                const routeData = await routeRes.json();
-
+            if (data.distance_km) {
                 setForm(f => ({
                     ...f,
-                    pickup_lat: parseFloat(data1[0].lat), pickup_lng: parseFloat(data1[0].lon),
-                    delivery_lat: parseFloat(data2[0].lat), delivery_lng: parseFloat(data2[0].lon),
-                    estimated_km: routeData.distance_km,
-                    estimated_price: +(routeData.distance_km * 3.5 + 5).toFixed(2)
+                    pickup_lat: data.pickup_coords.lat,
+                    pickup_lng: data.pickup_coords.lng,
+                    delivery_lat: data.delivery_coords.lat,
+                    delivery_lng: data.delivery_coords.lng,
+                    estimated_km: data.distance_km,
+                    estimated_price: data.estimated_price
                 }));
+            } else {
+                alert('Não foi possível calcular a rota. Verifique os endereços.');
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            const msg = e.response?.data?.error || 'Erro ao calcular rota';
+            alert(msg);
+        }
         finally { setCalculating(false); }
     };
 
@@ -213,7 +220,7 @@ function ClientManager({ clients, onRefresh }) {
                     const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
 
                     // 2. Geocodificação (Nominatim)
-                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`);
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=br&limit=3&addressdetails=1&q=${encodeURIComponent(fullAddress)}`);
                     const geoData = await geoRes.json();
 
                     setForm(f => ({
