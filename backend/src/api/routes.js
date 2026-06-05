@@ -99,12 +99,14 @@ router.post('/auth/login', async (req, res) => {
     return res.json({ token, user: { id: tenant.id, name: tenant.name, role: tenant.role } });
   }
 
-  // Tenta encontrar como Empresa/Tenant primeiro
-  const tenants = await listTenants();
-  let user = tenants.find(t =>
-    String(t.id).toLowerCase() === loginId.toLowerCase() &&
-    String(t.password) === password
-  );
+  // 🔥 OPTIMIZED LOGIN: Busca apenas o tenant específico
+  const { findTenantById } = require('../db/repository');
+  let tenant = await findTenantById(loginId);
+  let user = null;
+
+  if (tenant && String(tenant.password) === password) {
+    user = tenant;
+  }
 
   // 🛠️ FAILSAFE PRO: Se não achou na modalidade Empresa, busca em Técnicos/OS
   if (!user) {
@@ -163,16 +165,26 @@ router.post('/auth/login', async (req, res) => {
 
 router.get('/admin/tenants', authMiddleware, async (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
+
   const tenants = await listTenants();
   const agentsList = await listAgents();
+
+  // 🔥 OPTIMIZED: Fetch all stats in parallel or with a single query if possible
+  // For now, parallelizing the getStats calls is better than sequential, 
+  // but a single complex query would be ideal.
   const enrichedTenants = await Promise.all(tenants.map(async t => {
-    const stats = await getStats(t.id);
-    return {
-      ...t,
-      agentCount: agentsList.filter(a => (a.tenantId || a.tenant_id || 'default') === t.id).length,
-      knowledgeCount: stats.knowledge.total,
-      obsidianCount: stats.knowledge.byType.obsidian
-    };
+    try {
+      const stats = await getStats(t.id);
+      return {
+        ...t,
+        agentCount: agentsList.filter(a => (a.tenantId || a.tenant_id || 'default') === t.id).length,
+        knowledgeCount: stats.knowledge.total,
+        obsidianCount: stats.knowledge.byType.obsidian
+      };
+    } catch (e) {
+      console.error(`Error enrichment for ${t.id}:`, e.message);
+      return { ...t, agentCount: 0, knowledgeCount: 0, obsidianCount: 0 };
+    }
   }));
   res.json(enrichedTenants);
 });

@@ -69,18 +69,23 @@ async function calculateGlobalPrice(km) {
     const supabase = getSupabase();
     const { data: config } = await supabase.from('os_config').select('*').eq('tenant_id', 'SYSTEM_GLOBAL').single();
 
-    const base = config?.base_price || 7.00;
-    const kmRate = config?.km_price || 1.50;
-    const tax = config?.system_tax || 0.20;
+    const base = parseFloat(config?.base_price || 7.00);
+    const kmRate = parseFloat(config?.km_price || 1.50);
+    const taxFactor = parseFloat(config?.system_tax || 0.20);
 
-    const totalPrice = parseFloat(base) + (km * parseFloat(kmRate));
-    const systemFee = totalPrice * tax;
-    const motoboyAmount = totalPrice - systemFee;
+    // 1. Calcula o total bruto (Arredondado para 2 casas)
+    const totalPrice = Math.round((base + (km * kmRate)) * 100) / 100;
+
+    // 2. Calcula a taxa do sistema (Arredondado para 2 casas)
+    const systemFee = Math.round((totalPrice * taxFactor) * 100) / 100;
+
+    // 3. O motoboy recebe exatamente a diferença (Garante que a soma seja exata)
+    const motoboyAmount = Math.round((totalPrice - systemFee) * 100) / 100;
 
     return {
-        total_price: +totalPrice.toFixed(2),
-        system_fee: +systemFee.toFixed(2),
-        motoboy_amount: +motoboyAmount.toFixed(2)
+        total_price: totalPrice,
+        system_fee: systemFee,
+        motoboy_amount: motoboyAmount
     };
 }
 
@@ -599,17 +604,9 @@ router.post('/create', authMiddleware, async (req, res) => {
             }
         }
 
-        // Se não informar preço, calcula com base nas regras do tenant
-        let split = { total_price: estimated_price || 0, motoboy_amount: 0, system_fee: 0 };
-
-        if (estimated_km) {
-            split = await calculateGlobalPrice(estimated_km);
-            estimated_price = split.total_price;
-        } else {
-            // Se sem KM, usa preço base
-            split = await calculateGlobalPrice(0);
-            estimated_price = split.total_price;
-        }
+        // Cálculo de preços baseado estritamente na regra do Super Admin
+        const split = await calculateGlobalPrice(estimated_km || 0);
+        estimated_price = split.total_price;
 
         const taskData = {
             tenant_id: tenantId,
@@ -1076,10 +1073,9 @@ router.post('/calculate-route', authMiddleware, async (req, res) => {
             duration_min = null;
         }
 
-        // Calcula preço
-        const bPrice = parseFloat(base_price) || 7.00;
-        const kPrice = parseFloat(km_price) || 1.50;
-        const estimated_price = +(distance_km * kPrice + bPrice).toFixed(2);
+        // Busca configurações globais para o cálculo de prévia
+        const split = await calculateGlobalPrice(distance_km);
+        const estimated_price = split.total_price;
 
         res.json({
             distance_km,

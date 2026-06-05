@@ -29,26 +29,19 @@ async function listKnowledgeItems(type = null, agentId = null, tenantId = 'defau
 
   if (type) query = query.eq('type', type);
 
+  // 🔥 DATABASE-LEVEL FILTERING (CRITICAL FOR PERFORMANCE)
+  if (tenantId !== 'admin') {
+    query = query.eq('tenant_id', tenantId);
+  }
+
+  if (agentId && agentId !== 'all' && agentId !== 'global') {
+    query = query.eq('agent_id', agentId);
+  }
+
   const { data, error } = await query;
   if (error) throw error;
 
-  let results = data || [];
-
-  // Filtra por tenantId e agentId no metadata
-  results = results.filter(item => {
-    if (tenantId === 'admin') return true;
-    const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
-    const itemTenantId = meta?.tenantId || 'default';
-    if (itemTenantId !== tenantId) return false;
-
-    if (agentId && agentId !== 'all') {
-      const itemAgentId = meta?.agentId || 'global';
-      return itemAgentId === 'global' || itemAgentId === agentId;
-    }
-    return true;
-  });
-
-  return results;
+  return data || [];
 }
 
 /**
@@ -79,6 +72,8 @@ async function addKnowledgeItem({ title, type, content, fileUrl, fileName, fileS
       file_size: fileSize,
       metadata: finalMetadata,
       embedding,
+      tenant_id: tenantId,
+      agent_id: agentId
     })
     .select()
     .single();
@@ -92,38 +87,24 @@ async function addKnowledgeItem({ title, type, content, fileUrl, fileName, fileS
  */
 async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = 'default') {
   const supabase = getSupabase();
-  const embedding = await generateEmbedding(query);
+  try {
+    const embedding = await generateEmbedding(query);
 
-  const { data: allItems, error: fetchErr } = await supabase
-    .from('knowledge_items')
-    .select('id, title, type, content, file_url, metadata, embedding')
-    .not('embedding', 'is', null);
+    // 🔥 OPTIMIZED: Use Database Vector Search (RPC)
+    const { data, error } = await supabase.rpc('search_knowledge', {
+      query_embedding: embedding,
+      p_tenant_id: tenantId,
+      p_agent_id: agentId,
+      match_count: topK,
+      similarity_threshold: 0.3
+    });
 
-  if (fetchErr) throw fetchErr;
-
-  const dotProduct = (a, b) => a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const magnitude = (v) => Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
-  const cosineSimilarity = (a, b) => dotProduct(a, b) / (magnitude(a) * magnitude(b));
-
-  const results = allItems.map(item => {
-    const itemEmbedding = typeof item.embedding === 'string' ? JSON.parse(item.embedding) : item.embedding;
-    return {
-      ...item,
-      similarity: cosineSimilarity(itemEmbedding, embedding)
-    };
-  })
-    .filter(item => {
-      const itemTenantId = item.metadata?.tenantId || 'default';
-      if (itemTenantId !== tenantId) return false;
-
-      const itemAgentId = item.metadata?.agentId || 'global';
-      const isOwner = itemAgentId === 'global' || itemAgentId === agentId;
-      return isOwner && item.similarity > 0.3;
-    })
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, topK);
-
-  return results;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Vector Search Error:', err.message);
+    return []; // Fallback to avoid breaking the chat
+  }
 }
 
 /**
@@ -132,15 +113,15 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
 async function deleteKnowledgeItem(id, tenantId) {
   const supabase = getSupabase();
 
-  // Primeiro busca para validar o tenant
-  const { data: item } = await supabase
+  // Primeiro busca para validar o tenant (usando a coluna tenant_id agora)
+  const { data: item, error: findErr } = await supabase
     .from('knowledge_items')
-    .select('metadata')
+    .select('tenant_id')
     .eq('id', id)
     .single();
 
-  if (!item) throw new Error('Item não encontrado');
-  if ((item.metadata?.tenantId || 'default') !== tenantId) {
+  if (findErr || !item) throw new Error('Item não encontrado');
+  if (item.tenant_id !== tenantId && tenantId !== 'admin') {
     throw new Error('Acesso negado: este item não pertence à sua empresa');
   }
 
@@ -152,6 +133,8 @@ async function saveConversationMessage({ whatsappId, userName, role, content, co
   const supabase = getSupabase();
 
   // whatsappId aqui já deve vir como tenantId__phone__agentId
+  const tenantId = String(whatsappId).split('__')[0] || 'default';
+
   const insertData = {
     whatsapp_id: whatsappId,
     user_name: userName,
@@ -159,9 +142,9 @@ async function saveConversationMessage({ whatsappId, userName, role, content, co
     content,
     content_type: contentType,
     media_url: mediaUrl,
-    user_photo: userPhoto,
     knowledge_used: knowledgeUsed,
     tokens_used: tokensUsed || 0,
+    tenant_id: tenantId
   };
 
   let { error } = await supabase.from('conversations').insert(insertData);
@@ -264,51 +247,55 @@ async function listConversations(limit = 100, tenantId = 'default') {
 async function getStats(tenantId = 'default') {
   const supabase = getSupabase();
 
+  // 🔥 OPTIMIZED: Database-level filtering and parallel execution
+  const knowledgeQuery = supabase.from('knowledge_items').select('id, type');
+  const conversationsQuery = supabase.from('conversations').select('id, whatsapp_id');
+  const learningsQuery = supabase.from('learnings').select('id');
+
+  if (tenantId !== 'admin') {
+    knowledgeQuery.eq('tenant_id', tenantId);
+    conversationsQuery.like('whatsapp_id', `${tenantId}__%`);
+    learningsQuery.contains('metadata', { tenantId });
+  }
+
   const [knowledgeRes, conversationsRes, learnRes] = await Promise.all([
-    supabase.from('knowledge_items').select('id, type, metadata'),
-    tenantId === 'admin'
-      ? supabase.from('conversations').select('id, whatsapp_id')
-      : supabase.from('conversations').select('id, whatsapp_id').like('whatsapp_id', `${tenantId}__%`),
-    supabase.from('learnings').select('id, metadata'),
+    knowledgeQuery,
+    conversationsQuery,
+    learningsQuery
   ]);
 
-  const knowledgeFiltered = (knowledgeRes.data || []).filter(k => {
-    if (tenantId === 'admin') return true;
-    const meta = typeof k.metadata === 'string' ? JSON.parse(k.metadata) : k.metadata;
-    return (meta?.tenantId || 'default') === tenantId;
-  });
-
-  const learnFiltered = (learnRes.data || []).filter(l => {
-    if (tenantId === 'admin') return true;
-    const meta = typeof l.metadata === 'string' ? JSON.parse(l.metadata) : l.metadata;
-    return (meta?.tenantId || 'default') === tenantId;
-  });
+  const knowledgeData = knowledgeRes.data || [];
+  const conversationsData = conversationsRes.data || [];
+  const learningsData = learnRes.data || [];
 
   const typeCounts = {
     document: 0,
     obsidian: 0,
     image: 0,
     audio: 0,
-    video: 0
+    video: 0,
+    learning: 0
   };
 
-  knowledgeFiltered.forEach(item => {
-    typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
+  knowledgeData.forEach(item => {
+    if (typeCounts.hasOwnProperty(item.type)) {
+      typeCounts[item.type]++;
+    }
   });
 
-  const uniqueUsers = new Set((conversationsRes.data || []).map(c => c.whatsapp_id)).size;
+  const uniqueUsers = new Set(conversationsData.map(c => c.whatsapp_id)).size;
 
   return {
     knowledge: {
-      total: knowledgeFiltered.length,
+      total: knowledgeData.length,
       byType: typeCounts,
     },
     conversations: {
-      total: conversationsRes.data?.length || 0,
+      total: conversationsData.length,
       uniqueUsers,
     },
     learnings: {
-      total: learnFiltered.length
+      total: learningsData.length
     }
   };
 }
@@ -333,7 +320,8 @@ async function addLearning({ title, content, type = 'auto', metadata = {} }) {
     .insert({
       content,
       embedding,
-      metadata: { ...metadata, tenantId }
+      metadata: { ...metadata, tenantId },
+      tenant_id: tenantId // 🔥 ADDED COLUMN
     })
     .select()
     .single();
@@ -357,19 +345,20 @@ async function addLearning({ title, content, type = 'auto', metadata = {} }) {
  */
 async function listLearnings(tenantId = 'default') {
   const supabase = getSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from('learnings')
     .select('*')
     .order('created_at', { ascending: false });
 
+  // 🔥 OPTIMIZED: Database-level filtering via column
+  if (tenantId !== 'admin') {
+    query = query.eq('tenant_id', tenantId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
 
-  // Filtro manual por tenantId
-  return (data || []).filter(l => {
-    if (tenantId === 'admin') return true;
-    const meta = typeof l.metadata === 'string' ? JSON.parse(l.metadata) : l.metadata;
-    return (meta?.tenantId || 'default') === tenantId;
-  });
+  return data || [];
 }
 
 /**
@@ -378,7 +367,9 @@ async function listLearnings(tenantId = 'default') {
 async function listTenants() {
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('tenants').select('*');
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, name, role, status, logo, created_at'); // ⚡ Evita puxar passwords em lista aberta
     if (!error && data && data.length > 0) {
       return data;
     }
@@ -536,5 +527,21 @@ module.exports = {
   addFollowUp,
   updateFollowUpStatus,
   deleteFollowUp,
-  updateTicketStatus
+  updateTicketStatus,
+  findTenantById
 };
+
+/**
+ * Busca uma empresa específica pelo ID (Otimizado para Login)
+ */
+async function findTenantById(id) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+}
