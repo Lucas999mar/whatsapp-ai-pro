@@ -29,13 +29,13 @@ async function listKnowledgeItems(type = null, agentId = null, tenantId = 'defau
 
   if (type) query = query.eq('type', type);
 
-  // 🔥 DATABASE-LEVEL FILTERING (CRITICAL FOR PERFORMANCE)
+  // Filtra usando JSONB metadata keys (tenantId e agentId) para compatibilidade com o banco de produção
   if (tenantId !== 'admin') {
-    query = query.eq('tenant_id', tenantId);
+    query = query.eq('metadata->>tenantId', tenantId);
   }
 
   if (agentId && agentId !== 'all' && agentId !== 'global') {
-    query = query.eq('agent_id', agentId);
+    query = query.eq('metadata->>agentId', agentId);
   }
 
   const { data, error } = await query;
@@ -71,9 +71,7 @@ async function addKnowledgeItem({ title, type, content, fileUrl, fileName, fileS
       file_name: fileName,
       file_size: fileSize,
       metadata: finalMetadata,
-      embedding,
-      tenant_id: tenantId,
-      agent_id: agentId
+      embedding
     })
     .select()
     .single();
@@ -83,26 +81,73 @@ async function addKnowledgeItem({ title, type, content, fileUrl, fileName, fileS
 }
 
 /**
- * Busca itens relevantes (com tenantId e agentId)
+ * Busca itens relevantes (com tenantId e agentId) via similaridade vetorial em memória
  */
 async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = 'default') {
   const supabase = getSupabase();
   try {
     const embedding = await generateEmbedding(query);
 
-    // 🔥 OPTIMIZED: Use Database Vector Search (RPC)
-    const { data, error } = await supabase.rpc('search_knowledge', {
-      query_embedding: embedding,
-      p_tenant_id: tenantId,
-      p_agent_id: agentId,
-      match_count: topK,
-      similarity_threshold: 0.3
+    // Busca todos os itens com embedding pertencentes ao tenant
+    let dbQuery = supabase
+      .from('knowledge_items')
+      .select('id, title, type, content, file_url, metadata, embedding')
+      .not('embedding', 'is', null);
+
+    if (tenantId !== 'admin') {
+      dbQuery = dbQuery.eq('metadata->>tenantId', tenantId);
+    }
+
+    const { data: items, error } = await dbQuery;
+    if (error) throw error;
+
+    if (!items || items.length === 0) return [];
+
+    // Filtra por agentId se aplicável
+    let filteredItems = items;
+    if (agentId && agentId !== 'all' && agentId !== 'global') {
+      filteredItems = items.filter(item => {
+        const itemAgentId = item.metadata?.agentId || 'global';
+        return itemAgentId === 'global' || itemAgentId === agentId;
+      });
+    }
+
+    // Calcula a similaridade de cosseno (produto escalar de vetores normalizados) em JavaScript
+    const scored = filteredItems.map(item => {
+      let emb = item.embedding;
+      if (typeof emb === 'string') {
+        emb = JSON.parse(emb);
+      }
+      
+      if (!Array.isArray(emb) || emb.length !== embedding.length) {
+        return { ...item, similarity: 0 };
+      }
+
+      let dotProduct = 0;
+      for (let i = 0; i < emb.length; i++) {
+        dotProduct += emb[i] * embedding[i];
+      }
+
+      return {
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        content: item.content,
+        file_url: item.file_url,
+        metadata: item.metadata,
+        similarity: dotProduct
+      };
     });
 
-    if (error) throw error;
-    return data || [];
+    // Ordena, aplica o limiar de 0.3 e retorna os topK
+    const results = scored
+      .filter(item => item.similarity > 0.3)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, topK);
+
+    return results;
   } catch (err) {
-    console.error('Vector Search Error:', err.message);
+    console.error('Vector Search Error (JS Fallback):', err.message);
     return []; // Fallback to avoid breaking the chat
   }
 }
@@ -113,15 +158,17 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
 async function deleteKnowledgeItem(id, tenantId) {
   const supabase = getSupabase();
 
-  // Primeiro busca para validar o tenant (usando a coluna tenant_id agora)
+  // Primeiro busca para validar o tenant (usando a coluna metadata)
   const { data: item, error: findErr } = await supabase
     .from('knowledge_items')
-    .select('tenant_id')
+    .select('metadata')
     .eq('id', id)
     .single();
 
   if (findErr || !item) throw new Error('Item não encontrado');
-  if (item.tenant_id !== tenantId && tenantId !== 'admin') {
+  
+  const itemTenantId = item.metadata?.tenantId || 'default';
+  if (itemTenantId !== tenantId && tenantId !== 'admin') {
     throw new Error('Acesso negado: este item não pertence à sua empresa');
   }
 
@@ -253,7 +300,7 @@ async function getStats(tenantId = 'default') {
   const learningsQuery = supabase.from('learnings').select('id');
 
   if (tenantId !== 'admin') {
-    knowledgeQuery.eq('tenant_id', tenantId);
+    knowledgeQuery.eq('metadata->>tenantId', tenantId);
     conversationsQuery.like('whatsapp_id', `${tenantId}__%`);
     learningsQuery.contains('metadata', { tenantId });
   }

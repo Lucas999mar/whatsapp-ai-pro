@@ -7,8 +7,11 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '../context/AuthContext';
 
 export default function CRMPage() {
+  const { user } = useAuth();
+  const niche = user?.niche || 'generic';
   const [columns, setColumns] = useState([]);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,29 +95,35 @@ export default function CRMPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] gap-6 animate-fade-in">
       {/* HEADER */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black text-white tracking-tight">CRM Kanban</h2>
-          <p className="text-slate-500 text-sm">Gestão de funil de vendas e leads qualificados.</p>
+      <div>
+        <h2 className="text-3xl font-black text-white tracking-tight">
+          {niche === 'automotivo' ? 'Fila de Veículos' :
+            niche === 'varejo' ? 'Funil de Vendas' :
+              niche === 'servicos' ? 'Gestão de Projetos' : 'CRM Kanban'}
+        </h2>
+        <p className="text-slate-500 text-sm">
+          {niche === 'automotivo' ? 'Acompanhe veículos em orçamento e serviço.' :
+            niche === 'varejo' ? 'Gestão de leads e conversão de vendas.' :
+              niche === 'servicos' ? 'Acompanhamento de contratos e entregas.' : 'Gestão de funil de vendas e leads qualificados.'}
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:border-[#25D366] outline-none"
+          />
         </div>
-        <div className="flex gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-            <input
-              type="text"
-              placeholder="Buscar leads..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:border-[#25D366] outline-none"
-            />
-          </div>
-          <button
-            onClick={handleAddLead}
-            className="flex items-center gap-2 bg-[#25D366] text-black px-4 py-2 rounded-xl text-sm font-black hover:brightness-110 active:scale-95 transition-all"
-          >
-            <Plus size={18} /> NOVO LEAD
-          </button>
-        </div>
+        <button
+          onClick={handleAddLead}
+          className="flex items-center gap-2 bg-[#25D366] text-black px-4 py-2 rounded-xl text-sm font-black hover:brightness-110 active:scale-95 transition-all"
+        >
+          <Plus size={18} /> {niche === 'automotivo' ? 'NOVO VEÍCULO' : 'NOVO LEAD'}
+        </button>
       </div>
 
       {/* KANBAN BOARD */}
@@ -165,7 +174,7 @@ export default function CRMPage() {
                           </div>
                           <div>
                             <h4 className="text-sm font-black text-white group-hover:text-[#25D366] transition-colors leading-tight">
-                              {(card.name || 'Sem Nome').split('_')[0].trim()}
+                              {(card.name || 'Sem Nome').split('_')[0].trim()} {niche === 'automotivo' && card.plate && <span className="text-[10px] text-slate-500 ml-1">({card.plate})</span>}
                             </h4>
                             <p className="text-[10px] text-[#25D366] font-black tracking-tighter mt-0.5">
                               +{formatNumber(card.whatsapp_id)}

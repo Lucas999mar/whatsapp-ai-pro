@@ -14,6 +14,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const niche = user?.niche || 'generic';
 
   if (user?.role === 'motoboy') return <Navigate to="/" />;
   const [stats, setStats] = useState({
@@ -215,8 +216,12 @@ export default function Dashboard() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-black text-white tracking-tight">Dashboard</h2>
-          <p className="text-slate-500 text-sm font-medium">Visão geral do atendimento em tempo real.</p>
+          <h2 className="text-3xl font-black text-white tracking-tight">
+            {niche === 'automotivo' ? 'Painel Automotivo' :
+              niche === 'varejo' ? 'Dashboard de Vendas' :
+                niche === 'servicos' ? 'Controle de Serviços' : 'Dashboard'}
+          </h2>
+          <p className="text-slate-500 text-sm font-medium">Visão geral do seu negócio em tempo real.</p>
         </div>
         <div className="flex gap-2 items-center">
           <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-slate-400">
