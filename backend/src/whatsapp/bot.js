@@ -86,7 +86,12 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
     response_mode: 'mirror',
     tts_voice: 'nova',
     prefix: '!ia',
-    respond_all: true
+    respond_all: true,
+    ai_provider: 'openai',
+    openai_api_key: '',
+    openai_model: 'gpt-4o-mini',
+    anthropic_api_key: '',
+    anthropic_model: 'claude-3-haiku-20240307'
   };
 
   agents.set(agentId, {
@@ -329,7 +334,12 @@ async function addAgent(name, tenantId = 'default') {
       response_mode: 'mirror',
       tts_voice: 'nova',
       prefix: '!ia',
-      respond_all: true
+      respond_all: true,
+      ai_provider: 'openai',
+      openai_api_key: '',
+      openai_model: 'gpt-4o-mini',
+      anthropic_api_key: '',
+      anthropic_model: 'claude-3-haiku-20240307'
     }
   });
   startWhatsAppBot(newId, name, null, tenantId);

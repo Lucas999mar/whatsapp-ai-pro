@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const Anthropic = require('@anthropic-ai/sdk');
 const config = require('../config/config');
 const { searchKnowledge, saveConversationMessage, getConversationHistory, addLearning } = require('../db/repository');
 const fs = require('fs');
@@ -9,6 +10,126 @@ const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
+
+/**
+ * Resolve a configuração de IA com base nas settings do agente ou config global
+ */
+function resolveAIConfig(settings = {}) {
+  const provider = settings.ai_provider || config.aiProvider || 'openai';
+
+  if (provider === 'anthropic') {
+    const apiKey = settings.anthropic_api_key || config.anthropic.apiKey;
+    if (!apiKey) {
+      console.warn('⚠️ Chave da Anthropic não configurada, fallback para OpenAI');
+      return {
+        provider: 'openai',
+        apiKey: settings.openai_api_key || config.openai.apiKey,
+        model: settings.openai_model || config.openai.model || 'gpt-4o-mini',
+      };
+    }
+    return {
+      provider: 'anthropic',
+      apiKey,
+      model: settings.anthropic_model || config.anthropic.model || 'claude-3-haiku-20240307',
+    };
+  }
+
+  return {
+    provider: 'openai',
+    apiKey: settings.openai_api_key || config.openai.apiKey,
+    model: settings.openai_model || config.openai.model || 'gpt-4o-mini',
+  };
+}
+
+/**
+ * Converte tools do formato OpenAI para o formato Anthropic
+ */
+function convertToolsToAnthropic(openaiTools) {
+  return openaiTools.map(tool => ({
+    name: tool.function.name,
+    description: tool.function.description,
+    input_schema: tool.function.parameters,
+  }));
+}
+
+/**
+ * Chamada de chat completion unificada (OpenAI ou Anthropic)
+ * Recebe messages no formato OpenAI (com system no array). 
+ * Para Anthropic, extrai o system e converte automaticamente.
+ */
+async function callChatCompletion({ provider, apiKey, model, messages, tools = null, maxTokens = 1024, temperature = 0.7 }) {
+  if (provider === 'anthropic') {
+    const anthropicClient = new Anthropic({ apiKey });
+
+    // Extrai system prompt do array de mensagens
+    const systemMsg = messages.find(m => m.role === 'system');
+    const systemPrompt = systemMsg?.content || '';
+
+    // Filtra para manter apenas user/assistant
+    const anthropicMessages = messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role, content: m.content }));
+
+    const params = {
+      model,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      max_tokens: maxTokens,
+      temperature,
+    };
+
+    if (tools && tools.length > 0) {
+      params.tools = convertToolsToAnthropic(tools);
+    }
+
+    console.log(`🤖 [Anthropic] Chamando ${model}...`);
+    const response = await anthropicClient.messages.create(params);
+
+    // Mapeia resposta da Anthropic para formato unificado (compatível com OpenAI)
+    const textBlock = response.content.find(b => b.type === 'text');
+    const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+
+    return {
+      content: textBlock?.text || '',
+      tool_calls: toolUseBlocks.length > 0 ? toolUseBlocks.map(tb => ({
+        function: {
+          name: tb.name,
+          arguments: JSON.stringify(tb.input),
+        }
+      })) : null,
+      usage: {
+        total_tokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
+      }
+    };
+  }
+
+  // ── OpenAI path ──
+  const openaiClient = (apiKey && apiKey !== config.openai.apiKey)
+    ? new OpenAI({ apiKey })
+    : openai;
+
+  const params = {
+    model,
+    messages,
+    max_tokens: maxTokens,
+    temperature,
+  };
+
+  if (tools && tools.length > 0) {
+    params.tools = tools;
+    params.tool_choice = 'auto';
+  }
+
+  console.log(`🤖 [OpenAI] Chamando ${model}...`);
+  const response = await openaiClient.chat.completions.create(params);
+  const msg = response.choices[0].message;
+
+  return {
+    content: msg.content || '',
+    tool_calls: msg.tool_calls || null,
+    usage: response.usage || { total_tokens: 0 }
+  };
+}
 
 /**
  * Remove formatação robótica
@@ -201,22 +322,23 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
       }
     ];
 
-    // 4. Chama OpenAI
-    let response = await openai.chat.completions.create({
-      model: config.openai.model,
+    // 4. Chama IA (OpenAI ou Anthropic, conforme configuração do agente)
+    const aiConfig = resolveAIConfig(settings);
+    const aiResponse = await callChatCompletion({
+      provider: aiConfig.provider,
+      apiKey: aiConfig.apiKey,
+      model: aiConfig.model,
       messages,
       tools,
-      tool_choice: "auto",
-      max_tokens: 1024,
+      maxTokens: 1024,
       temperature: 0.7,
     });
 
-    const responseMessage = response.choices[0].message;
     let answer = '';
 
     // Verifica se a IA decidiu usar uma ferramenta (Function Calling)
-    if (responseMessage.tool_calls) {
-      for (const toolCall of responseMessage.tool_calls) {
+    if (aiResponse.tool_calls) {
+      for (const toolCall of aiResponse.tool_calls) {
         if (toolCall.function.name === 'agendar_reuniao') {
           const args = JSON.parse(toolCall.function.arguments);
           console.log(`📅 [Agendamento] A IA disparou o agendamento para: ${args.data_hora} - Assunto: ${args.assunto}`);
@@ -247,10 +369,10 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         }
       }
     } else {
-      answer = stripFormatting(responseMessage.content);
+      answer = stripFormatting(aiResponse.content);
     }
 
-    const tokensUsed = response.usage?.total_tokens || 0;
+    const tokensUsed = aiResponse.usage?.total_tokens || 0;
 
     // TTS Logic
     let responseAudioBuffer = null;
@@ -349,13 +471,17 @@ REGRAS:
 CONVERSA:
 ${conversationText}`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const learnAiConfig = resolveAIConfig({});
+    const learnResponse = await callChatCompletion({
+      provider: learnAiConfig.provider,
+      apiKey: learnAiConfig.apiKey,
+      model: learnAiConfig.model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 200
+      maxTokens: 200,
+      temperature: 0.7,
     });
 
-    const insights = response.choices[0].message.content.split('\n').filter(line => line.trim().length > 5);
+    const insights = learnResponse.content.split('\n').filter(line => line.trim().length > 5);
     
     for (const insight of insights) {
       await addLearning({
@@ -445,18 +571,21 @@ ${customInstruction || '- Forneça respostas estratégicas de alto valor.'}
       ...messages.map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }))
     ];
 
-    const response = await openai.chat.completions.create({
-      model: config.openai.model || 'gpt-4o',
+    const creativeAiConfig = resolveAIConfig({});
+    const creativeResponse = await callChatCompletion({
+      provider: creativeAiConfig.provider,
+      apiKey: creativeAiConfig.apiKey,
+      model: creativeAiConfig.model,
       messages: chatMessages,
-      max_tokens: 1500,
+      maxTokens: 1500,
       temperature: 0.8,
     });
 
-    return stripFormatting(response.choices[0].message.content);
+    return stripFormatting(creativeResponse.content);
   } catch (err) {
     console.error('❌ Erro no generateCreativeChat:', err.message);
     throw err;
   }
 }
 
-module.exports = { processMessage, analyzeAndSaveLearnings, transcribeAudio, convertMp3ToOgg, generateCreativeChat };
+module.exports = { processMessage, analyzeAndSaveLearnings, transcribeAudio, convertMp3ToOgg, generateCreativeChat, resolveAIConfig, callChatCompletion };

@@ -15,6 +15,11 @@ module.exports = {
     ttsModel: process.env.OPENAI_TTS_MODEL || 'tts-1',
     ttsVoice: process.env.OPENAI_TTS_VOICE || 'nova',
   },
+  aiProvider: process.env.AI_PROVIDER || 'openai',
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+  },
   supabase: {
     url: process.env.SUPABASE_URL,
     serviceKey: process.env.SUPABASE_SERVICE_KEY,

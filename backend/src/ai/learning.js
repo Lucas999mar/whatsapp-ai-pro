@@ -1,9 +1,7 @@
 const { getSupabase } = require('../db/supabase');
 const { generateEmbedding } = require('../db/repository');
-const OpenAI = require('openai');
 const config = require('../config/config');
-
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+const { resolveAIConfig, callChatCompletion } = require('./pipeline');
 
 /**
  * Extrai aprendizados de um lote de conversas
@@ -49,16 +47,28 @@ async function extractLearnings() {
 Extraia apenas fatos REAIS e ÚTEIS (ex: preferências de clientes, novos problemas relatados, horários citados).
 Retorne um JSON com a chave "learnings" contendo um array de strings. Se não houver nada novo, retorne {"learnings": []}.`;
 
-      const response = await openai.chat.completions.create({
-        model: config.openai.model,
+      const aiConfig = resolveAIConfig({});
+      const aiResponse = await callChatCompletion({
+        provider: aiConfig.provider,
+        apiKey: aiConfig.apiKey,
+        model: aiConfig.model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `CONVERSAS:\n${transcript}` }
         ],
-        response_format: { type: "json_object" }
+        maxTokens: 500,
+        temperature: 0.5,
       });
 
-      const result = JSON.parse(response.choices[0].message.content);
+      // Parse JSON de forma resiliente (funciona com OpenAI e Anthropic)
+      let result;
+      try {
+        const jsonMatch = aiResponse.content.match(/\{[\s\S]*\}/);
+        result = jsonMatch ? JSON.parse(jsonMatch[0]) : { learnings: [] };
+      } catch (parseErr) {
+        console.warn(`   ⚠️ Falha no parse JSON para ${tenant.name}, extraindo linhas como fallback.`);
+        result = { learnings: aiResponse.content.split('\n').filter(l => l.trim().length > 10) };
+      }
       const learnings = result.learnings || [];
 
       if (learnings.length > 0) {

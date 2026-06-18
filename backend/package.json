@@ -10,6 +10,7 @@
     "index": "node src/obsidian/indexer.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
     "@supabase/supabase-js": "^2.45.0",
     "@whiskeysockets/baileys": "^6.7.18",
     "canvas": "^3.2.3",

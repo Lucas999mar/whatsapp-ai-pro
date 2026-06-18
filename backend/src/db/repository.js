@@ -434,7 +434,12 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
     response_mode: config.bot.responseMode || 'mirror',
     tts_voice: config.openai.ttsVoice || 'nova',
     prefix: '!ia',
-    respond_all: true
+    respond_all: true,
+    ai_provider: 'openai',
+    openai_api_key: '',
+    openai_model: 'gpt-4o-mini',
+    anthropic_api_key: '',
+    anthropic_model: 'claude-3-haiku-20240307'
   };
 
   if (agent && agent.settings) {

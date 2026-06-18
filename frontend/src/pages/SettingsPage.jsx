@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/api';
-import { Settings, Save, Bot, Volume2, Shield, Loader2, Building2, Image as ImageIcon, Upload } from 'lucide-react';
+import { Settings, Save, Bot, Volume2, Shield, Loader2, Building2, Image as ImageIcon, Upload, Cpu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function SettingsPage() {
   const { user, updateProfile } = useAuth();
   const [agents, setAgents] = useState([]);
   const [selectedAgentId, setSelectedAgentId] = useState('default');
-  
+
   // Company Branding
   const [companyName, setCompanyName] = useState(user?.name || '');
   const [companyLogo, setCompanyLogo] = useState(user?.logo || '');
@@ -21,9 +21,14 @@ export default function SettingsPage() {
     system_prompt: '',
     response_mode: 'mirror',
     tts_voice: 'nova',
-    respond_all: true
+    respond_all: true,
+    ai_provider: 'openai',
+    openai_api_key: '',
+    openai_model: 'gpt-4o-mini',
+    anthropic_api_key: '',
+    anthropic_model: 'claude-3-haiku-20240307'
   });
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -45,7 +50,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!selectedAgentId || agents.length === 0) return;
-    
+
     const fetchSettings = async () => {
       setLoading(true);
       try {
@@ -112,14 +117,17 @@ export default function SettingsPage() {
     }
   };
 
+  const [niche, setNiche] = useState(user?.niche || 'generic');
+
   const handleSaveCompany = async () => {
     setSavingCompany(true);
     try {
       await api.put('/company/settings', {
         name: companyName,
-        logo: companyLogo
+        logo: companyLogo,
+        niche: niche
       });
-      updateProfile({ name: companyName, logo: companyLogo });
+      updateProfile({ name: companyName, logo: companyLogo, niche: niche });
       alert('Perfil da empresa atualizado!');
     } catch (err) {
       alert('Erro ao salvar perfil');
@@ -141,9 +149,9 @@ export default function SettingsPage() {
 
         <div className="flex items-center gap-3 bg-[#0F172A] px-4 py-3 rounded-xl border border-white/10 shadow-inner">
           <Bot size={18} className="text-[#25D366]" />
-          <select 
-            className="outline-none bg-transparent text-slate-200 font-medium cursor-pointer" 
-            value={selectedAgentId} 
+          <select
+            className="outline-none bg-transparent text-slate-200 font-medium cursor-pointer"
+            value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
           >
             {agents.map(a => (
@@ -159,25 +167,47 @@ export default function SettingsPage() {
           <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
             <Building2 className="text-[#25D366]" /> Perfil da Empresa (Branding)
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-2">Nome da Empresa</label>
-                <input 
-                  type="text" 
-                  value={companyName} 
+                <input
+                  type="text"
+                  value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none" 
+                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none"
                 />
               </div>
-              <button 
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">Nicho de Atuação (Multi-Niche)</label>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {[
+                    { id: 'automotivo', label: 'Automotivo', icon: '🚗' },
+                    { id: 'varejo', label: 'Varejo', icon: '🛍️' },
+                    { id: 'servicos', label: 'Serviços', icon: '💼' },
+                    { id: 'generic', label: 'Geral', icon: '📦' }
+                  ].map(n => (
+                    <button
+                      key={n.id}
+                      onClick={() => setNiche(n.id)}
+                      className={`flex items-center gap-2 p-3 rounded-xl border transition-all text-xs font-bold ${niche === n.id
+                        ? 'bg-[#25D366]/20 border-[#25D366] text-[#25D366]'
+                        : 'bg-white/5 border-white/5 text-slate-500 hover:border-white/10'
+                        }`}
+                    >
+                      <span>{n.icon}</span> {n.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
                 onClick={handleSaveCompany}
                 disabled={savingCompany}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
+                className="w-full bg-[#25D366] hover:bg-[#1DA851] text-black py-3 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#25D366]/10"
               >
                 {savingCompany ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                Salvar Nome da Empresa
+                Salvar Alterações Globais
               </button>
             </div>
 
@@ -199,11 +229,11 @@ export default function SettingsPage() {
                   <p className="text-sm text-slate-400">Clique para enviar logo</p>
                 </div>
               )}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleLogoUpload} 
-                className="hidden" 
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleLogoUpload}
+                className="hidden"
                 accept="image/*"
               />
             </div>
@@ -235,6 +265,101 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-slate-400 mb-2">Prompt do Sistema</label>
                 <textarea rows="6" className="w-full bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none" value={settings.system_prompt} onChange={(e) => handleChange('system_prompt', e.target.value)}></textarea>
               </div>
+            </div>
+
+            {/* PROVEDOR DE IA */}
+            <div className="glass-panel p-8">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                <Cpu className="text-[#25D366]" /> Provedor de Inteligência Artificial
+              </h3>
+              <p className="text-sm text-slate-400 mb-6">Selecione qual cérebro de IA este agente usará para processar mensagens. Deixe a chave de API em branco para usar a chave padrão do servidor.</p>
+
+              {/* Provider Selector */}
+              <div className="flex gap-3 mb-6">
+                {[
+                  { id: 'openai', label: 'OpenAI', icon: '🟢', desc: 'GPT-4o, GPT-4o-mini' },
+                  { id: 'anthropic', label: 'Anthropic Claude', icon: '🟠', desc: 'Claude Haiku, Sonnet, Opus' }
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleChange('ai_provider', p.id)}
+                    className={`flex-1 flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all ${
+                      settings.ai_provider === p.id
+                        ? 'bg-[#25D366]/10 border-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.15)]'
+                        : 'bg-white/[0.02] border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <span className="text-2xl">{p.icon}</span>
+                    <span className={`font-bold text-sm ${settings.ai_provider === p.id ? 'text-[#25D366]' : 'text-white'}`}>{p.label}</span>
+                    <span className="text-xs text-slate-500">{p.desc}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* OpenAI Config */}
+              {settings.ai_provider === 'openai' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-[#0F172A] rounded-xl border border-white/5 animate-fade-in">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Chave de API OpenAI</label>
+                    <input
+                      type="password"
+                      placeholder="Usar chave padrão do servidor"
+                      value={settings.openai_api_key}
+                      onChange={(e) => handleChange('openai_api_key', e.target.value)}
+                      className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Se vazio, usa a variável OPENAI_API_KEY do servidor.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Modelo OpenAI</label>
+                    <select
+                      value={settings.openai_model}
+                      onChange={(e) => handleChange('openai_model', e.target.value)}
+                      className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#25D366]/50 transition-colors"
+                    >
+                      <option value="gpt-4o-mini">GPT-4o Mini (Rápido e Econômico)</option>
+                      <option value="gpt-4o">GPT-4o (Mais Inteligente)</option>
+                      <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                      <option value="gpt-4.1">GPT-4.1</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Anthropic Config */}
+              {settings.ai_provider === 'anthropic' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-[#0F172A] rounded-xl border border-white/5 animate-fade-in">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Chave de API Anthropic</label>
+                    <input
+                      type="password"
+                      placeholder="Usar chave padrão do servidor"
+                      value={settings.anthropic_api_key}
+                      onChange={(e) => handleChange('anthropic_api_key', e.target.value)}
+                      className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Se vazio, usa a variável ANTHROPIC_API_KEY do servidor.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Modelo Anthropic</label>
+                    <select
+                      value={settings.anthropic_model}
+                      onChange={(e) => handleChange('anthropic_model', e.target.value)}
+                      className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#25D366]/50 transition-colors"
+                    >
+                      <option value="claude-3-haiku-20240307">Claude 3 Haiku (Rápido e Gratuito)</option>
+                      <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+                      <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Recomendado)</option>
+                      <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                      <option value="claude-opus-4-20250514">Claude Opus 4 (Mais Inteligente)</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+                    <span className="text-amber-400 text-lg">⚠️</span>
+                    <p className="text-xs text-amber-300/80">A Anthropic não oferece TTS (texto em áudio) nem Whisper (transcrição). Se o modo de resposta for "Áudio" ou "Espelhar", o sistema usará automaticamente a OpenAI para TTS/transcrição, mantendo o Claude apenas para o raciocínio textual.</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="glass-panel p-8">
