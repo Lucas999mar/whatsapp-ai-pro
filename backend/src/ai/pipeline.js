@@ -15,27 +15,23 @@ const openai = new OpenAI({ apiKey: config.openai.apiKey });
  * Resolve a configuração de IA com base nas settings do agente ou config global
  */
 function resolveAIConfig(settings = {}) {
-  const provider = settings.ai_provider || config.aiProvider || 'openai';
+  // Força usar Anthropic/OpenRouter por padrão já que a OpenAI global expirou
+  let provider = settings.ai_provider || config.aiProvider || 'anthropic';
+  if (provider === 'openai' && !settings.openai_api_key) {
+    provider = 'anthropic';
+  }
 
   if (provider === 'openrouter') {
-    const apiKey = settings.openrouter_api_key || settings.anthropic_api_key || settings.openai_api_key;
+    const apiKey = settings.openrouter_api_key || settings.anthropic_api_key || settings.openai_api_key || config.anthropic.apiKey;
     return {
       provider: 'openrouter',
-      apiKey: apiKey,
+      apiKey,
       model: settings.openrouter_model || settings.anthropic_model || 'anthropic/claude-3-haiku',
     };
   }
 
   if (provider === 'anthropic') {
     const apiKey = settings.anthropic_api_key || config.anthropic.apiKey;
-    if (!apiKey) {
-      console.warn('⚠️ Chave da Anthropic não configurada, fallback para OpenAI');
-      return {
-        provider: 'openai',
-        apiKey: settings.openai_api_key || config.openai.apiKey,
-        model: settings.openai_model || config.openai.model || 'gpt-4o-mini',
-      };
-    }
     return {
       provider: 'anthropic',
       apiKey,
@@ -576,6 +572,9 @@ async function transcribeAudio(audioBuffer, mimetype = 'audio/ogg') {
       response_format: 'text',
     });
     return typeof transcription === 'string' ? transcription : transcription.text;
+  } catch (err) {
+    console.warn('⚠️ Erro na transcrição Whisper (OpenAI sem saldo):', err.message);
+    return '[Áudio recebido - Transcrição temporariamente indisponível devido a limite de quota da OpenAI]';
   } finally {
     try { fs.unlinkSync(tempPath); } catch {}
   }

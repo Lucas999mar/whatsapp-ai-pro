@@ -435,7 +435,7 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
     tts_voice: config.openai.ttsVoice || 'nova',
     prefix: '!ia',
     respond_all: true,
-    ai_provider: 'openai',
+    ai_provider: 'anthropic',
     openai_api_key: '',
     openai_model: 'gpt-4o-mini',
     anthropic_api_key: '',
@@ -443,7 +443,26 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
   };
 
   if (agent && agent.settings) {
-    return { ...defaultSettings, ...agent.settings };
+    const merged = { ...defaultSettings, ...agent.settings };
+    
+    // Herança automática de chaves do agente 'default' se o agente atual não tiver chave configurada
+    if (!merged.anthropic_api_key && agentId !== 'default') {
+      const defaultAgent = agents.find(a => a.id === 'default');
+      if (defaultAgent && defaultAgent.settings && defaultAgent.settings.anthropic_api_key) {
+        merged.anthropic_api_key = defaultAgent.settings.anthropic_api_key;
+        merged.ai_provider = defaultAgent.settings.ai_provider || merged.ai_provider;
+        merged.anthropic_model = defaultAgent.settings.anthropic_model || merged.anthropic_model;
+      }
+    }
+    return merged;
+  }
+
+  // Se o agente em si não tiver registro, tenta carregar as configurações do agente 'default'
+  if (agentId !== 'default') {
+    const defaultAgent = agents.find(a => a.id === 'default');
+    if (defaultAgent && defaultAgent.settings) {
+      return { ...defaultSettings, ...defaultAgent.settings };
+    }
   }
 
   return defaultSettings;
