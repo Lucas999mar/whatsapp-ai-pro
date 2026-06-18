@@ -17,6 +17,15 @@ const openai = new OpenAI({ apiKey: config.openai.apiKey });
 function resolveAIConfig(settings = {}) {
   const provider = settings.ai_provider || config.aiProvider || 'openai';
 
+  if (provider === 'openrouter') {
+    const apiKey = settings.openrouter_api_key || settings.anthropic_api_key || settings.openai_api_key;
+    return {
+      provider: 'openrouter',
+      apiKey: apiKey,
+      model: settings.openrouter_model || settings.anthropic_model || 'anthropic/claude-3-haiku',
+    };
+  }
+
   if (provider === 'anthropic') {
     const apiKey = settings.anthropic_api_key || config.anthropic.apiKey;
     if (!apiKey) {
@@ -58,6 +67,56 @@ function convertToolsToAnthropic(openaiTools) {
  * Para Anthropic, extrai o system e converte automaticamente.
  */
 async function callChatCompletion({ provider, apiKey, model, messages, tools = null, maxTokens = 1024, temperature = 0.7 }) {
+  const isOpenRouter = provider === 'openrouter' || (apiKey && apiKey.startsWith('sk-or-'));
+
+  if (isOpenRouter) {
+    // OpenRouter usa o formato compatível com OpenAI
+    const openrouterClient = new OpenAI({
+      apiKey: apiKey,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://whatsapp-ai-pro-lucas.vercel.app',
+        'X-Title': 'WhatsApp AI Pro'
+      }
+    });
+
+    // Mapeamento de modelos comuns para o formato da OpenRouter
+    let mappedModel = model;
+    if (mappedModel === 'claude-3-haiku-20240307') {
+      mappedModel = 'anthropic/claude-3-haiku';
+    } else if (mappedModel === 'claude-3-5-sonnet-20241022') {
+      mappedModel = 'anthropic/claude-3.5-sonnet';
+    } else if (!mappedModel.includes('/')) {
+      if (mappedModel.startsWith('claude')) {
+        mappedModel = `anthropic/${mappedModel}`;
+      } else if (mappedModel.startsWith('gpt')) {
+        mappedModel = `openai/${mappedModel}`;
+      }
+    }
+
+    const params = {
+      model: mappedModel,
+      messages,
+      max_tokens: maxTokens,
+      temperature,
+    };
+
+    if (tools && tools.length > 0) {
+      params.tools = tools;
+      params.tool_choice = 'auto';
+    }
+
+    console.log(`🤖 [OpenRouter] Chamando ${mappedModel}...`);
+    const response = await openrouterClient.chat.completions.create(params);
+    const msg = response.choices[0].message;
+
+    return {
+      content: msg.content || '',
+      tool_calls: msg.tool_calls || null,
+      usage: response.usage || { total_tokens: 0 }
+    };
+  }
+
   if (provider === 'anthropic') {
     const anthropicClient = new Anthropic({ apiKey });
 

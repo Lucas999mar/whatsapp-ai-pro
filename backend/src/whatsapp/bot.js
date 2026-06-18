@@ -282,6 +282,13 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
               }
             } catch (err) {
               console.error(`Erro [${agentName}]:`, err.message);
+              try {
+                await sock.sendMessage(sender, {
+                  text: `⚠️ Desculpe, ocorreu um erro ao processar sua mensagem pelo provedor de IA (${err.message}). Por favor, tente novamente ou verifique as configurações da chave de API.`
+                });
+              } catch (sendErr) {
+                console.error('Erro ao enviar mensagem de erro:', sendErr.message);
+              }
             } finally {
               await sock.sendPresenceUpdate('paused', sender);
             }
