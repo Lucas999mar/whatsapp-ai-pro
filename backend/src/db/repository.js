@@ -447,7 +447,12 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
     
     // Herança automática de chaves do agente 'default' se o agente atual não tiver chave configurada
     if (!merged.anthropic_api_key && agentId !== 'default') {
-      const defaultAgent = agents.find(a => a.id === 'default');
+      let defaultAgent = agents.find(a => a.id === 'default');
+      if (!defaultAgent) {
+        // Se não encontrar o default no mesmo tenant, busca na lista global de agentes
+        const allAgents = await listAgents(null);
+        defaultAgent = allAgents.find(a => a.id === 'default');
+      }
       if (defaultAgent && defaultAgent.settings && defaultAgent.settings.anthropic_api_key) {
         merged.anthropic_api_key = defaultAgent.settings.anthropic_api_key;
         merged.ai_provider = defaultAgent.settings.ai_provider || merged.ai_provider;
@@ -459,7 +464,11 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
 
   // Se o agente em si não tiver registro, tenta carregar as configurações do agente 'default'
   if (agentId !== 'default') {
-    const defaultAgent = agents.find(a => a.id === 'default');
+    let defaultAgent = agents.find(a => a.id === 'default');
+    if (!defaultAgent) {
+      const allAgents = await listAgents(null);
+      defaultAgent = allAgents.find(a => a.id === 'default');
+    }
     if (defaultAgent && defaultAgent.settings) {
       return { ...defaultSettings, ...defaultAgent.settings };
     }
