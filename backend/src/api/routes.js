@@ -571,6 +571,57 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
   });
 });
 
+// ── WHATSAPP GROUP ROUTES ──────────────────────────────────────
+const { getAgentGroups, addParticipantsToGroup } = require('../whatsapp/bot');
+
+// Listar todos os grupos de um agente conectado
+router.get('/whatsapp/groups/:agentId', authMiddleware, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const tenantId = req.user.id;
+
+    // Garante que o agente pertence ao tenant
+    const userAgents = await getAgentsStatus(tenantId);
+    const hasAgent = userAgents.find(a => a.id === agentId);
+    if (!hasAgent) return res.status(403).json({ error: 'Acesso negado ao agente' });
+
+    if (hasAgent.status !== 'connected') {
+      return res.status(400).json({ error: 'O agente precisa estar conectado para listar os grupos.' });
+    }
+
+    const groups = await getAgentGroups(agentId);
+    res.json(groups);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Adicionar participantes em lote a um grupo
+router.post('/whatsapp/groups/add-participants', authMiddleware, async (req, res) => {
+  try {
+    const { agentId, groupJid, numbers } = req.body;
+    const tenantId = req.user.id;
+
+    if (!agentId || !groupJid || !numbers || !Array.isArray(numbers)) {
+      return res.status(400).json({ error: 'Parâmetros inválidos ou incompletos' });
+    }
+
+    // Garante que o agente pertence ao tenant
+    const userAgents = await getAgentsStatus(tenantId);
+    const hasAgent = userAgents.find(a => a.id === agentId);
+    if (!hasAgent) return res.status(403).json({ error: 'Acesso negado ao agente' });
+
+    if (hasAgent.status !== 'connected') {
+      return res.status(400).json({ error: 'O agente precisa estar conectado para adicionar participantes.' });
+    }
+
+    const result = await addParticipantsToGroup(agentId, groupJid, numbers);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── FOLLOW-UP ROUTES ──────────────────────────────────────────
 
 router.get('/follow-ups', authMiddleware, async (req, res) => {

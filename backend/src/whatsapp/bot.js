@@ -490,4 +490,61 @@ async function sendDirectMessage(agentId, number, text, media = null, { skipVali
   }
 }
 
-module.exports = { startWhatsAppBot, getAgentsStatus, restartWhatsAppBot, startFleet, addAgent, removeAgent, updateAgentSettings, sendDirectMessage };
+async function getAgentGroups(agentId) {
+  const agent = agents.get(agentId);
+  if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
+
+  try {
+    const groups = await agent.socket.groupFetchAllParticipating();
+    return Object.values(groups).map(g => ({
+      id: g.id,
+      subject: g.subject,
+      participantsCount: g.participants?.length || 0,
+      size: g.size,
+      owner: g.owner
+    }));
+  } catch (e) {
+    console.error(`❌ Erro ao buscar grupos do agente ${agentId}:`, e.message);
+    throw e;
+  }
+}
+
+async function addParticipantsToGroup(agentId, groupJid, numbers) {
+  const agent = agents.get(agentId);
+  if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
+
+  const formattedJids = numbers.map(number => {
+    let clean = number.replace(/\D/g, '');
+    if (clean.length >= 10 && clean.length <= 11 && !clean.startsWith('55')) {
+      clean = '55' + clean;
+    }
+    return clean.includes('@') ? clean : `${clean}@s.whatsapp.net`;
+  });
+
+  console.log(`👥 [GroupManager] Tentando adicionar ${formattedJids.length} participantes ao grupo ${groupJid}`);
+
+  try {
+    // Ação 'add' adiciona os participantes ao grupo
+    const response = await agent.socket.groupParticipantsUpdate(groupJid, formattedJids, 'add');
+    return {
+      success: true,
+      response
+    };
+  } catch (e) {
+    console.error(`❌ Erro ao adicionar participantes ao grupo ${groupJid}:`, e.message);
+    throw e;
+  }
+}
+
+module.exports = {
+  startWhatsAppBot,
+  getAgentsStatus,
+  restartWhatsAppBot,
+  startFleet,
+  addAgent,
+  removeAgent,
+  updateAgentSettings,
+  sendDirectMessage,
+  getAgentGroups,
+  addParticipantsToGroup
+};

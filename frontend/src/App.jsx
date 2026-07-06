@@ -23,6 +23,7 @@ import OSPage from './pages/OSPage';
 import AtendimentoPage from './pages/AtendimentoPage';
 import CRMPage from './pages/CRMPage';
 import ContatosPage from './pages/ContatosPage';
+import GroupsPage from './pages/GroupsPage';
 
 // Novos componentes de Delivery
 import TrackingPage from './pages/TrackingPage';
@@ -39,6 +40,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/atendimento', name: 'Atendimento', icon: <MessageSquare size={20} /> },
     { path: '/crm', name: 'CRM Kanban', icon: <LayoutDashboard size={20} /> },
     { path: '/contacts', name: 'Contatos', icon: <Users size={20} /> },
+    { path: '/groups', name: 'Gestão de Grupos', icon: <Users size={20} /> },
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
     { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
@@ -241,6 +243,7 @@ function AppContent() {
             <Route path="/atendimento" element={<AuthGuard><AtendimentoPage /></AuthGuard>} />
             <Route path="/crm" element={<AuthGuard><CRMPage /></AuthGuard>} />
             <Route path="/contacts" element={<AuthGuard><ContatosPage /></AuthGuard>} />
+            <Route path="/groups" element={<AuthGuard><GroupsPage /></AuthGuard>} />
             <Route path="/knowledge" element={<AuthGuard><KnowledgeBase /></AuthGuard>} />
             <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
