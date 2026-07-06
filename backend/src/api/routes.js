@@ -474,7 +474,7 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
 
   if (!hasAgent) return res.status(403).json({ error: 'Acesso negado ao agente' });
 
-  // 🛡️ [NOVO] Verifica se o agente está realmente ativo no processo
+  // 🛡️ Verifica se o agente está realmente ativo no processo
   if (hasAgent.status !== 'connected') {
     return res.status(400).json({ error: `O agente ${hasAgent.name} não está conectado no momento. Status: ${hasAgent.status}` });
   }
@@ -482,20 +482,93 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
   // Inicia o processo em background para não travar a requisição
   res.json({ status: 'iniciado', total: numbers.length });
 
+  const BATCH_SIZE = 50; // Pausa maior a cada 50 mensagens
+  const BATCH_PAUSE_MS = 30000; // 30s de pausa entre lotes
+  const MAX_RECONNECT_WAIT = 120000; // Espera até 2min pela reconexão
+
   (async () => {
-    for (const number of numbers) {
-      try {
-        await sendDirectMessage(agentId, number, message, media);
-        console.log(`📢 Broadcast [${tenantId}]: Mensagem enviada para ${number}`);
-      } catch (err) {
-        console.error(`❌ Broadcast Erro [${number}]:`, err.message);
+    let sent = 0;
+    let errors = 0;
+    const total = numbers.length;
+
+    console.log(`\n📢 ══════════════════════════════════════════════════`);
+    console.log(`📢 BROADCAST INICIADO [${tenantId}]`);
+    console.log(`📢 Agente: ${hasAgent.name} (${agentId})`);
+    console.log(`📢 Total de contatos: ${total}`);
+    console.log(`📢 Delay configurado: ${delay}s`);
+    console.log(`📢 ══════════════════════════════════════════════════\n`);
+
+    for (let i = 0; i < numbers.length; i++) {
+      const number = numbers[i];
+
+      // 🛡️ Verifica se o agente ainda está conectado antes de cada envio
+      const currentAgents = await getAgentsStatus(tenantId);
+      const currentAgent = currentAgents.find(a => a.id === agentId);
+
+      if (!currentAgent || currentAgent.status !== 'connected') {
+        console.warn(`⚠️ Broadcast [${tenantId}]: Agente desconectou no contato ${i + 1}/${total}. Aguardando reconexão...`);
+
+        // Espera pela reconexão com timeout
+        let reconnected = false;
+        const startWait = Date.now();
+
+        while (Date.now() - startWait < MAX_RECONNECT_WAIT) {
+          await new Promise(r => setTimeout(r, 5000)); // Verifica a cada 5s
+          const recheck = await getAgentsStatus(tenantId);
+          const recheckAgent = recheck.find(a => a.id === agentId);
+          if (recheckAgent && recheckAgent.status === 'connected') {
+            reconnected = true;
+            console.log(`✅ Broadcast [${tenantId}]: Agente reconectado! Continuando do contato ${i + 1}/${total}...`);
+            break;
+          }
+        }
+
+        if (!reconnected) {
+          console.error(`❌ Broadcast [${tenantId}]: Agente não reconectou após ${MAX_RECONNECT_WAIT / 1000}s. Abortando broadcast no contato ${i + 1}/${total}.`);
+          console.log(`📊 Broadcast ABORTADO: ${sent} enviados, ${errors} erros de ${total} total.`);
+          return;
+        }
       }
 
-      // Delay entre 1 e 5 segundos extras para humanizar se for 0
-      const waitTime = (delay || 5) * 1000 + (Math.random() * 2000);
-      await new Promise(r => setTimeout(r, waitTime));
+      try {
+        // skipValidation: true → NÃO faz onWhatsApp() para cada número (evita rate-limit)
+        await sendDirectMessage(agentId, number, message, media, { skipValidation: true, retries: 2 });
+        sent++;
+        console.log(`📢 Broadcast [${tenantId}]: ✅ ${sent}/${total} - Enviado para ${number}`);
+      } catch (err) {
+        errors++;
+        console.error(`📢 Broadcast [${tenantId}]: ❌ Erro no contato ${i + 1}/${total} (${number}):`, err.message);
+
+        // Se o erro é de socket/desconexão, não desiste — volta pro verificação de reconexão
+        if (err.message.includes('desconectado') || err.message.includes('Socket') || err.message.includes('not connected')) {
+          console.warn(`⚠️ Broadcast: Erro de conexão detectado. Voltando para buscar reconexão...`);
+          i--; // Tenta novamente este número na próxima iteração
+          await new Promise(r => setTimeout(r, 10000));
+          continue;
+        }
+      }
+
+      // 🕐 Delay entre mensagens: base + jitter aleatório para parecer humano
+      const baseDelay = (delay || 10) * 1000;
+      const jitter = Math.random() * 5000; // 0-5s extras aleatórios
+      const waitTime = baseDelay + jitter;
+
+      // 📦 Pausa maior entre lotes para segurança
+      if ((i + 1) % BATCH_SIZE === 0 && i + 1 < total) {
+        console.log(`📢 Broadcast [${tenantId}]: 📦 Lote de ${BATCH_SIZE} concluído. Pausando ${BATCH_PAUSE_MS / 1000}s para segurança...`);
+        await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
+      } else {
+        await new Promise(r => setTimeout(r, waitTime));
+      }
     }
-  })().catch(console.error);
+
+    console.log(`\n📢 ══════════════════════════════════════════════════`);
+    console.log(`📢 BROADCAST FINALIZADO [${tenantId}]`);
+    console.log(`📢 ✅ Enviados: ${sent} | ❌ Erros: ${errors} | 📊 Total: ${total}`);
+    console.log(`📢 ══════════════════════════════════════════════════\n`);
+  })().catch(err => {
+    console.error(`❌ Broadcast CRASH [${tenantId}]:`, err.message);
+  });
 });
 
 // ── FOLLOW-UP ROUTES ──────────────────────────────────────────

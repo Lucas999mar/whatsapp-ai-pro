@@ -375,9 +375,14 @@ async function updateAgentSettings(agentId, newSettings) {
   }
 }
 
-async function sendDirectMessage(agentId, number, text, media = null) {
+async function sendDirectMessage(agentId, number, text, media = null, { skipValidation = false, retries = 2 } = {}) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
+
+  // Verifica se o socket ainda está realmente conectado
+  if (agent.status !== 'connected') {
+    throw new Error(`Agente ${agentId} está com status "${agent.status}", não pode enviar mensagens.`);
+  }
 
   console.log(`📡 [DirectMessage] Preparando envio para ${number} via agente ${agentId}`);
 
@@ -392,61 +397,84 @@ async function sendDirectMessage(agentId, number, text, media = null) {
   let testJid = cleanNumber.includes('@') ? cleanNumber : `${cleanNumber}@s.whatsapp.net`;
   let finalJid = testJid;
 
-  // 🛡️ [MELHORIA] Tenta resolver o JID correto (com ou sem o 9) via WhatsApp
-  try {
-    console.log(`🔍 [DirectMessage] Verificando existência de ${testJid}...`);
-    const results = await agent.socket.onWhatsApp(testJid);
-    if (results && results.length > 0 && results[0].exists) {
-      finalJid = results[0].jid;
-      console.log(`✅ [DirectMessage] Número validado: ${finalJid}`);
-    } else {
-      console.warn(`⚠️ [DirectMessage] Número ${testJid} não encontrado pelo WhatsApp. Prosseguindo com JID padrão.`);
+  // 🛡️ Validação de número via onWhatsApp. Skipar em broadcasts para evitar rate-limit.
+  if (!skipValidation) {
+    try {
+      console.log(`🔍 [DirectMessage] Verificando existência de ${testJid}...`);
+      const results = await agent.socket.onWhatsApp(testJid);
+      if (results && results.length > 0 && results[0].exists) {
+        finalJid = results[0].jid;
+        console.log(`✅ [DirectMessage] Número validado: ${finalJid}`);
+      } else {
+        console.warn(`⚠️ [DirectMessage] Número ${testJid} não encontrado pelo WhatsApp. Prosseguindo com JID padrão.`);
+      }
+    } catch (e) {
+      console.error(`❌ [DirectMessage] Erro na verificação onWhatsApp para ${testJid}:`, e.message);
     }
-  } catch (e) {
-    console.error(`❌ [DirectMessage] Erro na verificação onWhatsApp para ${testJid}:`, e.message);
   }
 
   const tenantId = agent.tenantId || 'default';
   const whatsappId = `${tenantId}__${finalJid}__${agentId}`;
 
-  // Envia a mensagem
-  try {
-    if (media && media.url) {
-      console.log(`📂 [DirectMessage] Enviando mídia (${media.type}) para ${finalJid}`);
-      const options = {};
-      const type = media.type;
-
-      if (type === 'image') options.image = { url: media.url };
-      else if (type === 'video') options.video = { url: media.url };
-      else if (type === 'audio') {
-        options.audio = { url: media.url };
-        options.mimetype = 'audio/ogg; codecs=opus';
-        options.ptt = true;
-      } else {
-        options.document = { url: media.url };
-        options.mimetype = media.mimetype || 'application/pdf';
-        options.fileName = media.fileName || 'Arquivo';
-
-        if (!media.fileName && media.url.includes('.')) {
-          const parts = media.url.split('.');
-          const ext = parts[parts.length - 1].split('?')[0];
-          options.fileName = `Arquivo.${ext}`;
-        }
+  // Envia a mensagem com retry
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // Re-verifica conexão antes de cada tentativa
+      const currentAgent = agents.get(agentId);
+      if (!currentAgent || !currentAgent.socket || currentAgent.status !== 'connected') {
+        throw new Error(`Socket desconectado durante envio (status: ${currentAgent?.status || 'removido'})`);
       }
 
-      if (text) options.caption = text;
-      await agent.socket.sendMessage(finalJid, options);
-    } else {
-      console.log(`💬 [DirectMessage] Enviando texto para ${finalJid}`);
-      await agent.socket.sendMessage(finalJid, { text });
+      if (media && media.url) {
+        console.log(`📂 [DirectMessage] Enviando mídia (${media.type}) para ${finalJid}${attempt > 0 ? ` [tentativa ${attempt + 1}]` : ''}`);
+        const options = {};
+        const type = media.type;
+
+        if (type === 'image') options.image = { url: media.url };
+        else if (type === 'video') options.video = { url: media.url };
+        else if (type === 'audio') {
+          options.audio = { url: media.url };
+          options.mimetype = 'audio/ogg; codecs=opus';
+          options.ptt = true;
+        } else {
+          options.document = { url: media.url };
+          options.mimetype = media.mimetype || 'application/pdf';
+          options.fileName = media.fileName || 'Arquivo';
+
+          if (!media.fileName && media.url.includes('.')) {
+            const parts = media.url.split('.');
+            const ext = parts[parts.length - 1].split('?')[0];
+            options.fileName = `Arquivo.${ext}`;
+          }
+        }
+
+        if (text) options.caption = text;
+        await currentAgent.socket.sendMessage(finalJid, options);
+      } else {
+        console.log(`💬 [DirectMessage] Enviando texto para ${finalJid}${attempt > 0 ? ` [tentativa ${attempt + 1}]` : ''}`);
+        await currentAgent.socket.sendMessage(finalJid, { text });
+      }
+
+      console.log(`✅ [DirectMessage] Mensagem entregue ao WhatsApp para ${finalJid}`);
+      lastError = null;
+      break; // Sucesso, sai do loop de retry
+    } catch (err) {
+      lastError = err;
+      console.error(`❌ [DirectMessage] Erro ao enviar para ${finalJid} (tentativa ${attempt + 1}/${retries + 1}):`, err.message);
+      if (attempt < retries) {
+        const backoff = (attempt + 1) * 3000; // 3s, 6s
+        console.log(`⏳ [DirectMessage] Aguardando ${backoff / 1000}s antes de tentar novamente...`);
+        await new Promise(r => setTimeout(r, backoff));
+      }
     }
-    console.log(`✅ [DirectMessage] Mensagem entregue ao WhatsApp para ${finalJid}`);
-  } catch (err) {
-    console.error(`❌ [DirectMessage] Erro fatal ao enviar para ${finalJid}:`, err.message);
-    throw err; // Repassa para o loop de broadcast tratar
   }
 
-  // 💾 [NOVO] Salva no histórico do CRM para aparecer no painel
+  if (lastError) {
+    throw lastError; // Todas as tentativas falharam
+  }
+
+  // 💾 Salva no histórico do CRM para aparecer no painel
   try {
     const { saveConversationMessage } = require('../db/repository');
     await saveConversationMessage({

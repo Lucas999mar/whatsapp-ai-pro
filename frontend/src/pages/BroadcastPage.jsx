@@ -76,14 +76,14 @@ export default function BroadcastPage() {
     if (!message.trim() && !media) return alert('Insira uma mensagem ou anexe um arquivo.');
     if (!selectedAgent) return alert('Selecione um agente conectado.');
 
-    // if (!window.confirm(`Você está prestes a enviar mensagens para ${numbers.length} contatos. Deseja continuar?`)) return;
+    if (!window.confirm(`Você está prestes a enviar mensagens para ${numbers.length} contatos.\n\nO processo rodará em background no servidor.\nEstimativa: ~${Math.ceil((numbers.length * (delay + 3)) / 60)} minutos.\n\nDeseja continuar?`)) return;
 
     setLoading(true);
     setStatus('sending');
     setStats({ total: numbers.length, sent: 0, errors: 0 });
 
     try {
-      await api.post('/whatsapp/broadcast', {
+      const res = await api.post('/whatsapp/broadcast', {
         agentId: selectedAgent,
         numbers,
         message,
@@ -92,7 +92,7 @@ export default function BroadcastPage() {
       });
 
       setStatus('finished');
-      alert('O disparo em massa foi iniciado no servidor.');
+      setStats(prev => ({ ...prev, total: res.data.total || numbers.length }));
     } catch (err) {
       alert('Erro ao iniciar disparo: ' + (err.response?.data?.error || err.message));
       setStatus('idle');
@@ -246,8 +246,38 @@ export default function BroadcastPage() {
               <li>Evite links externos na primeira mensagem.</li>
               <li>Use nomes variados se possível.</li>
               <li>O processo roda em background no servidor.</li>
+              <li>Lotes de 50 contatos com pausa automática de 30s.</li>
             </ul>
           </div>
+
+          {status === 'finished' && (
+            <div className="glass-panel p-6 bg-[#25D366]/5 border-[#25D366]/20 animate-fade-in">
+              <h4 className="text-white font-bold flex items-center gap-2 mb-3">
+                <CheckCircle2 size={18} className="text-[#25D366]" />
+                Campanha em Andamento
+              </h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Total de contatos:</span>
+                  <span className="text-white font-bold">{stats.total}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Estimativa:</span>
+                  <span className="text-white font-bold">~{Math.ceil((stats.total * (delay + 3)) / 60)} min</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Status:</span>
+                  <span className="text-[#25D366] font-bold flex items-center gap-1">
+                    <span className="w-2 h-2 bg-[#25D366] rounded-full animate-pulse"></span>
+                    Enviando no servidor
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-3 italic">
+                O envio continua mesmo se você fechar esta página. Acompanhe os logs do servidor para detalhes.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
