@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
 import { Megaphone, Users, Clock, Send, AlertTriangle, CheckCircle2, Loader2, FileUp, Hash } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function BroadcastPage() {
   const [agents, setAgents] = useState([]);
@@ -58,13 +59,81 @@ export default function BroadcastPage() {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target.result;
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 5);
-      setNumbersText(prev => (prev ? prev + '\n' : '') + lines.join('\n'));
-    };
-    reader.readAsText(file);
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+
+    if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+
+          const loadedNumbers = [];
+          const seen = new Set();
+
+          // Varre todas as células da planilha independente de range para evitar truncamento
+          for (const cellAddress in worksheet) {
+            if (/^[A-Z]+\d+$/.test(cellAddress)) {
+              const cell = worksheet[cellAddress];
+              if (cell && (cell.v !== undefined || cell.w !== undefined)) {
+                // Evita notação científica no número do Whatsapp
+                const val = cell.w || String(cell.v);
+                const cleaned = val.replace(/\D/g, '');
+
+                if (cleaned.length >= 8 && cleaned.length <= 15) {
+                  if (!seen.has(cleaned)) {
+                    seen.add(cleaned);
+                    loadedNumbers.push(cleaned);
+                  }
+                }
+              }
+            }
+          }
+
+          if (loadedNumbers.length === 0) {
+            alert('Nenhum número de telefone válido foi encontrado nas colunas do Excel.');
+            return;
+          }
+
+          setNumbersText(prev => (prev ? prev + '\n' : '') + loadedNumbers.join('\n'));
+        } catch (err) {
+          console.error('Erro ao processar arquivo Excel:', err);
+          alert('Erro ao processar o arquivo Excel. Verifique se a planilha não está corrompida.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        const loadedNumbers = [];
+        const seen = new Set();
+
+        lines.forEach(line => {
+          const cells = line.includes(';') ? line.split(';') : line.split(',');
+          cells.forEach(cell => {
+            const cleaned = cell.trim().replace(/\D/g, '');
+            if (cleaned.length >= 8 && cleaned.length <= 15) {
+              if (!seen.has(cleaned)) {
+                seen.add(cleaned);
+                loadedNumbers.push(cleaned);
+              }
+            }
+          });
+        });
+
+        if (loadedNumbers.length === 0) {
+          alert('Nenhum telefone identificado na lista.');
+          return;
+        }
+
+        setNumbersText(prev => (prev ? prev + '\n' : '') + loadedNumbers.join('\n'));
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleStartBroadcast = async () => {
@@ -115,7 +184,7 @@ export default function BroadcastPage() {
         <label className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer text-slate-300 border border-white/10 transition-all font-semibold">
           <FileUp size={18} />
           Importar Contatos
-          <input type="file" accept=".txt,.csv" onChange={handleImportContacts} className="hidden" />
+          <input type="file" accept=".txt,.csv,.xlsx,.xls" onChange={handleImportContacts} className="hidden" />
         </label>
       </div>
 

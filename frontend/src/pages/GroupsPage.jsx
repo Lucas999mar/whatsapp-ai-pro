@@ -70,22 +70,32 @@ export default function GroupsPage() {
             reader.onload = (event) => {
                 try {
                     const data = new Uint8Array(event.target.result);
+                    // Lê o workbook sem restrições
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     const loadedNumbers = [];
-                    rows.forEach(row => {
-                        row.forEach(cell => {
-                            if (cell !== undefined && cell !== null) {
-                                const cleaned = String(cell).replace(/\D/g, '');
-                                if (cleaned.length >= 8) {
-                                    loadedNumbers.push(cleaned);
+                    const seen = new Set();
+
+                    // Varre todas as células da planilha independente de range definido (!ref)
+                    for (const cellAddress in worksheet) {
+                        if (/^[A-Z]+\d+$/.test(cellAddress)) {
+                            const cell = worksheet[cellAddress];
+                            if (cell && (cell.v !== undefined || cell.w !== undefined)) {
+                                // Evita notação científica (ex: 5.511e+12) usando o valor formatado .w ou convertendo de .v
+                                const val = cell.w || String(cell.v);
+                                const cleaned = val.replace(/\D/g, '');
+
+                                if (cleaned.length >= 8 && cleaned.length <= 15) {
+                                    if (!seen.has(cleaned)) {
+                                        seen.add(cleaned);
+                                        loadedNumbers.push(cleaned);
+                                    }
                                 }
                             }
-                        });
-                    });
+                        }
+                    }
 
                     if (loadedNumbers.length === 0) {
                         alert('Nenhum número de telefone válido foi encontrado nas colunas do Excel.');
@@ -105,13 +115,17 @@ export default function GroupsPage() {
                 const text = event.target.result;
                 const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
                 const loadedNumbers = [];
+                const seen = new Set();
 
                 lines.forEach(line => {
                     const cells = line.includes(';') ? line.split(';') : line.split(',');
                     cells.forEach(cell => {
                         const cleaned = cell.trim().replace(/\D/g, '');
-                        if (cleaned.length >= 8) {
-                            loadedNumbers.push(cleaned);
+                        if (cleaned.length >= 8 && cleaned.length <= 15) {
+                            if (!seen.has(cleaned)) {
+                                seen.add(cleaned);
+                                loadedNumbers.push(cleaned);
+                            }
                         }
                     });
                 });
