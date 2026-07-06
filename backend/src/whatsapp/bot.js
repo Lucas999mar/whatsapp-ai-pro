@@ -513,27 +513,86 @@ async function addParticipantsToGroup(agentId, groupJid, numbers) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
 
+  // Format JIDs, ensuring Brazilian formats have DDI
   const formattedJids = numbers.map(number => {
     let clean = number.replace(/\D/g, '');
     if (clean.length >= 10 && clean.length <= 11 && !clean.startsWith('55')) {
       clean = '55' + clean;
     }
     return clean.includes('@') ? clean : `${clean}@s.whatsapp.net`;
+  }).filter(jid => {
+    const num = jid.split('@')[0];
+    return num.length >= 10;
   });
 
-  console.log(`👥 [GroupManager] Tentando adicionar ${formattedJids.length} participantes ao grupo ${groupJid}`);
-
-  try {
-    // Ação 'add' adiciona os participantes ao grupo
-    const response = await agent.socket.groupParticipantsUpdate(groupJid, formattedJids, 'add');
-    return {
-      success: true,
-      response
-    };
-  } catch (e) {
-    console.error(`❌ Erro ao adicionar participantes ao grupo ${groupJid}:`, e.message);
-    throw e;
+  if (formattedJids.length === 0) {
+    throw new Error('Nenhum número de contato válido após a formatação.');
   }
+
+  console.log(`👥 [GroupManager] Iniciando adição de ${formattedJids.length} participantes ao grupo ${groupJid} em lotes.`);
+
+  const results = {
+    added: [],
+    failed: [],
+    invited: []
+  };
+
+  const BATCH_SIZE = 5;
+  const DELAY_BETWEEN_BATCHES = 2500; // 2.5s
+
+  for (let i = 0; i < formattedJids.length; i += BATCH_SIZE) {
+    const batch = formattedJids.slice(i, i + BATCH_SIZE);
+    console.log(`👥 [GroupManager] Processando lote ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(formattedJids.length / BATCH_SIZE)} com ${batch.length} contatos...`);
+
+    try {
+      const response = await agent.socket.groupParticipantsUpdate(groupJid, batch, 'add');
+
+      if (response && (response.participants || Array.isArray(response))) {
+        const participantsRes = response.participants || response;
+        for (const resItem of (Array.isArray(participantsRes) ? participantsRes : Object.keys(participantsRes))) {
+          // Trata estrutura do resultado que pode diferir no Baileys
+          let jid = typeof resItem === 'string' ? resItem : resItem.jid;
+          let status = typeof resItem === 'string' ? String(participantsRes[resItem]?.code || participantsRes[resItem] || '200') : String(resItem.status || '200');
+          let cleanNum = jid ? jid.split('@')[0] : '';
+
+          if (!cleanNum) continue;
+
+          if (status === '200') {
+            results.added.push(cleanNum);
+          } else if (status === '403') {
+            results.invited.push(cleanNum); // Precisa de convite devido a privacidade
+          } else {
+            results.failed.push({ number: cleanNum, code: status });
+          }
+        }
+      } else {
+        // Se retornar vazio, mas sem lançar erro, assume sucesso comercial no lote
+        batch.forEach(jid => results.added.push(jid.split('@')[0]));
+      }
+    } catch (e) {
+      console.error(`❌ [GroupManager] Erro ao adicionar lote de participantes:`, e.message);
+
+      if (e.message?.includes('not-authorized') || e.message?.includes('403') || e.message?.includes('forbidden') || e.message?.includes('authorized')) {
+        throw new Error('Autorização negada: O WhatsApp rejeitou a ação. Verifique se o seu bot possui permissões de Administrador do grupo.');
+      }
+
+      batch.forEach(jid => {
+        results.failed.push({ number: jid.split('@')[0], error: e.message });
+      });
+    }
+
+    if (i + BATCH_SIZE < formattedJids.length) {
+      await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
+    }
+  }
+
+  return {
+    success: true,
+    addedCount: results.added.length,
+    failedCount: results.failed.length,
+    invitedCount: results.invited.length,
+    details: results
+  };
 }
 
 module.exports = {
