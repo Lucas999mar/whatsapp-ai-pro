@@ -169,7 +169,7 @@ export default function GroupsPage() {
             setStatus('success');
             setResultSummary({
                 total: numbers.length,
-                rawResult: res.data
+                message: res.data.message || 'Processo iniciado no servidor.'
             });
         } catch (err) {
             console.error('Erro ao adicionar contatos:', err);
@@ -297,14 +297,22 @@ export default function GroupsPage() {
 
                     {/* PAINEL DE RESULTADO */}
                     {status === 'success' && resultSummary && (
-                        <div className="glass-panel p-6 bg-[#25D366]/5 border-[#25D366]/20 animate-fade-in">
-                            <h4 className="text-white font-bold flex items-center gap-2 mb-3">
+                        <div className="glass-panel p-6 bg-[#25D366]/5 border-[#25D366]/20 animate-fade-in space-y-3">
+                            <h4 className="text-white font-bold flex items-center gap-2 text-sm">
                                 <CheckCircle2 size={18} className="text-[#25D366]" />
-                                Concluído com Sucesso!
+                                Adição em Andamento!
                             </h4>
-                            <p className="text-xs text-slate-400">
-                                A solicitação de adição de <b>{resultSummary.total} contatos</b> foi completada. O WhatsApp processará a inclusão deles.
+                            <p className="text-xs text-slate-300">
+                                {resultSummary.message}
                             </p>
+                            <div className="p-3 bg-black/20 rounded-lg border border-white/5 space-y-1.5 font-mono text-[11px] text-slate-400">
+                                <div>Total de contatos: <span className="text-white font-bold">{resultSummary.total}</span></div>
+                                <div>Tempo estimado: <span className="text-white font-bold">~{Math.ceil((resultSummary.total / 5) * 2.5)} segundos</span></div>
+                                <div className="flex items-center gap-1.5 text-[#25D366] font-bold">
+                                    <Loader2 className="animate-spin" size={10} />
+                                    Processando no Servidor...
+                                </div>
+                            </div>
                         </div>
                     )}
 

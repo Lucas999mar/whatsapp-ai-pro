@@ -572,7 +572,7 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
 });
 
 // ── WHATSAPP GROUP ROUTES ──────────────────────────────────────
-const { getAgentGroups, addParticipantsToGroup } = require('../whatsapp/bot');
+const { getAgentGroups, addParticipantsToGroup, verifyGroupAdmin } = require('../whatsapp/bot');
 
 // Listar todos os grupos de um agente conectado
 router.get('/whatsapp/groups/:agentId', authMiddleware, async (req, res) => {
@@ -615,8 +615,27 @@ router.post('/whatsapp/groups/add-participants', authMiddleware, async (req, res
       return res.status(400).json({ error: 'O agente precisa estar conectado para adicionar participantes.' });
     }
 
-    const result = await addParticipantsToGroup(agentId, groupJid, numbers);
-    res.json(result);
+    // 🛡️ Verifica se o bot é administrador do grupo antes de iniciar a adição em background
+    const isBotAdmin = await verifyGroupAdmin(agentId, groupJid);
+    if (!isBotAdmin) {
+      return res.status(400).json({ error: 'Autorização negada: O WhatsApp rejeitou a ação. Verifique se o seu bot possui permissões de Administrador do grupo.' });
+    }
+
+    // 🔥 Dispara o envio em lotes em segundo plano para contornar o gateway timeout (limite 30s)
+    addParticipantsToGroup(agentId, groupJid, numbers)
+      .then(res => {
+        console.log(`✅ [GroupManager] Sucesso ao processar lote no background no grupo ${groupJid}`, res);
+      })
+      .catch(err => {
+        console.error(`❌ [GroupManager] Falha ao processar lote no background do grupo ${groupJid}:`, err.message);
+      });
+
+    // Retorna resposta de sucesso de forma instantânea para aliviar o frontend
+    res.json({
+      success: true,
+      message: 'O processo de adição foi iniciado no servidor. Os participantes serão adicionados em pequenos lotes seguros.',
+      total: numbers.length
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
