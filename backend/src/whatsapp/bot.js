@@ -324,30 +324,86 @@ async function restartWhatsAppBot(agentId) {
       startWhatsAppBot(agentId, agentData.name, agentData.settings, agentData.tenantId);
     } else {
       // 🛡️ Agente NÃO estava no Map (servidor reiniciou, sessão perdida)
-      // Busca configuração no Supabase para poder inicializar
+      // Busca configuração no Supabase ou no agents.json local como fallback
       try {
         console.log(`🔄 [restart] Agente ${agentId} não encontrado no Map. Buscando no Supabase...`);
         const supabase = getSupabase();
-        const { data: dbAgent, error } = await supabase
-          .from('agents')
-          .select('*')
-          .eq('id', agentId)
-          .single();
 
-        if (error || !dbAgent) {
-          console.error(`❌ [restart] Agente ${agentId} não encontrado no banco:`, error?.message);
-          return;
+        let dbAgent = null;
+        try {
+          const { data, error } = await supabase
+            .from('agents')
+            .select('*')
+            .eq('id', agentId)
+            .maybeSingle(); // maybeSingle() avoids errors when zero rows are returned
+
+          if (!error && data) {
+            dbAgent = data;
+          }
+        } catch (e) {
+          console.warn(`⚠️ Erro ao consultar agente ${agentId} no Supabase:`, e.message);
         }
 
-        console.log(`✅ [restart] Agente "${dbAgent.name}" encontrado no banco. Iniciando bot...`);
-        startWhatsAppBot(
-          dbAgent.id,
-          dbAgent.name,
-          dbAgent.settings || null,
-          dbAgent.tenant_id || 'default'
-        );
+        if (!dbAgent) {
+          console.log(`🔍 [restart] Agente ${agentId} não encontrado no Supabase. Buscando no agents.json local...`);
+          const fleetFile = path.resolve(__dirname, '../api/agents.json');
+          if (fs.existsSync(fleetFile)) {
+            const localAgents = JSON.parse(fs.readFileSync(fleetFile, 'utf8'));
+            const matched = localAgents.find(a => a.id === agentId);
+            if (matched) {
+              console.log(`✅ [restart] Agente ${agentId} ("${matched.name}") encontrado no agents.json local. Registrando no Supabase...`);
+              const initialSettings = matched.settings || {
+                bot_name: matched.name,
+                system_prompt: 'Você é um assistente amigável.',
+                response_mode: 'mirror',
+                tts_voice: 'nova',
+                prefix: '!ia',
+                respond_all: true,
+                ai_provider: 'openai',
+                openai_api_key: '',
+                openai_model: 'gpt-4o-mini',
+                anthropic_api_key: '',
+                anthropic_model: 'claude-3-haiku-20240307'
+              };
+
+              const newAgent = {
+                id: matched.id,
+                tenant_id: matched.tenantId || 'default',
+                name: matched.name,
+                status: 'disconnected',
+                settings: initialSettings
+              };
+
+              try {
+                await supabase.from('agents').upsert(newAgent);
+                console.log(`💾 [restart] Agente ${agentId} persistido com sucesso no Supabase.`);
+              } catch (upsertErr) {
+                console.error(`❌ [restart] Erro ao persistir agente no Supabase:`, upsertErr.message);
+              }
+
+              dbAgent = {
+                id: matched.id,
+                name: matched.name,
+                settings: initialSettings,
+                tenant_id: matched.tenantId || 'default'
+              };
+            }
+          }
+        }
+
+        if (dbAgent) {
+          console.log(`🚀 [restart] Iniciando bot para o agente "${dbAgent.name}"...`);
+          startWhatsAppBot(
+            dbAgent.id,
+            dbAgent.name,
+            dbAgent.settings || null,
+            dbAgent.tenant_id || dbAgent.tenantId || 'default'
+          );
+        } else {
+          console.error(`❌ [restart] Agente ${agentId} não encontrado em nenhum repositório.`);
+        }
       } catch (e) {
-        console.error(`❌ [restart] Erro ao buscar agente ${agentId} no Supabase:`, e.message);
+        console.error(`❌ [restart] Erro geral ao processar reinicialização do agente ${agentId}:`, e.message);
       }
     }
   }, 2000);
