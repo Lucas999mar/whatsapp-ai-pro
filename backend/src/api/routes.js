@@ -688,6 +688,127 @@ router.post('/creative-chat', authMiddleware, async (req, res) => {
   }
 });
 
+// ── AI DESIGNER (IMAGE GENERATION) ROUTES ─────────────────────
+
+const { generateImage, editImage, analyzeImage, STYLE_PRESETS } = require('../ai/imageGenerator');
+
+// Gerar imagem a partir de prompt de texto
+router.post('/image-generate', authMiddleware, async (req, res) => {
+  try {
+    const { prompt, style, size, quality, customInstructions } = req.body;
+    if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'Prompt é obrigatório' });
+
+    // Check if user has custom OpenAI key in their agent settings
+    const { getBotSettings } = require('../db/repository');
+    const settings = await getBotSettings('default', req.user.tenant_id || req.user.id);
+    const userApiKey = settings?.openai_api_key || null;
+
+    const result = await generateImage({
+      prompt: prompt.trim(),
+      style: style || 'realistic',
+      size: size || '1024x1024',
+      quality: quality || 'high',
+      customInstructions: customInstructions || '',
+      apiKey: userApiKey,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Erro na rota /image-generate:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Editar/transformar imagem enviada por upload
+router.post('/image-edit', authMiddleware, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Imagem é obrigatória' });
+    const { prompt, style, size } = req.body;
+    if (!prompt || !prompt.trim()) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch (e) { }
+      return res.status(400).json({ error: 'Prompt de instrução é obrigatório' });
+    }
+
+    const imageBuffer = fs.readFileSync(req.file.path);
+
+    // Check for custom API key
+    const { getBotSettings } = require('../db/repository');
+    const settings = await getBotSettings('default', req.user.tenant_id || req.user.id);
+    const userApiKey = settings?.openai_api_key || null;
+
+    const result = await editImage({
+      imageBuffer,
+      prompt: prompt.trim(),
+      style: style || 'realistic',
+      size: size || '1024x1024',
+      apiKey: userApiKey,
+    });
+
+    // Cleanup temp file
+    try { fs.unlinkSync(req.file.path); } catch (e) { }
+
+    res.json(result);
+  } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (e) { }
+    console.error('❌ Erro na rota /image-edit:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Analisar imagem enviada e sugerir transformações
+router.post('/image-analyze', authMiddleware, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Imagem é obrigatória' });
+
+    const imageBuffer = fs.readFileSync(req.file.path);
+    const base64 = `data:${req.file.mimetype};base64,${imageBuffer.toString('base64')}`;
+
+    // Check for custom API key
+    const { getBotSettings } = require('../db/repository');
+    const settings = await getBotSettings('default', req.user.tenant_id || req.user.id);
+    const userApiKey = settings?.openai_api_key || null;
+
+    const analysis = await analyzeImage({
+      imageBase64: base64,
+      apiKey: userApiKey,
+    });
+
+    // Cleanup
+    try { fs.unlinkSync(req.file.path); } catch (e) { }
+
+    res.json(analysis);
+  } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (e) { }
+    console.error('❌ Erro na rota /image-analyze:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar presets de estilo disponíveis
+router.get('/image-styles', authMiddleware, (req, res) => {
+  const styles = Object.entries(STYLE_PRESETS).map(([id, description]) => ({
+    id,
+    name: {
+      realistic: '📸 Fotorealista',
+      '3d': '🧊 Render 3D',
+      digital_art: '🎨 Arte Digital',
+      anime: '🎌 Anime',
+      logo: '✏️ Logo & Marca',
+      poster: '🎬 Poster Cinematográfico',
+      watercolor: '🖌️ Aquarela',
+      cyberpunk: '🌆 Cyberpunk',
+      minimalist: '◻️ Minimalista',
+      comic: '💥 HQ / Comic',
+      product: '📦 Produto',
+      fashion: '👗 Moda Editorial',
+      fantasy: '🐉 Fantasia',
+      vintage: '📷 Vintage/Retrô',
+    }[id] || id,
+    description,
+  }));
+  res.json(styles);
+});
+
 // ── INSTAGRAM ROUTES ──────────────────────────────────────────
 
 const instagramRouter = require('../instagram/bot');

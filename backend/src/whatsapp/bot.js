@@ -509,6 +509,25 @@ async function getAgentGroups(agentId) {
   }
 }
 
+async function verifyGroupAdmin(agentId, groupJid) {
+  const agent = agents.get(agentId);
+  if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
+
+  try {
+    const metadata = await agent.socket.groupMetadata(groupJid);
+    const ownJid = agent.socket.user?.id || '';
+    const cleanOwnId = ownJid.split(':')[0] + '@s.whatsapp.net';
+
+    const participant = metadata.participants.find(p => p.id.split('@')[0] === cleanOwnId.split('@')[0]);
+    const isAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
+
+    return isAdmin;
+  } catch (e) {
+    console.error(`❌ [verifyGroupAdmin] Erro ao validar admin para o grupo ${groupJid}:`, e.message);
+    throw new Error('Não foi possível obter metadados do grupo. Verifique se o JID do grupo existe.');
+  }
+}
+
 async function addParticipantsToGroup(agentId, groupJid, numbers) {
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
@@ -605,5 +624,6 @@ module.exports = {
   updateAgentSettings,
   sendDirectMessage,
   getAgentGroups,
-  addParticipantsToGroup
+  addParticipantsToGroup,
+  verifyGroupAdmin
 };
