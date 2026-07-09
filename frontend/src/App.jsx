@@ -216,23 +216,27 @@ function AppContent() {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       <main className="flex-1 lg:ml-64 p-4 md:p-8 relative overflow-x-hidden min-h-screen">
-        {/* Mobile Header (Admin) */}
-        {!user?.role && (
-          <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full">
+        {/* Mobile Header */}
+        <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full">
+              {user?.logo ? (
+                <img src={user.logo} className="w-full h-full object-cover rounded-full" alt="Logo" />
+              ) : (
                 <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Logo" />
-              </div>
-              <span className="font-black text-white tracking-tight uppercase text-xs">Evoluir Mais</span>
+              )}
             </div>
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="p-2 bg-white/5 rounded-xl text-white"
-            >
-              <Menu size={24} />
-            </button>
+            <span className="font-black text-white tracking-tight uppercase text-xs">
+              {user?.name || 'Evoluir Mais'}
+            </span>
           </div>
-        )}
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 bg-white/5 rounded-xl text-white"
+          >
+            <Menu size={24} />
+          </button>
+        </div>
 
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#25D366]/5 blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
