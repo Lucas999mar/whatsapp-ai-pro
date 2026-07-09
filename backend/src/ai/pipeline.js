@@ -64,17 +64,17 @@ function convertToolsToAnthropic(openaiTools) {
 function formatMessagesForAnthropic(messages) {
   // Filtra system messages (tratadas separadamente)
   const nonSystem = messages.filter(m => m.role !== 'system');
-  
+
   if (nonSystem.length === 0) {
     return [{ role: 'user', content: 'Olá' }];
   }
 
   const result = [];
-  
+
   for (const msg of nonSystem) {
     const role = msg.role === 'assistant' ? 'assistant' : 'user';
     const content = msg.content || '';
-    
+
     if (result.length > 0 && result[result.length - 1].role === role) {
       // Merge consecutive same-role messages
       result[result.length - 1].content += '\n' + content;
@@ -253,18 +253,18 @@ function stripFormatting(text) {
 function parseCommand(message, prefix) {
   const text = message.trim().toLowerCase();
   const cleanPrefix = (prefix || '!ia').toLowerCase();
-  
+
   if (text.startsWith(cleanPrefix)) {
     const query = message.slice(cleanPrefix.length).trim();
     const cmd = query.toLowerCase();
-    
+
     if (cmd === 'limpar' || cmd === 'clear') return { type: 'clear' };
     if (cmd === 'ajuda' || cmd === 'help') return { type: 'help' };
     if (cmd === 'status') return { type: 'status' };
-    
+
     return { type: 'query', query };
   }
-  
+
   return { type: 'query', query: message };
 }
 
@@ -280,7 +280,7 @@ function buildSystemPrompt(context, botName = 'Assistente', customPrompt = null,
   }
 
   // Regras de blindagem SEMPRE ativas, com ou sem contexto RAG
-  const strictConstraint = context 
+  const strictConstraint = context
     ? `\n\nREGRAS DE BLINDAGEM DE CONHECIMENTO (RAG ESTRITO - PRIORIDADE MÁXIMA):
 - VOCÊ SÓ PODE FORNECER INFORMAÇÕES QUE ESTEJAM EXPLICITAMENTE DENTRO DO [CONTEXTO] FORNECIDO ABAIXO.
 - SE O USUÁRIO PERGUNTAR ALGO QUE NÃO ESTÁ NO [CONTEXTO], RESPONDA: "Desculpe, não possuo essa informação no momento. Gostaria de falar com um atendente humano?" (adapte o tom dessa recusa para bater com a sua personalidade).
@@ -337,7 +337,7 @@ REGRAS DE CONFIDENCIALIDADE:
 async function processMessage(whatsappId, userName, text, messageType = 'text', mediaUrl = null, agentName = 'Assistente', agentId = 'default', tenantId = 'default', userPhoto = null) {
   try {
     const threadId = `${tenantId}__${whatsappId}__${agentId}`;
-    
+
     // Fetch settings and history
     const { getBotSettings } = require('../db/repository');
     const settings = await getBotSettings(agentId, tenantId);
@@ -347,7 +347,7 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
     let isContinuation = false;
     let timeSinceLast = null;
     if (history && history.length > 0) {
-      const lastMsg = history[0]; 
+      const lastMsg = history[0];
       const lastDate = new Date(lastMsg.created_at).getTime();
       const now = Date.now();
       timeSinceLast = now - lastDate;
@@ -387,13 +387,13 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
 
     // 1. Busca contexto
     const chunks = await searchKnowledge(processedText, 5, agentId, tenantId);
-    const contextText = chunks.length > 0 
+    const contextText = chunks.length > 0
       ? chunks.map(c => `[${c.type} - ${c.title}]: ${c.content}`).join('\n\n')
       : null;
 
     // 2. Monta mensagens
     const systemPrompt = buildSystemPrompt(contextText, settings.bot_name || agentName, settings.system_prompt, isContinuation, timeSinceLast);
-    
+
     // Mapeia histórico para o formato da OpenAI
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -455,7 +455,7 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         if (toolCall.function.name === 'agendar_reuniao') {
           const args = JSON.parse(toolCall.function.arguments);
           console.log(`📅 [Agendamento] A IA disparou o agendamento para: ${args.data_hora} - Assunto: ${args.assunto}`);
-          
+
           // Busca o token do Google salvo no Agente
           const { listAgents } = require('../db/repository');
           const agents = await listAgents();
@@ -475,7 +475,7 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
             // Se o usuário colou a chave, mas não autorizou no OAuth ainda
             answer = `Perfeito! Confirmei o seu interesse em agendar para ${args.data_hora}. (Nota interna: O calendário da empresa ainda precisa ser vinculado pelo Administrador).`;
           }
-        } 
+        }
         else if (toolCall.function.name === 'desmarcar_reuniao') {
           console.log(`📅 [Cancelamento] A IA disparou o cancelamento da reunião.`);
           answer = `Compreendo. Sua reunião foi desmarcada com sucesso no nosso sistema. Caso queira remarcar depois, é só me chamar!`;
@@ -499,9 +499,9 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         voice: ttsVoice,
         input: answer,
       });
-      
+
       const mp3Buffer = Buffer.from(await mp3Response.arrayBuffer());
-      
+
       // Converte MP3 para OGG Opus (Nativo do WhatsApp)
       responseAudioBuffer = await convertMp3ToOgg(mp3Buffer);
       finalContentType = 'audio';
@@ -524,14 +524,14 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
         .from('conversations')
         .select('id')
         .like('whatsapp_id', `${tenantId}__%`);
-      
+
       const count = countRes?.length || 0;
-      
+
       // Verifica se já existem aprendizados para este tenant
       const { data: existingLearnings } = await require('../db/supabase').getSupabase()
         .from('learnings')
         .select('id', { count: 'exact', head: true });
-        // (Nota: o filtro de tenant no count global é simplificado aqui, mas serve para o trigger inicial)
+      // (Nota: o filtro de tenant no count global é simplificado aqui, mas serve para o trigger inicial)
 
       const shouldTrigger = (count > 0 && count % 5 === 0) || (count >= 3 && !existingLearnings?.length);
 
@@ -543,7 +543,7 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
           .like('whatsapp_id', `${tenantId}__%`)
           .order('created_at', { ascending: false })
           .limit(20);
-          
+
         if (recentMsgs && recentMsgs.length >= 5) {
           analyzeAndSaveLearnings(tenantId, recentMsgs.reverse());
         }
@@ -568,10 +568,10 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
 async function analyzeAndSaveLearnings(tenantId, recentMessages) {
   try {
     if (!recentMessages || recentMessages.length < 4) return;
-    
+
     // Pega as últimas 10 mensagens
     const conversationText = recentMessages.slice(-10).map(h => `${h.role === 'user' ? 'Cliente' : 'IA'}: ${h.content}`).join('\n');
-    
+
     const prompt = `Analise as conversas abaixo entre um cliente e uma IA de atendimento.
 Identifique de 1 a 3 "Aprendizados" importantes sobre o cliente ou o negócio.
 Exemplos: "O cliente prefere entregas após as 18h", "O endereço da loja mudou para Rua Azul 10", "Dúvida frequente sobre preço do frete".
@@ -595,7 +595,7 @@ ${conversationText}`;
     });
 
     const insights = learnResponse.content.split('\n').filter(line => line.trim().length > 5);
-    
+
     for (const insight of insights) {
       await addLearning({
         title: 'Novo Insight',
@@ -618,10 +618,10 @@ async function transcribeAudio(audioBuffer, mimetype = 'audio/ogg') {
   const extMap = { 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/wav': 'wav' };
   const ext = extMap[mimetype] || 'ogg';
   const tempPath = path.join(config.uploadsDir, `audio_${Date.now()}.${ext}`);
-  
+
   if (!fs.existsSync(config.uploadsDir)) fs.mkdirSync(config.uploadsDir, { recursive: true });
   fs.writeFileSync(tempPath, audioBuffer);
-  
+
   try {
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(tempPath),
@@ -634,7 +634,7 @@ async function transcribeAudio(audioBuffer, mimetype = 'audio/ogg') {
     console.warn('⚠️ Erro na transcrição Whisper (OpenAI sem saldo):', err.message);
     return '[Áudio recebido - Transcrição temporariamente indisponível devido a limite de quota da OpenAI]';
   } finally {
-    try { fs.unlinkSync(tempPath); } catch {}
+    try { fs.unlinkSync(tempPath); } catch { }
   }
 }
 
@@ -644,7 +644,7 @@ async function transcribeAudio(audioBuffer, mimetype = 'audio/ogg') {
 async function convertMp3ToOgg(mp3Buffer) {
   const tempMp3 = path.join(config.uploadsDir, `temp_${Date.now()}.mp3`);
   const tempOgg = path.join(config.uploadsDir, `temp_${Date.now()}.ogg`);
-  
+
   if (!fs.existsSync(config.uploadsDir)) fs.mkdirSync(config.uploadsDir, { recursive: true });
   fs.writeFileSync(tempMp3, mp3Buffer);
 
@@ -672,7 +672,7 @@ async function convertMp3ToOgg(mp3Buffer) {
 /**
  * Chat do Centro Criativo (Agentes Nativos)
  */
-async function generateCreativeChat(messages, agentRole, customInstruction) {
+async function generateCreativeChat(messages, agentRole, customInstruction, settings = {}) {
   try {
     const systemPrompt = `Você é um Consultor Nível Enterprise operando como: ${agentRole}.
 DIRETRIZES:
@@ -687,7 +687,7 @@ ${customInstruction || '- Forneça respostas estratégicas de alto valor.'}
       ...messages.map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }))
     ];
 
-    const creativeAiConfig = resolveAIConfig({});
+    const creativeAiConfig = resolveAIConfig(settings);
     const creativeResponse = await callChatCompletion({
       provider: creativeAiConfig.provider,
       apiKey: creativeAiConfig.apiKey,

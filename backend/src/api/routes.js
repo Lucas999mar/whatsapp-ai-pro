@@ -681,7 +681,12 @@ router.post('/creative-chat', authMiddleware, async (req, res) => {
     const { messages, agentRole, customInstruction } = req.body;
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Messages array is required' });
 
-    const reply = await generateCreativeChat(messages, agentRole || 'Consultor', customInstruction);
+    // Busca as settings do agente do tenant logado para usar a chave de IA correta
+    const tenantId = req.user?.id || 'default';
+    const { getBotSettings } = require('../db/repository');
+    const agentSettings = await getBotSettings('default', tenantId);
+
+    const reply = await generateCreativeChat(messages, agentRole || 'Consultor', customInstruction, agentSettings);
     res.json({ reply });
   } catch (err) {
     res.status(500).json({ error: err.message });

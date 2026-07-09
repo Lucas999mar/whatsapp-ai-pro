@@ -118,7 +118,7 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
       if (typeof emb === 'string') {
         emb = JSON.parse(emb);
       }
-      
+
       if (!Array.isArray(emb) || emb.length !== embedding.length) {
         return { ...item, similarity: 0 };
       }
@@ -166,7 +166,7 @@ async function deleteKnowledgeItem(id, tenantId) {
     .single();
 
   if (findErr || !item) throw new Error('Item não encontrado');
-  
+
   const itemTenantId = item.metadata?.tenantId || 'default';
   if (itemTenantId !== tenantId && tenantId !== 'admin') {
     throw new Error('Acesso negado: este item não pertence à sua empresa');
@@ -473,7 +473,13 @@ async function listAgents(tenantId = null) {
  */
 async function getBotSettings(agentId = 'default', tenantId = 'default') {
   const agents = await listAgents(tenantId);
-  const agent = agents.find(a => a.id === agentId);
+  let agent = agents.find(a => a.id === agentId);
+
+  // Se o agente não foi encontrado no tenant, busca na lista global
+  if (!agent) {
+    const allAgents = await listAgents(null);
+    agent = allAgents.find(a => a.id === agentId);
+  }
 
   const defaultSettings = {
     bot_name: 'Assistente',
@@ -491,7 +497,7 @@ async function getBotSettings(agentId = 'default', tenantId = 'default') {
 
   if (agent && agent.settings) {
     const merged = { ...defaultSettings, ...agent.settings };
-    
+
     // Herança automática de chaves do agente 'default' se o agente atual não tiver chave configurada
     if (!merged.anthropic_api_key && agentId !== 'default') {
       let defaultAgent = agents.find(a => a.id === 'default');
