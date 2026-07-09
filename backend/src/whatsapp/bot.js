@@ -314,8 +314,42 @@ async function restartWhatsAppBot(agentId) {
     try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) { }
   }
 
-  setTimeout(() => {
-    if (agentData) startWhatsAppBot(agentId, agentData.name, agentData.settings, agentData.tenantId);
+  // Remove do Map para garantir início limpo
+  agents.delete(agentId);
+  initializingAgents.delete(agentId);
+
+  setTimeout(async () => {
+    if (agentData) {
+      // Agente estava no Map — usa os dados já conhecidos
+      startWhatsAppBot(agentId, agentData.name, agentData.settings, agentData.tenantId);
+    } else {
+      // 🛡️ Agente NÃO estava no Map (servidor reiniciou, sessão perdida)
+      // Busca configuração no Supabase para poder inicializar
+      try {
+        console.log(`🔄 [restart] Agente ${agentId} não encontrado no Map. Buscando no Supabase...`);
+        const supabase = getSupabase();
+        const { data: dbAgent, error } = await supabase
+          .from('agents')
+          .select('*')
+          .eq('id', agentId)
+          .single();
+
+        if (error || !dbAgent) {
+          console.error(`❌ [restart] Agente ${agentId} não encontrado no banco:`, error?.message);
+          return;
+        }
+
+        console.log(`✅ [restart] Agente "${dbAgent.name}" encontrado no banco. Iniciando bot...`);
+        startWhatsAppBot(
+          dbAgent.id,
+          dbAgent.name,
+          dbAgent.settings || null,
+          dbAgent.tenant_id || 'default'
+        );
+      } catch (e) {
+        console.error(`❌ [restart] Erro ao buscar agente ${agentId} no Supabase:`, e.message);
+      }
+    }
   }, 2000);
 }
 
