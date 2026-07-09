@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
-import { 
-  UploadCloud, FileText, Image as ImageIcon, Mic, Video, 
-  Trash2, Search, Filter, Database, Bot, BrainCircuit, 
-  Zap, Loader2, Sparkles 
+import {
+  UploadCloud, FileText, Image as ImageIcon, Mic, Video,
+  Trash2, Search, Filter, Database, Bot, BrainCircuit,
+  Zap, Loader2, Sparkles
 } from 'lucide-react';
 
 export default function KnowledgeBase() {
@@ -12,7 +12,7 @@ export default function KnowledgeBase() {
   const [uploading, setUploading] = useState(false);
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('all');
-  
+
   // Obsidian Sync
   const [obsidianPath, setObsidianPath] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -35,7 +35,7 @@ export default function KnowledgeBase() {
       const queryParams = new URLSearchParams();
       if (filter !== 'all') queryParams.append('type', filter);
       if (selectedAgent !== 'all') queryParams.append('agentId', selectedAgent);
-      
+
       const res = await api.get(`/knowledge?${queryParams.toString()}`);
       setItems(res.data);
     } catch (err) {
@@ -114,17 +114,17 @@ export default function KnowledgeBase() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-10">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in pb-10 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-4xl font-bold text-white tracking-tight flex items-center gap-3">
-            <Database className="text-[#25D366]" size={36} />
+          <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight flex items-center gap-3">
+            <Database className="text-[#25D366]" size={28} />
             Base de Conhecimento
           </h2>
-          <p className="text-slate-400 mt-2 text-lg">Alimente a inteligência dos seus agentes de forma independente.</p>
+          <p className="text-slate-400 mt-2 text-sm sm:text-lg">Alimente a inteligência dos seus agentes de forma independente.</p>
         </div>
-        
-        <label className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-3 cursor-pointer transition-all transform hover:-translate-y-1">
+
+        <label className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-2 sm:gap-3 cursor-pointer transition-all transform hover:-translate-y-1 text-sm sm:text-base flex-shrink-0">
           <UploadCloud size={20} />
           {uploading ? 'Enviando...' : 'Fazer Upload'}
           <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
@@ -132,30 +132,30 @@ export default function KnowledgeBase() {
       </div>
 
       {/* OBSIDIAN SYNC PANEL */}
-      <div className="glass-panel p-6 border-l-4 border-l-purple-500 bg-purple-500/5">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="glass-panel p-4 sm:p-6 border-l-4 border-l-purple-500 bg-purple-500/5">
+        <div className="flex flex-col gap-4 sm:gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/10">
-              <BrainCircuit size={28} />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/10 flex-shrink-0">
+              <BrainCircuit size={24} />
             </div>
             <div>
-              <h3 className="font-bold text-white text-lg flex items-center gap-2">Sincronizar Obsidian <Sparkles size={16} className="text-purple-400" /></h3>
-              <p className="text-sm text-slate-400">Indexe seu vault local para busca semântica.</p>
+              <h3 className="font-bold text-white text-base sm:text-lg flex items-center gap-2">Sincronizar Obsidian <Sparkles size={16} className="text-purple-400" /></h3>
+              <p className="text-xs sm:text-sm text-slate-400">Indexe seu vault local para busca semântica.</p>
             </div>
           </div>
-          
-          <div className="flex flex-1 max-w-xl w-full gap-2">
-            <input 
-              type="text" 
-              placeholder="Caminho do seu Vault (ex: C:\Notas\MeuVault)" 
+
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Caminho do Vault (ex: C:\Notas\MeuVault)"
               value={obsidianPath}
               onChange={(e) => setObsidianPath(e.target.value)}
-              className="flex-1 bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-purple-500/50 transition-colors"
+              className="flex-1 bg-[#0F172A] border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-purple-500/50 transition-colors w-full"
             />
-            <button 
+            <button
               onClick={handleObsidianSync}
               disabled={isSyncing}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+              className="bg-purple-600 hover:bg-purple-500 text-white px-4 sm:px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 flex-shrink-0 text-sm"
             >
               {isSyncing ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
               {isSyncing ? 'Syncing...' : 'Sincronizar'}
@@ -164,18 +164,18 @@ export default function KnowledgeBase() {
         </div>
       </div>
 
-      <div className="glass-panel flex flex-col flex-1 overflow-hidden min-h-[500px]">
+      <div className="glass-panel flex flex-col flex-1 overflow-hidden min-h-[400px] sm:min-h-[500px]">
         {/* Toolbar */}
-        <div className="p-5 border-b border-white/5 bg-slate-800/30 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="flex bg-[#0F172A] rounded-xl border border-white/10 overflow-hidden shadow-inner flex-1 max-w-md">
-              <div className="px-4 flex items-center justify-center text-slate-400">
+        <div className="p-3 sm:p-5 border-b border-white/5 bg-slate-800/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:flex-1">
+            <div className="flex bg-[#0F172A] rounded-xl border border-white/10 overflow-hidden shadow-inner w-full sm:max-w-md">
+              <div className="px-3 sm:px-4 flex items-center justify-center text-slate-400">
                 <Filter size={18} />
               </div>
-              <select 
+              <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="py-3.5 w-full bg-transparent outline-none text-slate-200"
+                className="py-3 sm:py-3.5 w-full bg-transparent outline-none text-slate-200 text-sm"
               >
                 <option value="all">Todos os tipos</option>
                 <option value="document">Documentos</option>
@@ -185,12 +185,12 @@ export default function KnowledgeBase() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#0F172A] rounded-xl border border-white/10 px-4">
-              <Bot size={18} className="text-slate-400" />
-              <select 
+            <div className="flex items-center gap-2 bg-[#0F172A] rounded-xl border border-white/10 px-3 sm:px-4 w-full sm:w-auto">
+              <Bot size={18} className="text-slate-400 flex-shrink-0" />
+              <select
                 value={selectedAgent}
                 onChange={(e) => setSelectedAgent(e.target.value)}
-                className="py-3.5 bg-transparent outline-none text-slate-200"
+                className="py-3 sm:py-3.5 bg-transparent outline-none text-slate-200 text-sm w-full"
               >
                 <option value="all">Vincular: Todos</option>
                 <option value="global">Vincular: Global</option>
@@ -219,10 +219,10 @@ export default function KnowledgeBase() {
               <p className="text-xs text-slate-500 uppercase tracking-widest font-bold mb-4">
                 {item.type} • {item.metadata?.agentId === 'unassigned' ? 'Não Vinculado' : item.metadata?.agentId === 'global' ? 'Global' : 'Privado'}
               </p>
-              
+
               <div className="flex items-center gap-2 bg-black/20 p-2 rounded-xl border border-white/5">
                 <Bot size={14} className="text-slate-400" />
-                <select 
+                <select
                   className="bg-transparent text-xs text-slate-300 outline-none w-full cursor-pointer"
                   value={item.metadata?.agentId || 'unassigned'}
                   onChange={(e) => handleChangeAgent(item.id, e.target.value)}
@@ -234,7 +234,7 @@ export default function KnowledgeBase() {
                   ))}
                 </select>
               </div>
-              
+
               {item.type === 'obsidian' && (
                 <div className="mt-3 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-lg text-[10px] text-purple-400 font-bold uppercase tracking-tighter">
                   Sincronizado via Obsidian

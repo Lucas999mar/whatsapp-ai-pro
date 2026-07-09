@@ -5,7 +5,8 @@ import {
     Search, Filter, MoreVertical, Send, Mic, Paperclip,
     Smile, User, Phone, Mail, MapPin, Tag, Clock,
     CheckCircle2, XCircle, ArrowRightCircle, UserPlus,
-    MessageSquare, Hash, BookOpen, AlertCircle, Bot
+    MessageSquare, Hash, BookOpen, AlertCircle, Bot,
+    ArrowLeft, Info, X as XIcon
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,11 +15,15 @@ export default function AtendimentoPage() {
     const { user } = useAuth();
     const [conversations, setConversations] = useState([]);
     const [activeChat, setActiveChat] = useState(null);
-    const [tab, setTab] = useState('aguardando'); // aguardando, atendendo, resolvidos
+    const [tab, setTab] = useState('aguardando');
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [isNote, setIsNote] = useState(false);
     const scrollRef = useRef();
+
+    // Mobile view state: 'list', 'chat', 'details'
+    const [mobileView, setMobileView] = useState('list');
+    const [showMobileDetails, setShowMobileDetails] = useState(false);
 
     useEffect(() => {
         fetchChats();
@@ -44,7 +49,7 @@ export default function AtendimentoPage() {
                 aiEnabled: t.ai_enabled !== false,
                 photo: t.contact_photo,
                 lastTime: t.updated_at,
-                messages: [] // Vai buscar histórico ao selecionar
+                messages: []
             })));
         } catch (err) {
             console.error(err);
@@ -90,6 +95,7 @@ export default function AtendimentoPage() {
         try {
             await api.post(`/crm/tickets/${ticketId}/close`);
             setActiveChat(null);
+            setMobileView('list');
             fetchChats();
         } catch (err) { alert('Erro ao encerrar'); }
     };
@@ -117,7 +123,6 @@ export default function AtendimentoPage() {
     const handleAddToKanban = async () => {
         if (!activeChat) return;
         try {
-            // Busca as colunas para saber qual a primeira (Geralmente "Novo Lead")
             const res = await api.get('/crm/kanban');
             const firstCol = res.data.columns[0]?.id;
 
@@ -148,10 +153,115 @@ export default function AtendimentoPage() {
         } catch (err) { }
     };
 
+    const handleSelectChat = (chat) => {
+        setActiveChat(chat);
+        setMobileView('chat');
+    };
+
+    const handleBackToList = () => {
+        setMobileView('list');
+    };
+
+    // ---- Render: Details Panel (reusable for both desktop sidebar and mobile overlay) ----
+    const renderDetailsContent = () => {
+        if (!activeChat) return (
+            <div className="h-full flex flex-col items-center justify-center text-slate-800 p-8 text-center">
+                <Tag size={40} className="mb-2 opacity-5" />
+                <p className="text-xs font-bold uppercase tracking-widest opacity-20">Detalhes do Contato</p>
+            </div>
+        );
+
+        return (
+            <div className="flex flex-col h-full">
+                <div className="p-6 text-center border-b border-white/5">
+                    <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 border border-white/10 mx-auto mb-4 flex items-center justify-center overflow-hidden shadow-xl">
+                        {activeChat.photo ? <img src={activeChat.photo} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-500" />}
+                    </div>
+                    <h3 className="text-lg font-black text-white truncate">{activeChat.name}</h3>
+                    <p className="text-sm text-[#25D366] font-black tracking-tight mt-1">
+                        {formatNumber(activeChat.id)}
+                    </p>
+                    <p className="text-[10px] text-slate-600 mt-2 uppercase font-bold tracking-widest">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Hoje'}</p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">Informações</h4>
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 text-sm text-slate-300">
+                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500"><Phone size={14} /></div>
+                                <span className="font-medium truncate">{activeChat.id.split('@')[0]}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-slate-300">
+                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500"><Mail size={14} /></div>
+                                <span className="text-slate-600 italic">Não informado</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-slate-300">
+                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500"><MapPin size={14} /></div>
+                                <span className="text-slate-600 italic">Não informado</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Etiquetas</h4>
+                            <button
+                                onClick={handleAddTag}
+                                className="text-[10px] text-[#25D366] font-bold hover:brightness-110 active:scale-95 transition-all"
+                            >
+                                + ADICIONAR
+                            </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-black rounded-lg border border-blue-500/20">NOVO LEAD</span>
+                            <span className="px-2 py-1 bg-purple-500/10 text-purple-400 text-[10px] font-black rounded-lg border border-purple-500/20">INTERESSADO</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">Últimas Atividades</h4>
+                        <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-white/5">
+                            <div className="flex gap-4 relative">
+                                <div className="w-6 h-6 rounded-full bg-[#0F172A] border-2 border-[#25D366] flex items-center justify-center z-10 flex-shrink-0">
+                                    <Clock size={10} className="text-[#25D366]" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-300 font-bold">Iniciou conversa</p>
+                                    <p className="text-[10px] text-slate-500">
+                                        {activeChat.lastTime ? formatDistanceToNow(new Date(activeChat.lastTime), { locale: ptBR, addSuffix: true }) : 'Recentemente'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-4 relative">
+                                <div className="w-6 h-6 rounded-full bg-[#0F172A] border-2 border-slate-700 flex items-center justify-center z-10 flex-shrink-0">
+                                    <AlertCircle size={10} className="text-slate-500" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 font-medium">Aguardando atendimento</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-black/20">
+                    <button
+                        onClick={handleAddToKanban}
+                        className="w-full py-3 bg-[#25D366] text-black text-xs font-black rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#25D366]/10"
+                    >
+                        ADICIONAR AO KANBAN
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="flex h-[calc(100vh-6rem)] gap-4 animate-fade-in">
+        <div className="flex flex-col lg:flex-row h-[calc(100vh-6rem)] gap-0 lg:gap-4 animate-fade-in">
+
             {/* LEFT COLUMN: LIST */}
-            <div className="w-80 flex flex-col bg-[#0F172A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+            <div className={`w-full lg:w-80 flex flex-col bg-[#0F172A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl ${mobileView !== 'list' ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="p-4 space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-xl font-black text-white">Mensagens</h2>
@@ -196,7 +306,7 @@ export default function AtendimentoPage() {
                         conversations.map(chat => (
                             <button
                                 key={chat.id}
-                                onClick={() => setActiveChat(chat)}
+                                onClick={() => handleSelectChat(chat)}
                                 className={`w-full p-4 flex gap-3 hover:bg-white/5 transition-all text-left border-b border-white/5 ${activeChat?.id === chat.id ? 'bg-white/5 border-l-4 border-l-[#25D366]' : ''
                                     }`}
                             >
@@ -206,7 +316,7 @@ export default function AtendimentoPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start mb-1">
                                         <h4 className="text-sm font-black text-white truncate">{chat.name}</h4>
-                                        <span className="text-[10px] text-slate-500">
+                                        <span className="text-[10px] text-slate-500 flex-shrink-0 ml-2">
                                             {chat.lastTime ? formatDistanceToNow(new Date(chat.lastTime), { locale: ptBR }) : 'Agora'}
                                         </span>
                                     </div>
@@ -222,24 +332,31 @@ export default function AtendimentoPage() {
             </div>
 
             {/* MIDDLE COLUMN: CHAT WINDOW */}
-            <div className="flex-1 flex flex-col bg-[#0F172A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
+            <div className={`flex-1 flex flex-col bg-[#0F172A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative ${mobileView !== 'chat' ? 'hidden lg:flex' : 'flex'}`}>
                 {activeChat ? (
                     <>
                         {/* CHAT HEADER */}
-                        <div className="p-4 bg-[#1E293B]/50 border-b border-white/5 flex justify-between items-center z-10">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden">
+                        <div className="p-3 sm:p-4 bg-[#1E293B]/50 border-b border-white/5 flex justify-between items-center z-10">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                {/* Back button (mobile only) */}
+                                <button
+                                    onClick={handleBackToList}
+                                    className="lg:hidden p-2 hover:bg-white/5 rounded-lg text-slate-400 flex-shrink-0"
+                                >
+                                    <ArrowLeft size={20} />
+                                </button>
+                                <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                                     {activeChat.photo ? <img src={activeChat.photo} className="w-full h-full object-cover" /> : <User size={20} className="text-slate-500" />}
                                 </div>
-                                <div>
-                                    <h3 className="font-black text-white">{activeChat.name}</h3>
+                                <div className="min-w-0">
+                                    <h3 className="font-black text-white text-sm sm:text-base truncate">{activeChat.name}</h3>
                                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${activeChat.status === 'aguardando' ? 'bg-yellow-500' : 'bg-[#25D366]'}`}></div>
+                                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeChat.status === 'aguardando' ? 'bg-yellow-500' : 'bg-[#25D366]'}`}></div>
                                         <span className="uppercase tracking-widest font-black">{activeChat.status}</span>
-                                        <span className="mx-1">•</span>
+                                        <span className="mx-0.5 hidden sm:inline">•</span>
                                         <button
                                             onClick={handleToggleAI}
-                                            className={`flex items-center gap-1 font-black transition-all ${activeChat.aiEnabled ? 'text-[#25D366]' : 'text-red-500'}`}
+                                            className={`items-center gap-1 font-black transition-all hidden sm:flex ${activeChat.aiEnabled ? 'text-[#25D366]' : 'text-red-500'}`}
                                         >
                                             {activeChat.aiEnabled ? <Bot size={12} /> : <XCircle size={12} />}
                                             ROBÔ {activeChat.aiEnabled ? 'ON' : 'OFF'}
@@ -247,31 +364,45 @@ export default function AtendimentoPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+                                {/* Info button for mobile details */}
+                                <button
+                                    onClick={() => setShowMobileDetails(true)}
+                                    className="lg:hidden p-2 hover:bg-white/5 rounded-lg text-slate-400"
+                                    title="Detalhes do contato"
+                                >
+                                    <Info size={18} />
+                                </button>
                                 {activeChat.status === 'aguardando' ? (
-                                    <button className="flex items-center gap-2 bg-[#25D366] text-black px-4 py-2 rounded-xl text-xs font-black hover:brightness-110 transition-all">
-                                        <ArrowRightCircle size={16} /> ATENDER
+                                    <button
+                                        onClick={() => handleAccept(activeChat.realId)}
+                                        className="flex items-center gap-1 sm:gap-2 bg-[#25D366] text-black px-2 sm:px-4 py-2 rounded-xl text-xs font-black hover:brightness-110 transition-all"
+                                    >
+                                        <ArrowRightCircle size={16} /> <span className="hidden sm:inline">ATENDER</span>
                                     </button>
                                 ) : (
                                     <>
-                                        <button className="p-2 hover:bg-white/5 rounded-lg text-slate-400" title="Transferir"><UserPlus size={18} /></button>
-                                        <button className="flex items-center gap-2 bg-red-500/20 text-red-500 px-4 py-2 rounded-xl text-xs font-black hover:bg-red-500 hover:text-white transition-all">
-                                            <CheckCircle2 size={16} /> ENCERRAR
+                                        <button className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hidden sm:block" title="Transferir"><UserPlus size={18} /></button>
+                                        <button
+                                            onClick={() => handleClose(activeChat.realId)}
+                                            className="flex items-center gap-1 sm:gap-2 bg-red-500/20 text-red-500 px-2 sm:px-4 py-2 rounded-xl text-xs font-black hover:bg-red-500 hover:text-white transition-all"
+                                        >
+                                            <CheckCircle2 size={16} /> <span className="hidden sm:inline">ENCERRAR</span>
                                         </button>
                                     </>
                                 )}
-                                <button className="p-2 hover:bg-white/5 rounded-lg text-slate-400"><MoreVertical size={18} /></button>
+                                <button className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hidden sm:block"><MoreVertical size={18} /></button>
                             </div>
                         </div>
 
                         {/* MESSAGES */}
                         <div
                             ref={scrollRef}
-                            className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed"
+                            className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed"
                         >
                             {[...(activeChat.messages || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((msg, i) => (
                                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end animate-slide-up'}`}>
-                                    <div className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-lg relative ${msg.role === 'user'
+                                    <div className={`max-w-[85%] sm:max-w-[75%] px-3 sm:px-4 py-2 sm:py-3 rounded-2xl shadow-lg relative ${msg.role === 'user'
                                         ? 'bg-[#1E293B] text-slate-200 border border-white/5 rounded-tl-none'
                                         : 'bg-[#25D366] text-slate-900 font-medium rounded-tr-none'
                                         }`}>
@@ -285,36 +416,42 @@ export default function AtendimentoPage() {
                         </div>
 
                         {/* INPUT AREA */}
-                        <div className="p-4 bg-[#1E293B]/30 border-t border-white/5 space-y-3">
-                            <div className="flex items-center justify-between px-2">
-                                <div className="flex gap-4">
+                        <div className="p-2 sm:p-4 bg-[#1E293B]/30 border-t border-white/5 space-y-2 sm:space-y-3">
+                            <div className="flex items-center justify-between px-1 sm:px-2">
+                                <div className="flex gap-2 sm:gap-4">
                                     <button
                                         onClick={() => setIsNote(!isNote)}
-                                        className={`flex items-center gap-2 text-[10px] font-black tracking-widest transition-all ${isNote ? 'text-yellow-500' : 'text-slate-500'}`}
+                                        className={`flex items-center gap-1 sm:gap-2 text-[10px] font-black tracking-widest transition-all ${isNote ? 'text-yellow-500' : 'text-slate-500'}`}
                                     >
-                                        <Hash size={14} /> NOTA INTERNA
+                                        <Hash size={14} /> <span className="hidden sm:inline">NOTA INTERNA</span><span className="sm:hidden">NOTA</span>
                                     </button>
-                                    <button className="flex items-center gap-2 text-slate-500 text-[10px] font-black tracking-widest hover:text-[#25D366]">
+                                    <button className="items-center gap-2 text-slate-500 text-[10px] font-black tracking-widest hover:text-[#25D366] hidden sm:flex">
                                         <BookOpen size={14} /> RESPOSTAS RÁPIDAS
                                     </button>
                                 </div>
-                                <div className="flex gap-3">
+                                <div className="flex gap-2 sm:gap-3">
                                     <button className="text-slate-500 hover:text-white"><Smile size={20} /></button>
                                     <button className="text-slate-500 hover:text-white"><Paperclip size={20} /></button>
                                 </div>
                             </div>
-                            <div className="flex items-end gap-3 bg-white/5 rounded-2xl p-2 border border-white/10 focus-within:border-[#25D366]/50 transition-all">
+                            <div className="flex items-end gap-2 sm:gap-3 bg-white/5 rounded-2xl p-2 border border-white/10 focus-within:border-[#25D366]/50 transition-all">
                                 <textarea
                                     rows="1"
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
-                                    placeholder={isNote ? "Digite uma nota interna amarela..." : "Digite sua mensagem..."}
-                                    className="flex-1 bg-transparent border-none outline-none text-white text-sm py-2 px-3 resize-none max-h-32"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                    placeholder={isNote ? "Nota interna..." : "Digite sua mensagem..."}
+                                    className="flex-1 bg-transparent border-none outline-none text-white text-sm py-2 px-2 sm:px-3 resize-none max-h-32"
                                 />
                                 <button
                                     onClick={handleSendMessage}
                                     disabled={!message.trim()}
-                                    className={`p-3 rounded-xl transition-all ${message.trim() ? 'bg-[#25D366] text-black scale-100 hover:rotate-12' : 'bg-white/5 text-slate-600 scale-90'
+                                    className={`p-3 rounded-xl transition-all flex-shrink-0 ${message.trim() ? 'bg-[#25D366] text-black scale-100 hover:rotate-12' : 'bg-white/5 text-slate-600 scale-90'
                                         }`}
                                 >
                                     {message.trim() ? <Send size={20} /> : <Mic size={20} />}
@@ -323,111 +460,44 @@ export default function AtendimentoPage() {
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-600 p-12 text-center bg-gradient-to-b from-transparent to-black/20">
-                        <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
-                            <MessageSquare size={48} className="opacity-20" />
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-600 p-8 sm:p-12 text-center bg-gradient-to-b from-transparent to-black/20">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
+                            <MessageSquare size={40} className="opacity-20" />
                         </div>
-                        <h2 className="text-2xl font-black text-white mb-2">Selecione uma conversa</h2>
+                        <h2 className="text-xl sm:text-2xl font-black text-white mb-2">Selecione uma conversa</h2>
                         <p className="max-w-xs text-sm leading-relaxed">Selecione um cliente ao lado para iniciar o atendimento ou visualizar o histórico.</p>
                     </div>
                 )}
             </div>
 
-            {/* RIGHT COLUMN: DETAILS */}
-            <div className="w-80 flex flex-col bg-[#0F172A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
-                {activeChat ? (
-                    <div className="flex flex-col h-full">
-                        <div className="p-6 text-center border-b border-white/5">
-                            <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 border border-white/10 mx-auto mb-4 flex items-center justify-center overflow-hidden shadow-xl">
-                                {activeChat.photo ? <img src={activeChat.photo} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-500" />}
-                            </div>
-                            <h3 className="text-lg font-black text-white truncate">{activeChat.name}</h3>
-                            <p className="text-sm text-[#25D366] font-black tracking-tight mt-1">
-                                {formatNumber(activeChat.id)}
-                            </p>
-                            <p className="text-[10px] text-slate-600 mt-2 uppercase font-bold tracking-widest">Desde {activeChat.messages?.length > 0 ? new Date(activeChat.messages[0].created_at).toLocaleDateString('pt-BR') : 'Hoje'}</p>
-                        </div>
+            {/* RIGHT COLUMN: DETAILS (Desktop only) */}
+            <div className="w-80 hidden lg:flex flex-col bg-[#0F172A] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+                {renderDetailsContent()}
+            </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                            {/* INFO SECTON */}
-                            <div className="space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">Informações</h4>
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500"><Phone size={14} /></div>
-                                        <span className="font-medium">{activeChat.id.split('@')[0]}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500"><Mail size={14} /></div>
-                                        <span className="text-slate-600 italic">Não informado</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500"><MapPin size={14} /></div>
-                                        <span className="text-slate-600 italic">Não informado</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* TAGS SECTION */}
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Etiquetas</h4>
-                                    <button
-                                        onClick={handleAddTag}
-                                        className="text-[10px] text-[#25D366] font-bold hover:brightness-110 active:scale-95 transition-all"
-                                    >
-                                        + ADICIONAR
-                                    </button>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-black rounded-lg border border-blue-500/20">NOVO LEAD</span>
-                                    <span className="px-2 py-1 bg-purple-500/10 text-purple-400 text-[10px] font-black rounded-lg border border-purple-500/20">INTERESSADO</span>
-                                </div>
-                            </div>
-
-                            {/* LOGS / TIMELINE */}
-                            <div className="space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">Últimas Atividades</h4>
-                                <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-white/5">
-                                    <div className="flex gap-4 relative">
-                                        <div className="w-6 h-6 rounded-full bg-[#0F172A] border-2 border-[#25D366] flex items-center justify-center z-10 flex-shrink-0">
-                                            <Clock size={10} className="text-[#25D366]" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-slate-300 font-bold">Iniciou conversa</p>
-                                            <p className="text-[10px] text-slate-500">
-                                                {activeChat.lastTime ? formatDistanceToNow(new Date(activeChat.lastTime), { locale: ptBR, addSuffix: true }) : 'Recentemente'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4 relative">
-                                        <div className="w-6 h-6 rounded-full bg-[#0F172A] border-2 border-slate-700 flex items-center justify-center z-10 flex-shrink-0">
-                                            <AlertCircle size={10} className="text-slate-500" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-slate-500 font-medium">Aguardando atendimento</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-4 bg-black/20">
+            {/* MOBILE DETAILS OVERLAY */}
+            {showMobileDetails && (
+                <>
+                    <div
+                        className="fixed inset-0 bg-black/70 z-40 lg:hidden backdrop-blur-sm"
+                        onClick={() => setShowMobileDetails(false)}
+                    />
+                    <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-[#0F172A] border-l border-white/5 z-50 lg:hidden shadow-2xl flex flex-col animate-slide-in-right overflow-hidden">
+                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                            <h3 className="text-sm font-black text-white uppercase tracking-widest">Detalhes do Contato</h3>
                             <button
-                                onClick={handleAddToKanban}
-                                className="w-full py-3 bg-[#25D366] text-black text-xs font-black rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#25D366]/10"
+                                onClick={() => setShowMobileDetails(false)}
+                                className="p-2 hover:bg-white/5 rounded-lg text-slate-400"
                             >
-                                ADICIONAR AO KANBAN
+                                <XIcon size={20} />
                             </button>
                         </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {renderDetailsContent()}
+                        </div>
                     </div>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-800 p-8 text-center">
-                        <Tag size={40} className="mb-2 opacity-5" />
-                        <p className="text-xs font-bold uppercase tracking-widest opacity-20">Detalhes do Contato</p>
-                    </div>
-                )}
-            </div>
+                </>
+            )}
         </div>
     );
 }
