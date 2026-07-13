@@ -156,12 +156,40 @@ router.post('/tickets/:id/tags', authMiddleware, async (req, res) => {
 router.get('/kanban', authMiddleware, async (req, res) => {
     try {
         const supabase = getSupabase();
-        const [cols, cards] = await Promise.all([
-            supabase.from('crm_kanban_columns').select('*').eq('tenant_id', req.user.tenant_id || req.user.id).order('position'),
-            supabase.from('crm_kanban_cards').select('*').eq('tenant_id', req.user.tenant_id || req.user.id).order('position')
-        ]);
+        const tenantId = req.user.tenant_id || req.user.id;
+
+        let cols = await supabase
+            .from('crm_kanban_columns')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('position');
 
         if (cols.error) throw cols.error;
+
+        // Se o tenant não tiver nenhuma coluna, cria as colunas padrão para ele
+        if (!cols.data || cols.data.length === 0) {
+            const defaultCols = [
+                { tenant_id: tenantId, title: 'Novo Lead', color: '#3b82f6', position: 0 },
+                { tenant_id: tenantId, title: 'Em Qualificação', color: '#eab308', position: 1 },
+                { tenant_id: tenantId, title: 'Proposta Enviada', color: '#a855f7', position: 2 },
+                { tenant_id: tenantId, title: 'Concluido', color: '#25d366', position: 3 }
+            ];
+
+            const insertResult = await supabase
+                .from('crm_kanban_columns')
+                .insert(defaultCols)
+                .select();
+
+            if (insertResult.error) throw insertResult.error;
+            cols.data = insertResult.data;
+        }
+
+        const cards = await supabase
+            .from('crm_kanban_cards')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('position');
+
         if (cards.error) throw cards.error;
 
         res.json({ columns: cols.data, cards: cards.data });

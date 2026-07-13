@@ -887,4 +887,8 @@ router.use('/delivery', deliveryRouter);
 const crmRouter = require('./crmRoutes');
 router.use('/crm', crmRouter);
 
+// ── CONTENT PLANNER ROUTES (TRELLO) ───────────────────────────
+const contentPlannerRouter = require('./contentPlannerRoutes');
+router.use('/content', contentPlannerRouter);
+
 module.exports = router;

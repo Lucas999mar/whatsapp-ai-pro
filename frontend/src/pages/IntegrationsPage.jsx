@@ -21,18 +21,22 @@ export default function IntegrationsPage() {
         const res = await api.get('/whatsapp/status');
         const agentsList = res.data.agents || [];
         setAgents(agentsList);
-        if (agentsList.length > 0 && !selectedAgentId) {
+        if (agentsList.length > 0) {
           setSelectedAgentId(agentsList[0].id);
+        } else {
+          setLoading(false);
         }
       } catch (err) {
         console.error('Erro ao buscar agentes:', err);
+        setLoading(false);
       }
     };
     fetchAgents();
   }, []);
 
   useEffect(() => {
-    if (!selectedAgentId || agents.length === 0) return;
+    if (agents.length === 0) return;
+    if (!selectedAgentId) return;
     
     const fetchSettings = async () => {
       setLoading(true);
@@ -57,6 +61,7 @@ export default function IntegrationsPage() {
   }, [selectedAgentId, agents]);
 
   const handleSave = async () => {
+    if (agents.length === 0) return;
     setSaving(true);
     try {
       // Buscar settings atuais para não sobrescrever o resto
@@ -98,24 +103,38 @@ export default function IntegrationsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-[#0F172A] px-4 py-3 rounded-xl border border-white/10 shadow-inner">
-          <Link2 size={18} className="text-[#25D366]" />
-          <select 
-            className="outline-none bg-transparent text-slate-200 font-medium cursor-pointer" 
-            value={selectedAgentId} 
-            onChange={(e) => setSelectedAgentId(e.target.value)}
-          >
-            {agents.map(a => (
-              <option key={a.id} value={a.id} className="bg-slate-800">Agente: {a.name}</option>
-            ))}
-          </select>
-        </div>
+        {agents.length > 0 && (
+          <div className="flex items-center gap-3 bg-[#0F172A] px-4 py-3 rounded-xl border border-white/10 shadow-inner">
+            <Link2 size={18} className="text-[#25D366]" />
+            <select 
+              className="outline-none bg-transparent text-slate-200 font-medium cursor-pointer" 
+              value={selectedAgentId} 
+              onChange={(e) => setSelectedAgentId(e.target.value)}
+            >
+              {agents.map(a => (
+                <option key={a.id} value={a.id} className="bg-slate-800">Agente: {a.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-500">
           <Loader2 className="animate-spin mb-4" size={40} />
           <p>Carregando integrações do agente...</p>
+        </div>
+      ) : agents.length === 0 ? (
+        <div className="glass-panel p-12 text-center max-w-2xl mx-auto space-y-6 rounded-2xl border border-white/5 bg-[#0F172A]/40 backdrop-blur-xl">
+          <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto text-amber-500 border border-amber-500/20">
+            <Blocks size={40} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-black text-white uppercase tracking-wider">Nenhum Agente Encontrado</h3>
+            <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
+              Você ainda não possui um agente de Inteligência Artificial criado nesta empresa. Cadastre seu primeiro agente no painel administrativo para configurar integrações com Telegram, Instagram e Google Agenda.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -240,21 +259,23 @@ export default function IntegrationsPage() {
       )}
 
       {/* FOOTER BAR */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0F172A]/90 backdrop-blur-md border-t border-white/10 p-4 lg:pl-64 z-50">
-        <div className="max-w-6xl mx-auto flex justify-between items-center px-4">
-          <div className="text-sm text-slate-400 font-medium">
-            Módulos Independentes. O salvamento afeta apenas o agente selecionado.
+      {agents.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-[#0F172A]/90 backdrop-blur-md border-t border-white/10 p-4 lg:pl-64 z-50 animate-slide-up">
+          <div className="max-w-6xl mx-auto flex justify-between items-center px-4">
+            <div className="text-sm text-slate-400 font-medium">
+              Módulos Independentes. O salvamento afeta apenas o agente selecionado.
+            </div>
+            <button 
+              onClick={handleSave} 
+              disabled={saving || loading} 
+              className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-8 py-3 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.2)] flex items-center gap-2 transition-all disabled:opacity-70 animate-pulse-subtle"
+            >
+              {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+              {saving ? 'Aplicando Integrações...' : 'Salvar Módulos'}
+            </button>
           </div>
-          <button 
-            onClick={handleSave} 
-            disabled={saving || loading} 
-            className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-8 py-3 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.2)] flex items-center gap-2 transition-all disabled:opacity-70"
-          >
-            {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-            {saving ? 'Aplicando Integrações...' : 'Salvar Módulos'}
-          </button>
         </div>
-      </div>
+      )}
 
     </div>
   );

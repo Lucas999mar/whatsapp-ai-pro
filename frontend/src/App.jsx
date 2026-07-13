@@ -4,7 +4,7 @@ import logoImage from './assets/logo.png';
 import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
-  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2
+  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -25,6 +25,7 @@ import AtendimentoPage from './pages/AtendimentoPage';
 import CRMPage from './pages/CRMPage';
 import ContatosPage from './pages/ContatosPage';
 import GroupsPage from './pages/GroupsPage';
+import ContentPlannerPage from './pages/ContentPlannerPage';
 
 // Novos componentes de Delivery
 import TrackingPage from './pages/TrackingPage';
@@ -45,6 +46,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
     { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/ai-designer', name: 'AI Designer', icon: <Wand2 size={20} /> },
+    { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
@@ -253,6 +255,7 @@ function AppContent() {
             <Route path="/knowledge" element={<AuthGuard><KnowledgeBase /></AuthGuard>} />
             <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/ai-designer" element={<AuthGuard><AIDesigner /></AuthGuard>} />
+            <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
