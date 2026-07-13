@@ -416,7 +416,7 @@ async function listTenants() {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('tenants')
-      .select('id, name, role, status, logo, created_at'); // ⚡ Evita puxar passwords em lista aberta
+      .select('id, name, role, status, logo, features, created_at'); // ⚡ Evita puxar passwords em lista aberta
     if (!error && data && data.length > 0) {
       return data;
     }

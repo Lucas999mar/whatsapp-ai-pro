@@ -15,7 +15,7 @@ export default function SuperAdmin() {
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ id: '', name: '', password: '', logo: '' });
+  const [formData, setFormData] = useState({ id: '', name: '', password: '', logo: '', features: {} });
   const [submitting, setSubmitting] = useState(false);
 
   // Delivery Super Config
@@ -106,7 +106,13 @@ export default function SuperAdmin() {
 
   const openEdit = (tenant) => {
     setEditingId(tenant.id);
-    setFormData({ id: tenant.id, name: tenant.name, password: tenant.password, logo: tenant.logo || '' });
+    setFormData({
+      id: tenant.id,
+      name: tenant.name,
+      password: tenant.password,
+      logo: tenant.logo || '',
+      features: tenant.features || {}
+    });
     setShowModal(true);
   };
 
@@ -127,7 +133,7 @@ export default function SuperAdmin() {
         </div>
 
         <button
-          onClick={() => { setEditingId(null); setFormData({ id: '', name: '', password: '', logo: '' }); setShowModal(true); }}
+          onClick={() => { setEditingId(null); setFormData({ id: '', name: '', password: '', logo: '', features: {} }); setShowModal(true); }}
           className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-2 transition-all transform hover:-translate-y-1"
         >
           <Plus size={20} /> Nova Empresa
@@ -258,7 +264,7 @@ export default function SuperAdmin() {
       {showModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 animate-fade-in bg-black/90 backdrop-blur-md">
           <div className="absolute inset-0" onClick={() => setShowModal(false)}></div>
-          <div className="bg-[#0F172A] border border-white/10 rounded-[40px] p-10 w-full max-w-lg z-10 shadow-2xl relative">
+          <div className="bg-[#0F172A] border border-white/10 rounded-[40px] p-10 w-full max-w-lg z-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <h3 className="text-2xl font-black text-white mb-8 flex items-center gap-3 tracking-tighter uppercase italic">
               <Building2 className="text-[#25D366]" size={32} />
               {editingId ? 'Editar Parceiro' : 'Novo Parceiro'}
@@ -280,6 +286,52 @@ export default function SuperAdmin() {
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Senha de Acesso</label>
                 <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full bg-black/30 border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-[#25D366]" required={!editingId} />
+              </div>
+
+              {/* SEÇÃO DE FUNCIONALIDADES (FEATURES) */}
+              <div className="space-y-3 pt-4 border-t border-white/5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1.5">
+                  <Bot size={14} className="text-[#25D366]" /> Funcionalidades Contratadas
+                </label>
+                
+                <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {[
+                    { key: 'crm', label: 'CRM Kanban' },
+                    { key: 'contentPlanner', label: 'Planejador de Conteúdo' },
+                    { key: 'creativeCenter', label: 'Centro Criativo' },
+                    { key: 'aiDesigner', label: 'AI Designer' },
+                    { key: 'learning', label: 'Aprendizado IA' },
+                    { key: 'broadcast', label: 'Disparo em Massa' },
+                    { key: 'followUp', label: 'Follow-up' },
+                    { key: 'os', label: 'Ordens de Serviço' },
+                    { key: 'delivery', label: 'Monitor Delivery' },
+                    { key: 'integrations', label: 'Integrações & API' }
+                  ].map((feat) => {
+                    const isChecked = formData.features?.[feat.key] !== false;
+                    return (
+                      <label 
+                        key={feat.key} 
+                        className="flex items-center gap-3 p-3 bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/10 rounded-xl cursor-pointer transition-all active:scale-[0.98]"
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              features: {
+                                ...prev.features,
+                                [feat.key]: e.target.checked
+                              }
+                            }));
+                          }}
+                          className="w-4 h-4 rounded accent-[#25D366] cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-slate-300 select-none truncate">{feat.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex gap-4 pt-6">

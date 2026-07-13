@@ -157,8 +157,24 @@ router.post('/auth/login', async (req, res) => {
   }
 
   console.log(`✅ Login bem-sucedido para ID=${loginId} (${user.role})`);
-  const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id || user.id });
-  res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: user.tenant_id || user.id } });
+
+  // Buscar features do tenant associado a este login
+  const tenantId = user.tenant_id || user.id;
+  let features = {};
+  try {
+    if (user.role === 'company') {
+      features = user.features || {};
+    } else if (user.role === 'technician' || user.role === 'motoboy') {
+      const { findTenantById } = require('../db/repository');
+      const tenantData = await findTenantById(tenantId);
+      features = tenantData?.features || {};
+    }
+  } catch (err) {
+    console.error('Erro ao buscar features no login:', err.message);
+  }
+
+  const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: tenantId, features });
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: tenantId, features } });
 });
 
 // ── SUPER ADMIN ROUTES ────────────────────────────────────────
@@ -191,10 +207,10 @@ router.get('/admin/tenants', authMiddleware, async (req, res) => {
 
 router.post('/admin/tenants', authMiddleware, async (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Acesso negado' });
-  const { id, name, password } = req.body;
+  const { id, name, password, features } = req.body;
   const tenants = await listTenants();
   if (tenants.find(t => t.id === id)) return res.status(400).json({ error: 'ID já existe' });
-  const newTenant = { id, name, password, role: 'company', status: 'active', logo: null };
+  const newTenant = { id, name, password, role: 'company', status: 'active', logo: null, features: features || {} };
 
   // Salva no Supabase
   const supabase = getSupabase();

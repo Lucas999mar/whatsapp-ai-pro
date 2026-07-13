@@ -72,6 +72,30 @@ function Sidebar({ isOpen, setIsOpen }) {
     ];
   }
 
+  // Filtragem de features permitidas para empresas e técnicos
+  if (user && user.role !== 'superadmin') {
+    const features = user.features || {};
+    const featureMap = {
+      '/crm': 'crm',
+      '/content-planner': 'contentPlanner',
+      '/creative-center': 'creativeCenter',
+      '/ai-designer': 'aiDesigner',
+      '/learning': 'learning',
+      '/broadcast': 'broadcast',
+      '/follow-up': 'followUp',
+      '/os': 'os',
+      '/motoboy': 'delivery',
+      '/delivery-dashboard': 'delivery',
+      '/integrations': 'integrations'
+    };
+
+    navItems = navItems.filter(item => {
+      const key = featureMap[item.path];
+      if (key && features[key] === false) return false;
+      return true;
+    });
+  }
+
   if (user?.role === 'superadmin') {
     navItems.push({ path: '/admin', name: 'Super Admin', icon: <ShieldCheck size={20} /> });
   }
@@ -155,6 +179,7 @@ function Sidebar({ isOpen, setIsOpen }) {
 
 function AuthGuard({ children, adminOnly = false }) {
   const { user, token, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) return (
     <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
@@ -164,6 +189,30 @@ function AuthGuard({ children, adminOnly = false }) {
 
   if (!token) return <Navigate to="/login" />;
   if (adminOnly && user?.role !== 'superadmin') return <Navigate to="/" />;
+
+  // Bloqueio de rotas se a feature do tenant estiver desabilitada
+  if (user && user.role !== 'superadmin') {
+    const features = user.features || {};
+    const featureMap = {
+      '/crm': 'crm',
+      '/content-planner': 'contentPlanner',
+      '/creative-center': 'creativeCenter',
+      '/ai-designer': 'aiDesigner',
+      '/learning': 'learning',
+      '/broadcast': 'broadcast',
+      '/follow-up': 'followUp',
+      '/os': 'os',
+      '/motoboy': 'delivery',
+      '/delivery-dashboard': 'delivery',
+      '/integrations': 'integrations'
+    };
+
+    const currentPath = location.pathname;
+    const key = featureMap[currentPath];
+    if (key && features[key] === false) {
+      return <Navigate to="/" replace />;
+    }
+  }
 
   return children;
 }
