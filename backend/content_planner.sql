@@ -40,6 +40,11 @@ ALTER TABLE content_columns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_cards ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de Acesso Livre (assim como os outros módulos do app)
+DROP POLICY IF EXISTS "Public Content Board Access" ON content_boards;
 CREATE POLICY "Public Content Board Access" ON content_boards FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Public Content Column Access" ON content_columns;
 CREATE POLICY "Public Content Column Access" ON content_columns FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Public Content Card Access" ON content_cards;
 CREATE POLICY "Public Content Card Access" ON content_cards FOR ALL USING (true);
