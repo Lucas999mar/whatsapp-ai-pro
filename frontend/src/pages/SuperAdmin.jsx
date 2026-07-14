@@ -70,12 +70,23 @@ export default function SuperAdmin() {
     setSubmitting(true);
     try {
       if (editingId) {
-        await api.put(`/admin/tenants/${editingId}`, formData);
+        // Envia explicitamente apenas os campos necessários
+        const payload = {
+          name: formData.name,
+          logo: formData.logo,
+          features: formData.features || {}
+        };
+        // Só envia password se foi preenchido
+        if (formData.password && formData.password.trim() !== '') {
+          payload.password = formData.password;
+        }
+        await api.put(`/admin/tenants/${editingId}`, payload);
       } else {
         await api.post('/admin/tenants', formData);
       }
       setShowModal(false);
       fetchTenants();
+      alert('✅ Empresa atualizada com sucesso! As alterações de funcionalidades serão aplicadas em até 30 segundos.');
     } catch (err) {
       alert(err.response?.data?.error || 'Erro ao salvar empresa');
     } finally {

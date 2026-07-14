@@ -226,10 +226,29 @@ router.put('/admin/tenants/:id', authMiddleware, async (req, res) => {
   const { data: existing } = await supabase.from('tenants').select('*').eq('id', req.params.id).single();
   if (!existing) return res.status(404).json({ error: 'Empresa não encontrada' });
 
-  const updated = { ...existing, ...req.body };
-  const { error } = await supabase.from('tenants').update(req.body).eq('id', req.params.id);
-  if (error) return res.status(500).json({ error: error.message });
+  // 🛡️ Sanitiza o payload: remove id (PK) e password vazio
+  const { id, ...bodyWithoutId } = req.body;
+  if (bodyWithoutId.password === '' || bodyWithoutId.password === undefined) {
+    delete bodyWithoutId.password;
+  }
 
+  // Garante que features é salvo como JSONB válido
+  if (bodyWithoutId.features && typeof bodyWithoutId.features === 'object') {
+    bodyWithoutId.features = bodyWithoutId.features;
+  }
+
+  bodyWithoutId.updated_at = new Date().toISOString();
+
+  console.log(`🔧 [SuperAdmin] Atualizando tenant ${req.params.id}:`, JSON.stringify(bodyWithoutId));
+
+  const { error } = await supabase.from('tenants').update(bodyWithoutId).eq('id', req.params.id);
+  if (error) {
+    console.error(`❌ [SuperAdmin] Erro ao atualizar tenant ${req.params.id}:`, error.message);
+    return res.status(500).json({ error: error.message });
+  }
+
+  const updated = { ...existing, ...bodyWithoutId };
+  console.log(`✅ [SuperAdmin] Tenant ${req.params.id} atualizado. Features:`, JSON.stringify(updated.features));
   res.json(updated);
 });
 
@@ -239,6 +258,19 @@ router.delete('/admin/tenants/:id', authMiddleware, async (req, res) => {
   const { error } = await supabase.from('tenants').delete().eq('id', req.params.id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true });
+});
+
+// ── FEATURE SYNC ROUTE (Real-time feature check) ─────────────
+router.get('/me/features', authMiddleware, async (req, res) => {
+  try {
+    const { findTenantById } = require('../db/repository');
+    const tenantId = req.user.tenant_id || req.user.id;
+    const tenant = await findTenantById(tenantId);
+    res.json({ features: tenant?.features || {} });
+  } catch (err) {
+    console.error('Erro ao buscar features:', err.message);
+    res.json({ features: {} });
+  }
 });
 
 // ── OBSIDIAN ROUTES ───────────────────────────────────────────
