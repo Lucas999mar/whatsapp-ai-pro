@@ -108,7 +108,30 @@ router.post('/auth/login', async (req, res) => {
     user = tenant;
   }
 
-  // 🛠️ FAILSAFE PRO: Se não achou na modalidade Empresa, busca em Técnicos/OS
+  // 👤 BUSCA SUB-USUÁRIO / COLABORADOR (tenant_users)
+  if (!user) {
+    const supabase = getSupabase();
+    let { data: subUser } = await supabase
+      .from('tenant_users')
+      .select('*')
+      .ilike('email', loginId)
+      .eq('password', password)
+      .single();
+
+    if (subUser) {
+      console.log(`👤 Sub-usuário de empresa logado: ${subUser.name} como ${subUser.role}`);
+      user = {
+        id: subUser.id,
+        name: subUser.name,
+        role: subUser.role || 'operator',
+        tenant_id: subUser.tenant_id,
+        features: subUser.features || {},
+        is_subuser: true
+      };
+    }
+  }
+
+  // 🛠️ FAILSAFE PRO: Se não achou na modalidade Empresa ou Sub-usuário, busca em Técnicos/OS
   if (!user) {
     const supabase = getSupabase();
     // Busca técnico pelo email (case-insensitive)
@@ -164,8 +187,21 @@ router.post('/auth/login', async (req, res) => {
   try {
     if (user.role === 'company') {
       features = user.features || {};
+    } else if (user.is_subuser) {
+      const tenantData = await findTenantById(tenantId);
+      const tenantFeatures = tenantData?.features || {};
+      const subUserFeatures = user.features || {};
+      
+      // Mescla permissões: se o tenant tem a feature desabilitada, ela fica desabilitada.
+      // Se o tenant tem a feature habilitada, respeita o toggle do sub-usuário.
+      Object.keys(tenantFeatures).forEach(key => {
+        if (tenantFeatures[key] === false) {
+          features[key] = false;
+        } else {
+          features[key] = subUserFeatures[key] !== false;
+        }
+      });
     } else if (user.role === 'technician' || user.role === 'motoboy') {
-      const { findTenantById } = require('../db/repository');
       const tenantData = await findTenantById(tenantId);
       features = tenantData?.features || {};
     }
@@ -354,6 +390,132 @@ router.put('/company/settings', authMiddleware, async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: `Falha ao salvar: ${err.message}` });
+  }
+});
+
+// ── COMPANY COLLABORATORS (tenant_users) CRUD ────────────────
+
+// 1. Listar colaboradores da empresa
+router.get('/company/collaborators', authMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const tenantId = req.user.tenant_id || req.user.id;
+
+    const { data, error } = await supabase
+      .from('tenant_users')
+      .select('id, name, email, role, features, created_at')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Criar novo colaborador
+router.post('/company/collaborators', authMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const tenantId = req.user.tenant_id || req.user.id;
+    const { name, email, password, role, features } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
+    }
+
+    const { data, error } = await supabase
+      .from('tenant_users')
+      .insert({
+        tenant_id: tenantId,
+        name,
+        email,
+        password,
+        role: role || 'operator',
+        features: features || {},
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.message.includes('unique') || error.message.includes('duplicate')) {
+        return res.status(400).json({ error: 'Este e-mail já está sendo utilizado por outro usuário.' });
+      }
+      throw error;
+    }
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Atualizar colaborador
+router.put('/company/collaborators/:id', authMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const tenantId = req.user.tenant_id || req.user.id;
+    const { name, email, password, role, features } = req.body;
+
+    // Garante que o colaborador pertence a este tenant
+    const { data: existing, error: checkError } = await supabase
+      .from('tenant_users')
+      .select('id')
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (checkError || !existing) {
+      return res.status(404).json({ error: 'Colaborador não encontrado' });
+    }
+
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (role !== undefined) updateData.role = role;
+    if (features !== undefined) updateData.features = features;
+    if (password && password.trim() !== '') updateData.password = password;
+
+    const { data, error } = await supabase
+      .from('tenant_users')
+      .update(updateData)
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.message.includes('unique') || error.message.includes('duplicate')) {
+        return res.status(400).json({ error: 'Este e-mail já está sendo utilizado por outro usuário.' });
+      }
+      throw error;
+    }
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Excluir colaborador
+router.delete('/company/collaborators/:id', authMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const tenantId = req.user.tenant_id || req.user.id;
+
+    const { error } = await supabase
+      .from('tenant_users')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
