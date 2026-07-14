@@ -160,7 +160,7 @@ export default function AgendaPage() {
             <CalendarIcon className="text-[#25D366]" size={36} />
             Agenda de Reuniões
           </h2>
-          <p className="text-slate-400 mt-2 text-lg">Marque e acompanhe compromissos com seus clientes.</p>
+          <p className="text-slate-400 mt-2 text-lg">Marque e acompanhe reuniões e compromissos.</p>
         </div>
 
         <button
@@ -291,7 +291,8 @@ export default function AgendaPage() {
                     {app.contact_name && (
                       <div className="flex items-center gap-2">
                         <User size={14} className="text-blue-400" />
-                        <span>{app.contact_name} {app.contact_phone ? `(${app.contact_phone})` : ''}</span>
+                        <span className="font-medium">Reunião com {app.contact_name}</span>
+                        {app.contact_phone && <span className="text-slate-500">• {app.contact_phone}</span>}
                       </div>
                     )}
 
@@ -371,12 +372,12 @@ export default function AgendaPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contato (Nome)</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Responsável</label>
                   <input
                     type="text"
                     value={formData.contact_name}
                     onChange={e => setFormData({ ...formData, contact_name: e.target.value })}
-                    placeholder="Nome do cliente"
+                    placeholder="Nome de quem estará na reunião"
                     className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white font-bold outline-none focus:border-[#25D366] transition-colors"
                   />
                 </div>
@@ -388,6 +389,20 @@ export default function AgendaPage() {
                     onChange={e => setFormData({ ...formData, contact_phone: e.target.value })}
                     placeholder="Ex: 11999998888"
                     className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white font-bold outline-none focus:border-[#25D366] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Localização da Reunião</label>
+                <div className="relative">
+                  <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400" />
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={e => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="Endereço, sala, Google Meet, Zoom..."
+                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pl-11 text-white font-bold outline-none focus:border-[#25D366] transition-colors"
                   />
                 </div>
               </div>
@@ -423,17 +438,6 @@ export default function AgendaPage() {
                     className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white font-bold outline-none focus:border-[#25D366] transition-colors"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Localização ou Link da Vídeo (Meet/Zoom)</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={e => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="Google Meet URL, zoom ou Endereço físico"
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white font-bold outline-none focus:border-[#25D366] transition-colors"
-                />
               </div>
 
               <div className="flex gap-4 pt-4">
