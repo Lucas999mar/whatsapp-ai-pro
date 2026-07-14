@@ -939,4 +939,8 @@ router.use('/crm', crmRouter);
 const contentPlannerRouter = require('./contentPlannerRoutes');
 router.use('/content', contentPlannerRouter);
 
+// ── AGENDA (MEETINGS & SCHEDULER) ROUTES ───────────────────────
+const agendaRouter = require('./agendaRoutes');
+router.use('/agenda', agendaRouter);
+
 module.exports = router;

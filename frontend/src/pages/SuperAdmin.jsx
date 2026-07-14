@@ -312,6 +312,7 @@ export default function SuperAdmin() {
                     { key: 'contacts', label: 'Contatos' },
                     { key: 'groups', label: 'Gestão de Grupos' },
                     { key: 'knowledge', label: 'Base Conhecimento' },
+                    { key: 'agenda', label: 'Agenda de Reuniões' },
                     { key: 'contentPlanner', label: 'Planejador de Conteúdo' },
                     { key: 'creativeCenter', label: 'Centro Criativo' },
                     { key: 'aiDesigner', label: 'AI Designer' },

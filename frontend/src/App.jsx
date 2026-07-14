@@ -26,6 +26,7 @@ import CRMPage from './pages/CRMPage';
 import ContatosPage from './pages/ContatosPage';
 import GroupsPage from './pages/GroupsPage';
 import ContentPlannerPage from './pages/ContentPlannerPage';
+import AgendaPage from './pages/AgendaPage';
 
 // Novos componentes de Delivery
 import TrackingPage from './pages/TrackingPage';
@@ -44,6 +45,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/contacts', name: 'Contatos', icon: <Users size={20} /> },
     { path: '/groups', name: 'Gestão de Grupos', icon: <Users size={20} /> },
     { path: '/knowledge', name: 'Base Conhecimento', icon: <Database size={20} /> },
+    { path: '/agenda', name: 'Agenda Reuniões', icon: <CalendarIcon size={20} /> },
     { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/ai-designer', name: 'AI Designer', icon: <Wand2 size={20} /> },
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
@@ -81,6 +83,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/contacts': 'contacts',
       '/groups': 'groups',
       '/knowledge': 'knowledge',
+      '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -203,6 +206,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/contacts': 'contacts',
       '/groups': 'groups',
       '/knowledge': 'knowledge',
+      '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -310,6 +314,7 @@ function AppContent() {
             <Route path="/contacts" element={<AuthGuard><ContatosPage /></AuthGuard>} />
             <Route path="/groups" element={<AuthGuard><GroupsPage /></AuthGuard>} />
             <Route path="/knowledge" element={<AuthGuard><KnowledgeBase /></AuthGuard>} />
+            <Route path="/agenda" element={<AuthGuard><AgendaPage /></AuthGuard>} />
             <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/ai-designer" element={<AuthGuard><AIDesigner /></AuthGuard>} />
             <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
