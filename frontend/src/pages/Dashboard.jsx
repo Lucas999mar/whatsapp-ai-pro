@@ -14,6 +14,10 @@ import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const features = user?.features || {};
+  const hasCrm = features.crm !== false;
+  const hasKnowledge = features.knowledge !== false;
+  const hasLearning = features.learning !== false;
   const niche = user?.niche || 'generic';
 
   if (user?.role === 'motoboy') return <Navigate to="/" />;
@@ -256,12 +260,14 @@ export default function Dashboard() {
       </div>
 
       {/* ── CRM METRICS (Tempo Real) ────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <CRMMetricCard title="Total Hoje" value={crmStats.today} desc="conversas" icon={<MessageSquare size={20} />} color="blue" />
-        <CRMMetricCard title="Aguardando" value={crmStats.aguardando} desc={crmStats.aguardando > 10 ? 'Alta demanda' : 'Normal'} icon={<Clock size={20} />} color="yellow" alert={crmStats.aguardando > 10} />
-        <CRMMetricCard title="Em Atendimento" value={crmStats.atendendo} desc="Ativos agora" icon={<Activity size={20} />} color="green" />
-        <CRMMetricCard title="Finalizados" value={crmStats.resolvidos} desc={`${Math.round((crmStats.resolvidos / (crmStats.today || 1)) * 100)}% concluído`} icon={<CheckCircle2 size={20} />} color="purple" />
-      </div>
+      {hasCrm && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+          <CRMMetricCard title="Total Hoje" value={crmStats.today} desc="conversas" icon={<MessageSquare size={20} />} color="blue" />
+          <CRMMetricCard title="Aguardando" value={crmStats.aguardando} desc={crmStats.aguardando > 10 ? 'Alta demanda' : 'Normal'} icon={<Clock size={20} />} color="yellow" alert={crmStats.aguardando > 10} />
+          <CRMMetricCard title="Em Atendimento" value={crmStats.atendendo} desc="Ativos agora" icon={<Activity size={20} />} color="green" />
+          <CRMMetricCard title="Finalizados" value={crmStats.resolvidos} desc={`${Math.round((crmStats.resolvidos / (crmStats.today || 1)) * 100)}% concluído`} icon={<CheckCircle2 size={20} />} color="purple" />
+        </div>
+      )}
 
       {/* ── MULTI-AGENT GRID (QR Code + Status) ─────────────── */}
       <div>
@@ -326,7 +332,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── SECONDARY METRICS ROW ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 ${hasCrm ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-6`}>
         {/* Atendentes Online */}
         <div className="p-8 bg-[#0F172A] border border-white/5 rounded-[32px] space-y-6 shadow-2xl">
           <div className="flex justify-between items-center">
@@ -352,36 +358,40 @@ export default function Dashboard() {
         </div>
 
         {/* Tempo Médio de Espera */}
-        <div className="p-8 bg-[#0F172A] border border-white/5 rounded-[32px] space-y-6 shadow-2xl">
-          <div className="flex justify-between items-center">
-            <h4 className="text-sm font-black text-white uppercase tracking-widest">Tempo Médio Espera</h4>
-            <span className={`text-[10px] px-2 py-1 rounded-full font-black ${crmStats.aguardando > 5 ? 'bg-red-500/10 text-red-500' : 'bg-[#25D366]/10 text-[#25D366]'}`}>
-              {crmStats.aguardando > 5 ? 'ALTO' : 'NORMAL'}
-            </span>
+        {hasCrm && (
+          <div className="p-8 bg-[#0F172A] border border-white/5 rounded-[32px] space-y-6 shadow-2xl animate-fade-in">
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-black text-white uppercase tracking-widest">Tempo Médio Espera</h4>
+              <span className={`text-[10px] px-2 py-1 rounded-full font-black ${crmStats.aguardando > 5 ? 'bg-red-500/10 text-red-500' : 'bg-[#25D366]/10 text-[#25D366]'}`}>
+                {crmStats.aguardando > 5 ? 'ALTO' : 'NORMAL'}
+              </span>
+            </div>
+            <div className="flex items-end gap-1 px-2">
+              <h3 className="text-6xl font-black text-white">--</h3>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
+              <Timer size={14} />
+              <span>Meta: menos de 1 min</span>
+            </div>
           </div>
-          <div className="flex items-end gap-1 px-2">
-            <h3 className="text-6xl font-black text-white">--</h3>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
-            <Timer size={14} />
-            <span>Meta: menos de 1 min</span>
-          </div>
-        </div>
+        )}
 
         {/* TMA */}
-        <div className="p-8 bg-[#0F172A] border border-white/5 rounded-[32px] space-y-6 shadow-2xl">
-          <div className="flex justify-between items-center">
-            <h4 className="text-sm font-black text-white uppercase tracking-widest">TMA (Médio)</h4>
-            <span className="text-[10px] bg-[#25D366]/10 text-[#25D366] px-2 py-1 rounded-full font-black">EFICIENTE</span>
+        {hasCrm && (
+          <div className="p-8 bg-[#0F172A] border border-white/5 rounded-[32px] space-y-6 shadow-2xl animate-fade-in">
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-black text-white uppercase tracking-widest">TMA (Médio)</h4>
+              <span className="text-[10px] bg-[#25D366]/10 text-[#25D366] px-2 py-1 rounded-full font-black">EFICIENTE</span>
+            </div>
+            <div className="flex items-end gap-1 px-2">
+              <h3 className="text-6xl font-black text-white">--</h3>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
+              <Activity size={14} />
+              <span>Meta: menos de 5 min</span>
+            </div>
           </div>
-          <div className="flex items-end gap-1 px-2">
-            <h3 className="text-6xl font-black text-white">--</h3>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
-            <Activity size={14} />
-            <span>Meta: menos de 5 min</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ── ORIGINAL STATS CARDS ───────────────────────────── */}
@@ -400,18 +410,22 @@ export default function Dashboard() {
             value={stats.conversations?.total || 0}
             subtext={`${stats.conversations?.uniqueUsers || 0} contatos únicos`}
           />
-          <StatCard
-            icon={<Database size={24} className="text-purple-400" />}
-            title="Conhecimento"
-            value={stats.knowledge?.total || 0}
-            subtext="Documentos e notas"
-          />
-          <StatCard
-            icon={<TrendingUp size={24} className="text-yellow-400" />}
-            title="Aprendizados"
-            value={stats.learnings?.total || 0}
-            subtext="Extraídos via IA"
-          />
+          {hasKnowledge && (
+            <StatCard
+              icon={<Database size={24} className="text-purple-400" />}
+              title="Conhecimento"
+              value={stats.knowledge?.total || 0}
+              subtext="Documentos e notas"
+            />
+          )}
+          {hasLearning && (
+            <StatCard
+              icon={<TrendingUp size={24} className="text-yellow-400" />}
+              title="Aprendizados"
+              value={stats.learnings?.total || 0}
+              subtext="Extraídos via IA"
+            />
+          )}
         </div>
       </div>
 

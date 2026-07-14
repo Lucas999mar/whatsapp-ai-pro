@@ -305,7 +305,7 @@ export default function SuperAdmin() {
                   <Bot size={14} className="text-[#25D366]" /> Funcionalidades Contratadas
                 </label>
                 
-                <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                   {[
                     { key: 'atendimento', label: 'Atendimento' },
                     { key: 'crm', label: 'CRM Kanban' },
