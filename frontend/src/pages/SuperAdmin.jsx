@@ -307,7 +307,11 @@ export default function SuperAdmin() {
                 
                 <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                   {[
+                    { key: 'atendimento', label: 'Atendimento' },
                     { key: 'crm', label: 'CRM Kanban' },
+                    { key: 'contacts', label: 'Contatos' },
+                    { key: 'groups', label: 'Gestão de Grupos' },
+                    { key: 'knowledge', label: 'Base Conhecimento' },
                     { key: 'contentPlanner', label: 'Planejador de Conteúdo' },
                     { key: 'creativeCenter', label: 'Centro Criativo' },
                     { key: 'aiDesigner', label: 'AI Designer' },

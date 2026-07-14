@@ -76,7 +76,11 @@ function Sidebar({ isOpen, setIsOpen }) {
   if (user && user.role !== 'superadmin') {
     const features = user.features || {};
     const featureMap = {
+      '/atendimento': 'atendimento',
       '/crm': 'crm',
+      '/contacts': 'contacts',
+      '/groups': 'groups',
+      '/knowledge': 'knowledge',
       '/content-planner': 'contentPlanner',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -194,7 +198,11 @@ function AuthGuard({ children, adminOnly = false }) {
   if (user && user.role !== 'superadmin') {
     const features = user.features || {};
     const featureMap = {
+      '/atendimento': 'atendimento',
       '/crm': 'crm',
+      '/contacts': 'contacts',
+      '/groups': 'groups',
+      '/knowledge': 'knowledge',
       '/content-planner': 'contentPlanner',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
