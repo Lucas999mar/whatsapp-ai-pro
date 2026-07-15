@@ -137,12 +137,14 @@ function Sidebar({ isOpen, setIsOpen }) {
             </div>
             <div className="text-center">
               <h1 className="text-lg font-black tracking-tight text-white leading-tight">
-                {user?.name || 'Evoluir Mais'}
+                {user?.is_subuser ? (user?.company_name || user?.name || 'Evoluir Mais') : (user?.name || 'Evoluir Mais')}
               </h1>
               <span className="text-[10px] text-[#25D366] font-black uppercase tracking-[0.2em]">
                 {user?.role === 'motoboy' ? 'ENTREGADOR' :
                   user?.role === 'technician' ? 'TÉCNICO' :
-                    user?.role === 'superadmin' ? 'SUPER ADMIN' : 'ADMINISTRADOR'}
+                    user?.role === 'superadmin' ? 'SUPER ADMIN' :
+                      user?.is_subuser ? (user?.role && user.role !== 'operator' ? user.role : 'COLABORADOR') :
+                        user?.role === 'company' ? 'ADMINISTRADOR' : 'ADMINISTRADOR'}
               </span>
             </div>
           </div>
@@ -292,7 +294,7 @@ function AppContent() {
               )}
             </div>
             <span className="font-black text-white tracking-tight uppercase text-xs">
-              {user?.name || 'Evoluir Mais'}
+              {user?.is_subuser ? (user?.company_name || user?.name || 'Evoluir Mais') : (user?.name || 'Evoluir Mais')}
             </span>
           </div>
           <button

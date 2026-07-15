@@ -120,13 +120,30 @@ router.post('/auth/login', async (req, res) => {
 
     if (subUser) {
       console.log(`👤 Sub-usuário de empresa logado: ${subUser.name} como ${subUser.role}`);
+      // Busca dados da empresa pai (logo, niche, name)
+      let parentLogo = null;
+      let parentNiche = 'generic';
+      let parentName = subUser.name;
+      try {
+        const { findTenantById } = require('../db/repository');
+        const parentTenant = await findTenantById(subUser.tenant_id);
+        if (parentTenant) {
+          parentLogo = parentTenant.logo || null;
+          parentNiche = parentTenant.niche || 'generic';
+          parentName = parentTenant.name || subUser.name;
+        }
+      } catch (e) { /* silencioso */ }
+
       user = {
         id: subUser.id,
         name: subUser.name,
         role: subUser.role || 'operator',
         tenant_id: subUser.tenant_id,
         features: subUser.features || {},
-        is_subuser: true
+        is_subuser: true,
+        logo: parentLogo,
+        niche: parentNiche,
+        company_name: parentName
       };
     }
   }
@@ -191,7 +208,7 @@ router.post('/auth/login', async (req, res) => {
       const tenantData = await findTenantById(tenantId);
       const tenantFeatures = tenantData?.features || {};
       const subUserFeatures = user.features || {};
-      
+
       // Mescla permissões: se o tenant tem a feature desabilitada, ela fica desabilitada.
       // Se o tenant tem a feature habilitada, respeita o toggle do sub-usuário.
       Object.keys(tenantFeatures).forEach(key => {
@@ -209,8 +226,8 @@ router.post('/auth/login', async (req, res) => {
     console.error('Erro ao buscar features no login:', err.message);
   }
 
-  const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: tenantId, features });
-  res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: tenantId, features } });
+  const token = generateToken({ id: user.id, name: user.name, role: user.role, tenant_id: tenantId, features, is_subuser: !!user.is_subuser });
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role, logo: user.logo, tenant_id: tenantId, features, is_subuser: !!user.is_subuser, niche: user.niche, company_name: user.company_name } });
 });
 
 // ── SUPER ADMIN ROUTES ────────────────────────────────────────
@@ -302,7 +319,42 @@ router.get('/me/features', authMiddleware, async (req, res) => {
     const { findTenantById } = require('../db/repository');
     const tenantId = req.user.tenant_id || req.user.id;
     const tenant = await findTenantById(tenantId);
-    res.json({ features: tenant?.features || {} });
+    const tenantFeatures = tenant?.features || {};
+
+    // Se é sub-usuário (colaborador), busca as features individuais dele
+    if (req.user.is_subuser) {
+      const supabase = getSupabase();
+      const { data: subUser } = await supabase
+        .from('tenant_users')
+        .select('features')
+        .eq('id', req.user.id)
+        .single();
+
+      if (subUser) {
+        const subUserFeatures = subUser.features || {};
+        const mergedFeatures = {};
+
+        // Mescla: se tenant desabilitou, fica desabilitada.
+        // Se tenant habilitou, respeita o toggle do sub-usuário.
+        Object.keys(tenantFeatures).forEach(key => {
+          if (tenantFeatures[key] === false) {
+            mergedFeatures[key] = false;
+          } else {
+            mergedFeatures[key] = subUserFeatures[key] !== false;
+          }
+        });
+        // Também inclui features que estão no subUser mas não no tenant
+        Object.keys(subUserFeatures).forEach(key => {
+          if (!(key in mergedFeatures)) {
+            mergedFeatures[key] = subUserFeatures[key] !== false;
+          }
+        });
+
+        return res.json({ features: mergedFeatures });
+      }
+    }
+
+    res.json({ features: tenantFeatures });
   } catch (err) {
     console.error('Erro ao buscar features:', err.message);
     res.json({ features: {} });
