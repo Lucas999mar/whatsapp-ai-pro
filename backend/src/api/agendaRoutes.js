@@ -25,7 +25,7 @@ router.get('/', authMiddleware, async (req, res) => {
         }
 
         const { data, error } = await query.order('appointment_date', { ascending: true })
-                                           .order('start_time', { ascending: true });
+            .order('start_time', { ascending: true });
 
         if (error) throw error;
         res.json(data || []);
@@ -41,30 +41,51 @@ router.post('/', authMiddleware, async (req, res) => {
         const { title, description, contact_name, contact_phone, appointment_date, start_time, end_time, location } = req.body;
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
+        const creatorName = req.user.name || req.user.role || 'Usuário';
 
         if (!title || !appointment_date || !start_time) {
             return res.status(400).json({ error: 'Título, data e hora de início são obrigatórios' });
         }
 
-        const { data, error } = await supabase
+        const insertPayload = {
+            tenant_id: tenantId,
+            title,
+            description,
+            contact_name,
+            contact_phone,
+            appointment_date,
+            start_time,
+            end_time: end_time || null,
+            location,
+            status: 'scheduled',
+            updated_at: new Date().toISOString(),
+            updated_by_name: creatorName
+        };
+
+        let { data, error } = await supabase
             .from('appointments')
-            .insert({
-                tenant_id: tenantId,
-                title,
-                description,
-                contact_name,
-                contact_phone,
-                appointment_date,
-                start_time,
-                end_time: end_time || null,
-                location,
-                status: 'scheduled',
-                updated_at: new Date().toISOString()
-            })
+            .insert(insertPayload)
             .select()
             .single();
 
-        if (error) throw error;
+        if (error && (error.code === '42703' || error.message.includes('column') || error.message.includes('updated_by_name'))) {
+            // Fallback: se a coluna não existir no Supabase remoto do cliente, adiciona à descrição
+            const fallbackPayload = { ...insertPayload };
+            delete fallbackPayload.updated_by_name;
+            fallbackPayload.description = (description || '') + `\n\n[Criado por: ${creatorName}]`;
+
+            const retry = await supabase
+                .from('appointments')
+                .insert(fallbackPayload)
+                .select()
+                .single();
+
+            if (retry.error) throw retry.error;
+            data = retry.data;
+        } else if (error) {
+            throw error;
+        }
+
         res.json(data);
     } catch (err) {
         console.error('❌ Erro ao criar compromisso:', err.message);
@@ -78,11 +99,12 @@ router.put('/:id', authMiddleware, async (req, res) => {
         const { title, description, contact_name, contact_phone, appointment_date, start_time, end_time, location, status } = req.body;
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
+        const editorName = req.user.name || req.user.role || 'Usuário';
 
         // Verifica primeiro se o compromisso pertence ao tenant
         const { data: existing, error: findError } = await supabase
             .from('appointments')
-            .select('id')
+            .select('id, description')
             .eq('id', req.params.id)
             .eq('tenant_id', tenantId)
             .single();
@@ -105,7 +127,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (location !== undefined) updateData.location = location;
         if (status !== undefined) updateData.status = status;
 
-        const { data, error } = await supabase
+        updateData.updated_by_name = editorName;
+
+        let { data, error } = await supabase
             .from('appointments')
             .update(updateData)
             .eq('id', req.params.id)
@@ -113,7 +137,30 @@ router.put('/:id', authMiddleware, async (req, res) => {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error && (error.code === '42703' || error.message.includes('column') || error.message.includes('updated_by_name'))) {
+            // Fallback: se o banco não tem a coluna, limpa e adiciona ao final da descrição
+            const fallbackUpdates = { ...updateData };
+            delete fallbackUpdates.updated_by_name;
+
+            // Remove menções antigas adicionadas no description anterior se aplicável, e concatena a nova
+            let cleanDesc = description !== undefined ? description : (existing.description || '');
+            cleanDesc = cleanDesc.replace(/\[(?:Criado|Atualizado) por: [^\]]+\]\s*/g, '').trim();
+            fallbackUpdates.description = cleanDesc + `\n\n[Atualizado por: ${editorName}]`;
+
+            const retry = await supabase
+                .from('appointments')
+                .update(fallbackUpdates)
+                .eq('id', req.params.id)
+                .eq('tenant_id', tenantId)
+                .select()
+                .single();
+
+            if (retry.error) throw retry.error;
+            data = retry.data;
+        } else if (error) {
+            throw error;
+        }
+
         res.json(data);
     } catch (err) {
         console.error('❌ Erro ao atualizar compromisso:', err.message);

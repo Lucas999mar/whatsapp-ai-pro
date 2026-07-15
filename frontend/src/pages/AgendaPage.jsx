@@ -32,6 +32,17 @@ export default function AgendaPage() {
   });
   const [saving, setSaving] = useState(false);
 
+  const parseDescription = (desc) => {
+    if (!desc) return { text: '', author: '' };
+    const authorMatch = desc.match(/\[(?:Criado|Atualizado) por: ([^\]]+)\]/);
+    if (authorMatch) {
+      const author = authorMatch[1];
+      const text = desc.replace(/\[(?:Criado|Atualizado) por: [^\]]+\]\s*/g, '').trim();
+      return { text, author };
+    }
+    return { text: desc, author: '' };
+  };
+
   useEffect(() => {
     fetchAppointments();
   }, [currentMonth]);
@@ -56,7 +67,7 @@ export default function AgendaPage() {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const dateInterval = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  
+
   // Dias em branco no início do grid (para alinhar com o dia da semana correto)
   const startDayOfWeek = getDay(monthStart); // 0 = Domingo, 1 = Segunda, etc.
   const emptyDays = Array.from({ length: startDayOfWeek }, (_, i) => null);
@@ -172,7 +183,7 @@ export default function AgendaPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* CALENDÁRIO */}
         <div className="lg:col-span-2 glass-panel p-8 flex flex-col">
           <div className="flex items-center justify-between mb-8">
@@ -213,31 +224,29 @@ export default function AgendaPage() {
                 <button
                   key={day.toString()}
                   onClick={() => setSelectedDate(day)}
-                  className={`aspect-square relative rounded-2xl flex flex-col items-center justify-center border font-bold text-base transition-all ${
-                    isSelected
+                  className={`aspect-square relative rounded-2xl flex flex-col items-center justify-center border font-bold text-base transition-all ${isSelected
                       ? 'bg-gradient-to-br from-[#25D366]/20 to-transparent border-[#25D366] text-[#25D366] shadow-[inset_0_0_15px_rgba(37,211,102,0.15)] scale-[1.03]'
                       : isToday
-                      ? 'bg-white/5 border-blue-500 text-blue-400'
-                      : 'bg-black/20 border-white/5 hover:border-white/15 text-slate-300 hover:bg-white/5'
-                  }`}
+                        ? 'bg-white/5 border-blue-500 text-blue-400'
+                        : 'bg-black/20 border-white/5 hover:border-white/15 text-slate-300 hover:bg-white/5'
+                    }`}
                 >
                   <span>{format(day, 'd')}</span>
-                  
+
                   {/* Bolinhas de status */}
                   {dayApps.length > 0 && (
-                    <div className="absolute bottom-2 flex gap-1 justify-center w-full">
+                    <div className="absolute bottom-2.5 flex gap-1 justify-center w-full">
                       {dayApps.slice(0, 3).map((app) => (
                         <div
                           key={app.id}
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            app.status === 'confirmed' ? 'bg-[#25D366]' :
-                            app.status === 'canceled' ? 'bg-red-500' :
-                            app.status === 'completed' ? 'bg-blue-400' : 'bg-yellow-500'
-                          }`}
+                          className={`w-2.5 h-2.5 rounded-full shadow-[0_0_6px_currentColor] ${app.status === 'confirmed' ? 'bg-[#25D366] text-[#25D366]' :
+                              app.status === 'canceled' ? 'bg-red-500 text-red-500' :
+                                app.status === 'completed' ? 'bg-blue-500 text-blue-500' : 'bg-yellow-500 text-yellow-500'
+                            }`}
                         />
                       ))}
                       {dayApps.length > 3 && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-40" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-white opacity-40" />
                       )}
                     </div>
                   )}
@@ -269,63 +278,78 @@ export default function AgendaPage() {
                 <p className="text-xs text-slate-600 mt-1">Clique em "Novo Compromisso" para agendar.</p>
               </div>
             ) : (
-              selectedDayAppointments.map((app) => (
-                <div key={app.id} className="p-5 bg-black/20 border border-white/5 hover:border-white/10 rounded-2xl space-y-4 transition-all relative group">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-white text-lg tracking-tight">{app.title}</h4>
-                      <p className="text-xs text-slate-400 mt-1">{app.description}</p>
-                    </div>
-                    <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEditModal(app)} className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl transition-all"><Edit3 size={14} /></button>
-                      <button onClick={() => handleDelete(app.id)} className="p-2 bg-red-500/5 hover:bg-red-500/10 text-red-500 rounded-xl transition-all"><Trash2 size={14} /></button>
-                    </div>
-                  </div>
+              selectedDayAppointments.map((app) => {
+                const parsed = parseDescription(app.description);
+                const descText = parsed.text;
+                const author = app.updated_by_name || parsed.author;
 
-                  <div className="grid grid-cols-1 gap-2 text-xs text-slate-400 border-t border-white/5 pt-3">
-                    <div className="flex items-center gap-2">
-                      <Clock size={14} className="text-[#25D366]" />
-                      <span>{app.start_time.slice(0, 5)} {app.end_time ? `às ${app.end_time.slice(0, 5)}` : ''}</span>
-                    </div>
-
-                    {app.contact_name && (
-                      <div className="flex items-center gap-2">
-                        <User size={14} className="text-blue-400" />
-                        <span className="font-medium">Reunião com {app.contact_name}</span>
-                        {app.contact_phone && <span className="text-slate-500">• {app.contact_phone}</span>}
-                      </div>
-                    )}
-
-                    {app.location && (
-                      <div className="flex items-center gap-2">
-                        <MapPin size={14} className="text-purple-400" />
-                        <span className="truncate">{app.location}</span>
-                        {app.location.startsWith('http') && (
-                          <a href={app.location} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline flex items-center gap-0.5">
-                            Abrir <ExternalLink size={10} />
-                          </a>
+                return (
+                  <div key={app.id} className="p-5 bg-black/20 border border-white/5 hover:border-white/10 rounded-2xl space-y-4 transition-all relative group">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <h4 className="font-bold text-white text-lg tracking-tight">{app.title}</h4>
+                        {descText && <p className="text-xs text-slate-400 mt-1 whitespace-pre-wrap">{descText}</p>}
+                        {author && (
+                          <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                            <User size={12} className="text-slate-500" />
+                            <span>Por: {author}</span>
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
+                      <div className="flex gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEditModal(app)} className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl transition-all"><Edit3 size={14} /></button>
+                        <button onClick={() => handleDelete(app.id)} className="p-2 bg-red-500/5 hover:bg-red-500/10 text-red-500 rounded-xl transition-all"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
 
-                  <div className="flex justify-between items-center border-t border-white/5 pt-3">
-                    {getStatusBadge(app.status)}
-                    
-                    <div className="flex gap-1">
-                      {app.status !== 'confirmed' && app.status !== 'completed' && (
-                        <button onClick={() => updateStatus(app, 'confirmed')} className="text-[10px] bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 px-2 py-1 rounded-lg font-bold transition-all">Confirmar</button>
+                    <div className="grid grid-cols-1 gap-2 text-xs text-slate-400 border-t border-white/5 pt-3">
+                      <div className="flex items-center gap-2">
+                        <Clock size={14} className="text-[#25D366]" />
+                        <span>{app.start_time.slice(0, 5)} {app.end_time ? `às ${app.end_time.slice(0, 5)}` : ''}</span>
+                      </div>
+
+                      {app.contact_name && (
+                        <div className="flex items-center gap-2">
+                          <User size={14} className="text-blue-400" />
+                          <span className="font-medium">Reunião com {app.contact_name}</span>
+                          {app.contact_phone && <span className="text-slate-500">• {app.contact_phone}</span>}
+                        </div>
                       )}
-                      {app.status !== 'completed' && app.status !== 'canceled' && (
-                        <button onClick={() => updateStatus(app, 'completed')} className="text-[10px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 px-2 py-1 rounded-lg font-bold transition-all">Concluir</button>
-                      )}
-                      {app.status !== 'canceled' && app.status !== 'completed' && (
-                        <button onClick={() => updateStatus(app, 'canceled')} className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-2 py-1 rounded-lg font-bold transition-all">Cancelar</button>
+
+                      {app.location && (
+                        <div className="flex items-center gap-2">
+                          <MapPin size={14} className="text-purple-400" />
+                          <span className="truncate">{app.location}</span>
+                          {app.location.startsWith('http') && (
+                            <a href={app.location} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline flex items-center gap-0.5">
+                              Abrir <ExternalLink size={10} />
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
+
+                    <div className="flex justify-between items-center border-t border-white/5 pt-3">
+                      {getStatusBadge(app.status)}
+
+                      <div className="flex gap-1 flex-wrap justify-end">
+                        {app.status !== 'scheduled' && (
+                          <button onClick={() => updateStatus(app, 'scheduled')} className="text-[10px] bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded-lg font-bold transition-all">Agendar</button>
+                        )}
+                        {app.status !== 'confirmed' && (
+                          <button onClick={() => updateStatus(app, 'confirmed')} className="text-[10px] bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 px-2 py-1 rounded-lg font-bold transition-all">Confirmar</button>
+                        )}
+                        {app.status !== 'completed' && (
+                          <button onClick={() => updateStatus(app, 'completed')} className="text-[10px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 px-2 py-1 rounded-lg font-bold transition-all">Concluir</button>
+                        )}
+                        {app.status !== 'canceled' && (
+                          <button onClick={() => updateStatus(app, 'canceled')} className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-2 py-1 rounded-lg font-bold transition-all">Cancelar</button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -336,7 +360,7 @@ export default function AgendaPage() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
           <div className="absolute inset-0" onClick={() => setShowModal(false)}></div>
           <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-lg z-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-            
+
             <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-all">
               <X size={18} />
             </button>

@@ -10,7 +10,18 @@ import { useAuth } from '../context/AuthContext';
 
 export default function ContentPlannerPage() {
   const { user } = useAuth();
-  
+
+  const parseDescription = (desc) => {
+    if (!desc) return { text: '', author: '' };
+    const authorMatch = desc.match(/\[(?:Criado|Atualizado) por: ([^\]]+)\]/);
+    if (authorMatch) {
+      const author = authorMatch[1];
+      const text = desc.replace(/\[(?:Criado|Atualizado) por: [^\]]+\]\s*/g, '').trim();
+      return { text, author };
+    }
+    return { text: desc, author: '' };
+  };
+
   // State de Quadros
   const [boards, setBoards] = useState([]);
   const [selectedBoardId, setSelectedBoardId] = useState('');
@@ -33,7 +44,7 @@ export default function ContentPlannerPage() {
     due_date: '',
     tags: []
   });
-  
+
   // Nova tag input temporária
   const [newTagInput, setNewTagInput] = useState('');
 
@@ -255,7 +266,7 @@ export default function ContentPlannerPage() {
     const dueDate = new Date(dueDateStr);
     const now = new Date();
     const diff = dueDate.getTime() - now.getTime();
-    
+
     if (diff < 0) return { label: 'Atrasado', color: 'text-red-400 bg-red-400/10 border-red-500/20' };
     if (diff < 24 * 60 * 60 * 1000) return { label: 'Hoje', color: 'text-amber-400 bg-amber-400/10 border-amber-500/20' };
     return { label: format(dueDate, 'dd/MM/yyyy HH:mm'), color: 'text-slate-400 bg-white/5 border-white/5' };
@@ -263,7 +274,7 @@ export default function ContentPlannerPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] gap-6 animate-fade-in">
-      
+
       {/* HEADER DO QUADRO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -368,6 +379,9 @@ export default function ContentPlannerPage() {
                 <div className="flex-1 p-3 overflow-y-auto space-y-3 custom-scrollbar min-h-[150px]">
                   {colCards.map(card => {
                     const dueStatus = getDueDateStatus(card.due_date);
+                    const parsed = parseDescription(card.description);
+                    const descText = parsed.text;
+                    const author = card.updated_by_name || parsed.author;
 
                     return (
                       <div
@@ -381,13 +395,20 @@ export default function ContentPlannerPage() {
                           <h4 className="text-sm font-black text-white leading-snug group-hover:text-[#25D366] transition-colors line-clamp-2">
                             {card.title}
                           </h4>
-                          <Edit2 size={12} className="text-slate-600 shrink-0 mt-0.5 group-hover:text-slate-400" />
+                          <Edit2 size={12} className="text-slate-400 shrink-0 mt-0.5 group-hover:text-[#25D366] transition-colors" />
                         </div>
 
-                        {card.description && (
+                        {descText && (
                           <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed opacity-80">
-                            {card.description}
+                            {descText}
                           </p>
+                        )}
+
+                        {author && (
+                          <div className="flex items-center gap-1 text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500 opacity-60"></span>
+                            <span>Por: {author}</span>
+                          </div>
                         )}
 
                         {/* Informações Inferiores */}
@@ -571,7 +592,7 @@ export default function ContentPlannerPage() {
               <label className="block text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Tag size={14} /> Etiquetas (Redes Sociais, Formatos)
               </label>
-              
+
               <div className="flex gap-2">
                 <input
                   type="text"

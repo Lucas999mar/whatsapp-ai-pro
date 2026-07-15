@@ -289,6 +289,7 @@ router.post('/cards', authMiddleware, async (req, res) => {
 
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
+        const creatorName = req.user.name || req.user.role || 'Usuário';
 
         // Validar posse da coluna de destino
         const { data: colData } = await supabase
@@ -312,20 +313,40 @@ router.post('/cards', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: 'Acesso negado' });
         }
 
-        const { data: card, error } = await supabase
+        const insertPayload = {
+            column_id,
+            title: title.trim(),
+            description: description || '',
+            due_date: due_date || null,
+            tags: Array.isArray(tags) ? tags : [],
+            position: position || 0,
+            updated_by_name: creatorName
+        };
+
+        let { data: card, error } = await supabase
             .from('content_cards')
-            .insert({
-                column_id,
-                title: title.trim(),
-                description: description || '',
-                due_date: due_date || null,
-                tags: Array.isArray(tags) ? tags : [],
-                position: position || 0
-            })
+            .insert(insertPayload)
             .select()
             .single();
 
-        if (error) throw error;
+        if (error && (error.code === '42703' || error.message.includes('column') || error.message.includes('updated_by_name'))) {
+            // Fallback: se o banco não possuir a coluna, remove e anexa no description
+            const fallbackPayload = { ...insertPayload };
+            delete fallbackPayload.updated_by_name;
+            fallbackPayload.description = (description || '') + `\n\n[Criado por: ${creatorName}]`;
+
+            const retry = await supabase
+                .from('content_cards')
+                .insert(fallbackPayload)
+                .select()
+                .single();
+
+            if (retry.error) throw retry.error;
+            card = retry.data;
+        } else if (error) {
+            throw error;
+        }
+
         res.json(card);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -338,11 +359,12 @@ router.put('/cards/:id', authMiddleware, async (req, res) => {
         const { column_id, title, description, due_date, tags, position } = req.body;
         const supabase = getSupabase();
         const tenantId = req.user.tenant_id || req.user.id;
+        const editorName = req.user.name || req.user.role || 'Usuário';
 
         // Validar posse do card atual
         const { data: cardData } = await supabase
             .from('content_cards')
-            .select('id, column_id')
+            .select('id, column_id, description')
             .eq('id', req.params.id)
             .single();
 
@@ -402,14 +424,37 @@ router.put('/cards/:id', authMiddleware, async (req, res) => {
         if (tags !== undefined) updates.tags = Array.isArray(tags) ? tags : [];
         if (position !== undefined) updates.position = position;
 
-        const { data: updatedCard, error } = await supabase
+        updates.updated_by_name = editorName;
+
+        let { data: updatedCard, error } = await supabase
             .from('content_cards')
             .update(updates)
             .eq('id', req.params.id)
             .select()
             .single();
 
-        if (error) throw error;
+        if (error && (error.code === '42703' || error.message.includes('column') || error.message.includes('updated_by_name'))) {
+            // Fallback: remove coluna que não existe e concatena no description
+            const fallbackUpdates = { ...updates };
+            delete fallbackUpdates.updated_by_name;
+
+            let cleanDesc = description !== undefined ? description : (cardData.description || '');
+            cleanDesc = cleanDesc.replace(/\[(?:Criado|Atualizado) por: [^\]]+\]\s*/g, '').trim();
+            fallbackUpdates.description = cleanDesc + `\n\n[Atualizado por: ${editorName}]`;
+
+            const retry = await supabase
+                .from('content_cards')
+                .update(fallbackUpdates)
+                .eq('id', req.params.id)
+                .select()
+                .single();
+
+            if (retry.error) throw retry.error;
+            updatedCard = retry.data;
+        } else if (error) {
+            throw error;
+        }
+
         res.json(updatedCard);
     } catch (err) {
         res.status(500).json({ error: err.message });
