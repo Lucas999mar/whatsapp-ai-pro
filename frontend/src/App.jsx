@@ -27,6 +27,7 @@ import ContatosPage from './pages/ContatosPage';
 import GroupsPage from './pages/GroupsPage';
 import ContentPlannerPage from './pages/ContentPlannerPage';
 import AgendaPage from './pages/AgendaPage';
+import AgendaPublicPage from './pages/AgendaPublicPage';
 
 // Novos componentes de Delivery
 import TrackingPage from './pages/TrackingPage';
@@ -258,6 +259,7 @@ function AppContent() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/track/:code" element={<TrackingPage />} />
         <Route path="/motoboy/register" element={<MotoboyRegister />} />
+        <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
@@ -327,6 +329,7 @@ function AppContent() {
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
             <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/tracking/:code" element={<TrackingPage />} />
+            <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard adminOnly><SuperAdmin /></AuthGuard>} />

@@ -189,4 +189,87 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// ── PUBLIC SHARING ROUTES (No auth required) ───────────────────
+
+// Decode share token → tenant_id
+const decodeShareToken = (token) => {
+    try {
+        return Buffer.from(token, 'base64url').toString('utf8');
+    } catch {
+        return null;
+    }
+};
+
+// Generate share token from tenant_id (used by the frontend)
+router.get('/share-token', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user.tenant_id || req.user.id;
+        const token = Buffer.from(tenantId, 'utf8').toString('base64url');
+
+        // Fetch company name for display
+        const supabase = getSupabase();
+        let companyName = '';
+        try {
+            const { data } = await supabase.from('tenants').select('name').eq('id', tenantId).single();
+            companyName = data?.name || '';
+        } catch { /* ignore */ }
+
+        res.json({ token, company_name: companyName });
+    } catch (err) {
+        console.error('❌ Erro ao gerar token de compartilhamento:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Public route: View shared agenda (no auth)
+router.get('/public/:token', async (req, res) => {
+    try {
+        const tenantId = decodeShareToken(req.params.token);
+        if (!tenantId) {
+            return res.status(400).json({ error: 'Link de compartilhamento inválido' });
+        }
+
+        const supabase = getSupabase();
+        const { id, date, start, end } = req.query;
+
+        // Fetch company name
+        let companyName = '';
+        try {
+            const { data } = await supabase.from('tenants').select('name').eq('id', tenantId).single();
+            companyName = data?.name || '';
+        } catch { /* ignore */ }
+
+        let query = supabase
+            .from('appointments')
+            .select('id, title, description, contact_name, contact_phone, appointment_date, start_time, end_time, location, status')
+            .eq('tenant_id', tenantId);
+
+        if (id) {
+            // Single appointment
+            query = query.eq('id', id);
+        } else if (date) {
+            // Specific day
+            query = query.eq('appointment_date', date);
+        } else if (start && end) {
+            // Date range (month)
+            query = query.gte('appointment_date', start).lte('appointment_date', end);
+        }
+
+        // Only show non-canceled by default for public view
+        const { data, error } = await query
+            .order('appointment_date', { ascending: true })
+            .order('start_time', { ascending: true });
+
+        if (error) throw error;
+
+        res.json({
+            appointments: data || [],
+            company_name: companyName
+        });
+    } catch (err) {
+        console.error('❌ Erro na rota pública da agenda:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

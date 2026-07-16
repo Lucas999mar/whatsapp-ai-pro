@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, Clock,
   MapPin, Phone, User, Trash2, Edit3, X, Save, CheckCircle,
-  AlertCircle, ExternalLink, CalendarDays, Loader2
+  AlertCircle, ExternalLink, CalendarDays, Loader2, Share2, Link, Copy, Check
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -32,6 +32,13 @@ export default function AgendaPage() {
   });
   const [saving, setSaving] = useState(false);
 
+  // Share States
+  const [shareToken, setShareToken] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareMode, setShareMode] = useState('month'); // 'month', 'day', 'single'
+  const [shareAppointmentId, setShareAppointmentId] = useState(null);
+  const [copied, setCopied] = useState(false);
+
   const parseDescription = (desc) => {
     if (!desc) return { text: '', author: '' };
     const authorMatch = desc.match(/\[(?:Criado|Atualizado) por: ([^\]]+)\]/);
@@ -46,6 +53,63 @@ export default function AgendaPage() {
   useEffect(() => {
     fetchAppointments();
   }, [currentMonth]);
+
+  useEffect(() => {
+    fetchShareToken();
+  }, []);
+
+  const fetchShareToken = async () => {
+    try {
+      const res = await api.get('/agenda/share-token');
+      setShareToken(res.data.token);
+    } catch (err) {
+      console.error('Erro ao buscar token de compartilhamento:', err);
+    }
+  };
+
+  const getShareUrl = () => {
+    if (!shareToken) return '';
+    const base = window.location.origin;
+    let url = `${base}/agenda/share/${shareToken}`;
+    const params = new URLSearchParams();
+
+    if (shareMode === 'day') {
+      params.set('mode', 'day');
+      params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+    } else if (shareMode === 'single' && shareAppointmentId) {
+      params.set('mode', 'single');
+      params.set('id', shareAppointmentId);
+    } else {
+      params.set('mode', 'month');
+    }
+
+    return `${url}?${params.toString()}`;
+  };
+
+  const copyShareLink = () => {
+    const url = getShareUrl();
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  const openShareModal = (mode, appointmentId = null) => {
+    setShareMode(mode);
+    setShareAppointmentId(appointmentId);
+    setCopied(false);
+    setShowShareModal(true);
+  };
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -174,12 +238,20 @@ export default function AgendaPage() {
           <p className="text-slate-400 mt-2 text-lg">Marque e acompanhe reuniões e compromissos.</p>
         </div>
 
-        <button
-          onClick={() => openNewModal(selectedDate)}
-          className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-2 transition-all transform hover:-translate-y-1"
-        >
-          <Plus size={20} /> Novo Compromisso
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => openShareModal('month')}
+            className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 px-5 py-3.5 rounded-xl font-bold flex items-center gap-2 transition-all transform hover:-translate-y-1"
+          >
+            <Share2 size={18} /> Compartilhar
+          </button>
+          <button
+            onClick={() => openNewModal(selectedDate)}
+            className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-2 transition-all transform hover:-translate-y-1"
+          >
+            <Plus size={20} /> Novo Compromisso
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -225,10 +297,10 @@ export default function AgendaPage() {
                   key={day.toString()}
                   onClick={() => setSelectedDate(day)}
                   className={`aspect-square relative rounded-2xl flex flex-col items-center justify-center border font-bold text-base transition-all ${isSelected
-                      ? 'bg-gradient-to-br from-[#25D366]/20 to-transparent border-[#25D366] text-[#25D366] shadow-[inset_0_0_15px_rgba(37,211,102,0.15)] scale-[1.03]'
-                      : isToday
-                        ? 'bg-white/5 border-blue-500 text-blue-400'
-                        : 'bg-black/20 border-white/5 hover:border-white/15 text-slate-300 hover:bg-white/5'
+                    ? 'bg-gradient-to-br from-[#25D366]/20 to-transparent border-[#25D366] text-[#25D366] shadow-[inset_0_0_15px_rgba(37,211,102,0.15)] scale-[1.03]'
+                    : isToday
+                      ? 'bg-white/5 border-blue-500 text-blue-400'
+                      : 'bg-black/20 border-white/5 hover:border-white/15 text-slate-300 hover:bg-white/5'
                     }`}
                 >
                   <span>{format(day, 'd')}</span>
@@ -240,8 +312,8 @@ export default function AgendaPage() {
                         <div
                           key={app.id}
                           className={`w-2.5 h-2.5 rounded-full shadow-[0_0_6px_currentColor] ${app.status === 'confirmed' ? 'bg-[#25D366] text-[#25D366]' :
-                              app.status === 'canceled' ? 'bg-red-500 text-red-500' :
-                                app.status === 'completed' ? 'bg-blue-500 text-blue-500' : 'bg-yellow-500 text-yellow-500'
+                            app.status === 'canceled' ? 'bg-red-500 text-red-500' :
+                              app.status === 'completed' ? 'bg-blue-500 text-blue-500' : 'bg-yellow-500 text-yellow-500'
                             }`}
                         />
                       ))}
@@ -259,10 +331,21 @@ export default function AgendaPage() {
         {/* DETALHES DO DIA SELECIONADO */}
         <div className="lg:col-span-1 glass-panel p-8 flex flex-col min-h-[500px]">
           <div className="border-b border-white/5 pb-4 mb-6">
-            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Compromissos para</span>
-            <h3 className="text-xl font-black text-white uppercase italic tracking-tighter mt-1">
-              {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
-            </h3>
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Compromissos para</span>
+                <h3 className="text-xl font-black text-white uppercase italic tracking-tighter mt-1">
+                  {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+                </h3>
+              </div>
+              <button
+                onClick={() => openShareModal('day')}
+                title="Compartilhar agenda deste dia"
+                className="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-xl transition-all"
+              >
+                <Share2 size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
@@ -297,6 +380,7 @@ export default function AgendaPage() {
                         )}
                       </div>
                       <div className="flex gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openShareModal('single', app.id)} title="Compartilhar esta reunião" className="p-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 rounded-xl transition-all"><Share2 size={14} /></button>
                         <button onClick={() => openEditModal(app)} className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl transition-all"><Edit3 size={14} /></button>
                         <button onClick={() => handleDelete(app.id)} className="p-2 bg-red-500/5 hover:bg-red-500/10 text-red-500 rounded-xl transition-all"><Trash2 size={14} /></button>
                       </div>
@@ -472,6 +556,96 @@ export default function AgendaPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE MODAL */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
+          <div className="absolute inset-0" onClick={() => setShowShareModal(false)}></div>
+          <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-md z-10 shadow-2xl relative">
+
+            <button onClick={() => setShowShareModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-all">
+              <X size={18} />
+            </button>
+
+            <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-3 tracking-tighter uppercase italic">
+              <Share2 className="text-blue-400" size={28} />
+              Compartilhar Agenda
+            </h3>
+            <p className="text-sm text-slate-400 mb-6">
+              {shareMode === 'single' ? 'Compartilhe esta reunião específica.' :
+                shareMode === 'day' ? `Compartilhe a agenda de ${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}.` :
+                  'Compartilhe a agenda completa do mês.'}
+            </p>
+
+            {/* Mode selector */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => { setShareMode('month'); setCopied(false); }}
+                className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'month'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                  }`}
+              >
+                📅 Mês
+              </button>
+              <button
+                onClick={() => { setShareMode('day'); setCopied(false); }}
+                className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'day'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                  }`}
+              >
+                📆 Dia
+              </button>
+              {shareAppointmentId && (
+                <button
+                  onClick={() => { setShareMode('single'); setCopied(false); }}
+                  className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'single'
+                      ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                      : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                    }`}
+                >
+                  📌 Reunião
+                </button>
+              )}
+            </div>
+
+            {/* Link display */}
+            <div className="bg-black/30 border border-white/10 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Link size={14} className="text-blue-400" />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Link de Compartilhamento</span>
+              </div>
+              <p className="text-xs text-slate-300 font-mono break-all leading-relaxed">
+                {shareToken ? getShareUrl() : 'Gerando link...'}
+              </p>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-[#25D366]/5 border border-[#25D366]/10 rounded-xl p-4 mb-6">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                <span className="text-[#25D366] font-bold">✨ Atualização automática:</span> Qualquer alteração feita na agenda será refletida automaticamente no link compartilhado. As pessoas que acessarem verão sempre a versão mais atualizada.
+              </p>
+            </div>
+
+            {/* Copy button */}
+            <button
+              onClick={copyShareLink}
+              disabled={!shareToken}
+              className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all ${copied
+                  ? 'bg-[#25D366] text-black'
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-xl'
+                } disabled:opacity-50`}
+            >
+              {copied ? (
+                <><Check size={18} /> Link Copiado!</>
+              ) : (
+                <><Copy size={18} /> Copiar Link</>
+              )}
+            </button>
           </div>
         </div>
       )}
