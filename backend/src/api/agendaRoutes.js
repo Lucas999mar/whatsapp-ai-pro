@@ -230,7 +230,7 @@ router.get('/public/:token', async (req, res) => {
         }
 
         const supabase = getSupabase();
-        const { id, date, start, end } = req.query;
+        const { id, date, start, end, months } = req.query;
 
         // Fetch company name
         let companyName = '';
@@ -250,6 +250,28 @@ router.get('/public/:token', async (req, res) => {
         } else if (date) {
             // Specific day
             query = query.eq('appointment_date', date);
+        } else if (months) {
+            // Specific months (comma-separated YYYY-MM list)
+            const monthsList = months.split(',').filter(Boolean);
+            if (monthsList.length > 0) {
+                const getFirstAndNextFirst = (yearMonthStr) => {
+                    const [year, month] = yearMonthStr.split('-').map(Number);
+                    const startRaw = `${yearMonthStr}-01`;
+                    let nextYear = year;
+                    let nextMonth = month + 1;
+                    if (nextMonth > 12) {
+                        nextMonth = 1;
+                        nextYear += 1;
+                    }
+                    const endRaw = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+                    return { start: startRaw, end: endRaw };
+                };
+                const ranges = monthsList.map(m => {
+                    const { start: s, end: e } = getFirstAndNextFirst(m);
+                    return `and(appointment_date.gte.${s},appointment_date.lt.${e})`;
+                });
+                query = query.or(ranges.join(','));
+            }
         } else if (start && end) {
             // Date range (month)
             query = query.gte('appointment_date', start).lte('appointment_date', end);

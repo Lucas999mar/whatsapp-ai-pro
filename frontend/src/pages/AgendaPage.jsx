@@ -37,7 +37,42 @@ export default function AgendaPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareMode, setShareMode] = useState('month'); // 'month', 'day', 'single'
   const [shareAppointmentId, setShareAppointmentId] = useState(null);
+  const [shareSelectedMonths, setShareSelectedMonths] = useState([]);
   const [copied, setCopied] = useState(false);
+
+  const availableMonths = React.useMemo(() => {
+    const monthsSet = new Set();
+    monthsSet.add(format(currentMonth, 'yyyy-MM'));
+    monthsSet.add(format(new Date(), 'yyyy-MM'));
+    const now = new Date();
+    for (let i = 1; i <= 4; i++) {
+      monthsSet.add(format(addMonths(now, i), 'yyyy-MM'));
+    }
+    appointments.forEach(app => {
+      if (app.appointment_date) {
+        monthsSet.add(app.appointment_date.substring(0, 7));
+      }
+    });
+    return Array.from(monthsSet).sort();
+  }, [appointments, currentMonth]);
+
+  const formatMonthName = (monthStr) => {
+    const [year, month] = monthStr.split('-');
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    const formatted = format(date, "MMMM 'de' yyyy", { locale: ptBR });
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  };
+
+  const toggleShareMonth = (monthStr) => {
+    setShareSelectedMonths(prev => {
+      if (prev.includes(monthStr)) {
+        return prev.filter(m => m !== monthStr);
+      } else {
+        return [...prev, monthStr];
+      }
+    });
+    setCopied(false);
+  };
 
   const parseDescription = (desc) => {
     if (!desc) return { text: '', author: '' };
@@ -81,6 +116,9 @@ export default function AgendaPage() {
       params.set('id', shareAppointmentId);
     } else {
       params.set('mode', 'month');
+      if (shareSelectedMonths.length > 0) {
+        params.set('months', shareSelectedMonths.join(','));
+      }
     }
 
     return `${url}?${params.toString()}`;
@@ -108,6 +146,10 @@ export default function AgendaPage() {
     setShareMode(mode);
     setShareAppointmentId(appointmentId);
     setCopied(false);
+    if (mode === 'month') {
+      const currentViewStr = format(currentMonth, 'yyyy-MM');
+      setShareSelectedMonths([currentViewStr]);
+    }
     setShowShareModal(true);
   };
 
@@ -564,7 +606,7 @@ export default function AgendaPage() {
       {showShareModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
           <div className="absolute inset-0" onClick={() => setShowShareModal(false)}></div>
-          <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-md z-10 shadow-2xl relative">
+          <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-md z-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
 
             <button onClick={() => setShowShareModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-all">
               <X size={18} />
@@ -577,7 +619,7 @@ export default function AgendaPage() {
             <p className="text-sm text-slate-400 mb-6">
               {shareMode === 'single' ? 'Compartilhe esta reunião específica.' :
                 shareMode === 'day' ? `Compartilhe a agenda de ${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}.` :
-                  'Compartilhe a agenda completa do mês.'}
+                  'Selecione os meses da agenda que deseja compartilhar.'}
             </p>
 
             {/* Mode selector */}
@@ -585,8 +627,8 @@ export default function AgendaPage() {
               <button
                 onClick={() => { setShareMode('month'); setCopied(false); }}
                 className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'month'
-                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                  ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                  : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
                   }`}
               >
                 📅 Mês
@@ -594,8 +636,8 @@ export default function AgendaPage() {
               <button
                 onClick={() => { setShareMode('day'); setCopied(false); }}
                 className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'day'
-                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                  ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                  : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
                   }`}
               >
                 📆 Dia
@@ -604,14 +646,62 @@ export default function AgendaPage() {
                 <button
                   onClick={() => { setShareMode('single'); setCopied(false); }}
                   className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'single'
-                      ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                      : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
                     }`}
                 >
                   📌 Reunião
                 </button>
               )}
             </div>
+
+            {/* Month selection (only in month mode) */}
+            {shareMode === 'month' && availableMonths.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Selecionar Meses</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (shareSelectedMonths.length === availableMonths.length) {
+                        setShareSelectedMonths([]);
+                      } else {
+                        setShareSelectedMonths([...availableMonths]);
+                      }
+                      setCopied(false);
+                    }}
+                    className="text-[10px] font-black text-blue-400 uppercase tracking-widest hover:text-blue-300 transition-colors"
+                  >
+                    {shareSelectedMonths.length === availableMonths.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                  {availableMonths.map(month => {
+                    const isSelected = shareSelectedMonths.includes(month);
+                    return (
+                      <button
+                        key={month}
+                        type="button"
+                        onClick={() => toggleShareMonth(month)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all border ${isSelected
+                            ? 'bg-blue-500/10 border-blue-500/30 text-white'
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                          }`}
+                      >
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected
+                            ? 'bg-blue-500 border-blue-500'
+                            : 'border-slate-600'
+                          }`}>
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </div>
+                        <CalendarIcon size={14} className={isSelected ? 'text-blue-400' : 'text-slate-600'} />
+                        <span className="text-sm font-bold truncate">{formatMonthName(month)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Link display */}
             <div className="bg-black/30 border border-white/10 rounded-xl p-4 mb-6">
@@ -634,11 +724,11 @@ export default function AgendaPage() {
             {/* Copy button */}
             <button
               onClick={copyShareLink}
-              disabled={!shareToken}
+              disabled={!shareToken || (shareMode === 'month' && shareSelectedMonths.length === 0)}
               className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all ${copied
-                  ? 'bg-[#25D366] text-black'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-xl'
-                } disabled:opacity-50`}
+                ? 'bg-[#25D366] text-black'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-xl'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {copied ? (
                 <><Check size={18} /> Link Copiado!</>

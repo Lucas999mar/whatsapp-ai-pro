@@ -1,353 +1,392 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Calendar as CalendarIcon, Clock, MapPin, User, ExternalLink,
-    CalendarDays, Loader2, ChevronLeft, ChevronRight, Eye, AlertTriangle
+  Calendar as CalendarIcon, Clock, MapPin, User, ExternalLink,
+  CalendarDays, Loader2, ChevronLeft, ChevronRight, Eye, AlertTriangle
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 const API_BASE = (() => {
-    let base = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    if (base.endsWith('/')) base = base.slice(0, -1);
-    return base.endsWith('/api') ? base : `${base}/api`;
+  let base = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  if (base.endsWith('/')) base = base.slice(0, -1);
+  return base.endsWith('/api') ? base : `${base}/api`;
 })();
 
 export default function AgendaPublicPage() {
-    const { token } = useParams();
-    const [searchParams] = useSearchParams();
+  const { token } = useParams();
+  const [searchParams] = useSearchParams();
 
-    const mode = searchParams.get('mode') || 'month'; // 'day', 'single', 'month'
-    const dateParam = searchParams.get('date'); // yyyy-MM-dd
-    const appointmentId = searchParams.get('id'); // UUID
+  const mode = searchParams.get('mode') || 'month'; // 'day', 'single', 'month'
+  const dateParam = searchParams.get('date'); // yyyy-MM-dd
+  const appointmentId = searchParams.get('id'); // UUID
+  const monthsParam = searchParams.get('months'); // comma-separated list of YYYY-MM
 
-    const [appointments, setAppointments] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [companyName, setCompanyName] = useState('');
+  const allowedMonths = useMemo(() => {
+    if (!monthsParam) return [];
+    return monthsParam.split(',').filter(Boolean);
+  }, [monthsParam]);
 
-    // Calendar state for month view
-    const initialDate = dateParam ? parseISO(dateParam) : new Date();
-    const [currentMonth, setCurrentMonth] = useState(initialDate);
-    const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [companyName, setCompanyName] = useState('');
 
-    useEffect(() => {
-        fetchPublicAgenda();
-    }, [token, mode, dateParam, appointmentId, currentMonth]);
-
-    const fetchPublicAgenda = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            let url = `${API_BASE}/agenda/public/${token}`;
-            const params = new URLSearchParams();
-
-            if (mode === 'single' && appointmentId) {
-                params.set('id', appointmentId);
-            } else if (mode === 'day' && dateParam) {
-                params.set('date', dateParam);
-            } else {
-                // month mode - fetch all for current displayed month
-                const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-                const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-                params.set('start', start);
-                params.set('end', end);
-            }
-
-            const qs = params.toString();
-            if (qs) url += `?${qs}`;
-
-            const res = await fetch(url);
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || 'Agenda não encontrada');
-            }
-
-            const data = await res.json();
-            setAppointments(data.appointments || []);
-            setCompanyName(data.company_name || '');
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-    const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
-
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case 'confirmed':
-                return <span className="apub-badge apub-badge-confirmed">Confirmado</span>;
-            case 'canceled':
-                return <span className="apub-badge apub-badge-canceled">Cancelado</span>;
-            case 'completed':
-                return <span className="apub-badge apub-badge-completed">Concluído</span>;
-            default:
-                return <span className="apub-badge apub-badge-scheduled">Agendado</span>;
-        }
-    };
-
-    const getStatusDotColor = (status) => {
-        switch (status) {
-            case 'confirmed': return '#25D366';
-            case 'canceled': return '#EF4444';
-            case 'completed': return '#3B82F6';
-            default: return '#EAB308';
-        }
-    };
-
-    // Calendar logic for month view
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
-    const dateInterval = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    const startDayOfWeek = getDay(monthStart);
-    const emptyDays = Array.from({ length: startDayOfWeek }, () => null);
-    const allDays = [...emptyDays, ...dateInterval];
-
-    const getAppointmentsForDate = (date) => {
-        return appointments.filter(app => isSameDay(parseISO(app.appointment_date), date));
-    };
-
-    const selectedDayAppointments = getAppointmentsForDate(selectedDate);
-
-    // For "day" mode, filter for the specific date only
-    const dayAppointments = useMemo(() => {
-        if (mode === 'day' && dateParam) {
-            return appointments.filter(app => app.appointment_date === dateParam);
-        }
-        return appointments;
-    }, [appointments, mode, dateParam]);
-
-    const renderAppointmentCard = (app) => (
-        <div key={app.id} className="apub-card">
-            <div className="apub-card-header">
-                <div className="apub-card-title-area">
-                    <h4 className="apub-card-title">{app.title}</h4>
-                    {app.description && (
-                        <p className="apub-card-desc">{app.description.replace(/\[(?:Criado|Atualizado) por: [^\]]+\]\s*/g, '').trim()}</p>
-                    )}
-                </div>
-                {getStatusBadge(app.status)}
-            </div>
-
-            <div className="apub-card-details">
-                <div className="apub-detail-row">
-                    <Clock size={14} className="apub-icon-green" />
-                    <span>
-                        {app.start_time?.slice(0, 5)}
-                        {app.end_time ? ` às ${app.end_time.slice(0, 5)}` : ''}
-                    </span>
-                </div>
-
-                <div className="apub-detail-row">
-                    <CalendarDays size={14} className="apub-icon-blue" />
-                    <span>{format(parseISO(app.appointment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
-                </div>
-
-                {app.contact_name && (
-                    <div className="apub-detail-row">
-                        <User size={14} className="apub-icon-blue" />
-                        <span style={{ fontWeight: 600 }}>Reunião com {app.contact_name}</span>
-                        {app.contact_phone && <span className="apub-phone">• {app.contact_phone}</span>}
-                    </div>
-                )}
-
-                {app.location && (
-                    <div className="apub-detail-row">
-                        <MapPin size={14} className="apub-icon-purple" />
-                        <span className="apub-location">{app.location}</span>
-                        {app.location.startsWith('http') && (
-                            <a href={app.location} target="_blank" rel="noopener noreferrer" className="apub-link">
-                                Abrir <ExternalLink size={10} />
-                            </a>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-
-    // Error state
-    if (error) {
-        return (
-            <div className="apub-page">
-                <div className="apub-bg-glow-1" />
-                <div className="apub-bg-glow-2" />
-                <div className="apub-container">
-                    <div className="apub-error-box">
-                        <AlertTriangle size={48} className="apub-icon-red" />
-                        <h2 className="apub-error-title">Agenda Indisponível</h2>
-                        <p className="apub-error-text">{error}</p>
-                    </div>
-                </div>
-            </div>
-        );
+  // Calendar state for month view
+  const initialDate = useMemo(() => {
+    if (dateParam) return parseISO(dateParam);
+    if (monthsParam) {
+      const firstMonth = monthsParam.split(',')[0];
+      if (firstMonth) return parseISO(`${firstMonth}-01`);
     }
+    return new Date();
+  }, [dateParam, monthsParam]);
 
+  const [currentMonth, setCurrentMonth] = useState(initialDate);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+
+  useEffect(() => {
+    fetchPublicAgenda();
+  }, [token, mode, dateParam, appointmentId, currentMonth]);
+
+  const fetchPublicAgenda = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let url = `${API_BASE}/agenda/public/${token}`;
+      const params = new URLSearchParams();
+
+      if (mode === 'single' && appointmentId) {
+        params.set('id', appointmentId);
+      } else if (mode === 'day' && dateParam) {
+        params.set('date', dateParam);
+      } else {
+        if (monthsParam) {
+          params.set('months', monthsParam);
+        } else {
+          // month mode - fetch all for current displayed month
+          const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+          const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+          params.set('start', start);
+          params.set('end', end);
+        }
+      }
+
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Agenda não encontrada');
+      }
+
+      const data = await res.json();
+      setAppointments(data.appointments || []);
+      setCompanyName(data.company_name || '');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isPrevMonthDisabled = useMemo(() => {
+    if (!monthsParam || allowedMonths.length === 0) return false;
+    const prev = subMonths(currentMonth, 1);
+    const prevStr = format(prev, 'yyyy-MM');
+    return !allowedMonths.includes(prevStr);
+  }, [currentMonth, monthsParam, allowedMonths]);
+
+  const isNextMonthDisabled = useMemo(() => {
+    if (!monthsParam || allowedMonths.length === 0) return false;
+    const next = addMonths(currentMonth, 1);
+    const nextStr = format(next, 'yyyy-MM');
+    return !allowedMonths.includes(nextStr);
+  }, [currentMonth, monthsParam, allowedMonths]);
+
+  const handlePrevMonth = () => {
+    if (isPrevMonthDisabled) return;
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+
+  const handleNextMonth = () => {
+    if (isNextMonthDisabled) return;
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'confirmed':
+        return <span className="apub-badge apub-badge-confirmed">Confirmado</span>;
+      case 'canceled':
+        return <span className="apub-badge apub-badge-canceled">Cancelado</span>;
+      case 'completed':
+        return <span className="apub-badge apub-badge-completed">Concluído</span>;
+      default:
+        return <span className="apub-badge apub-badge-scheduled">Agendado</span>;
+    }
+  };
+
+  const getStatusDotColor = (status) => {
+    switch (status) {
+      case 'confirmed': return '#25D366';
+      case 'canceled': return '#EF4444';
+      case 'completed': return '#3B82F6';
+      default: return '#EAB308';
+    }
+  };
+
+  // Calendar logic for month view
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const dateInterval = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startDayOfWeek = getDay(monthStart);
+  const emptyDays = Array.from({ length: startDayOfWeek }, () => null);
+  const allDays = [...emptyDays, ...dateInterval];
+
+  const getAppointmentsForDate = (date) => {
+    return appointments.filter(app => isSameDay(parseISO(app.appointment_date), date));
+  };
+
+  const selectedDayAppointments = getAppointmentsForDate(selectedDate);
+
+  // For "day" mode, filter for the specific date only
+  const dayAppointments = useMemo(() => {
+    if (mode === 'day' && dateParam) {
+      return appointments.filter(app => app.appointment_date === dateParam);
+    }
+    return appointments;
+  }, [appointments, mode, dateParam]);
+
+  const renderAppointmentCard = (app) => (
+    <div key={app.id} className="apub-card">
+      <div className="apub-card-header">
+        <div className="apub-card-title-area">
+          <h4 className="apub-card-title">{app.title}</h4>
+          {app.description && (
+            <p className="apub-card-desc">{app.description.replace(/\[(?:Criado|Atualizado) por: [^\]]+\]\s*/g, '').trim()}</p>
+          )}
+        </div>
+        {getStatusBadge(app.status)}
+      </div>
+
+      <div className="apub-card-details">
+        <div className="apub-detail-row">
+          <Clock size={14} className="apub-icon-green" />
+          <span>
+            {app.start_time?.slice(0, 5)}
+            {app.end_time ? ` às ${app.end_time.slice(0, 5)}` : ''}
+          </span>
+        </div>
+
+        <div className="apub-detail-row">
+          <CalendarDays size={14} className="apub-icon-blue" />
+          <span>{format(parseISO(app.appointment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+        </div>
+
+        {app.contact_name && (
+          <div className="apub-detail-row">
+            <User size={14} className="apub-icon-blue" />
+            <span style={{ fontWeight: 600 }}>Reunião com {app.contact_name}</span>
+            {app.contact_phone && <span className="apub-phone">• {app.contact_phone}</span>}
+          </div>
+        )}
+
+        {app.location && (
+          <div className="apub-detail-row">
+            <MapPin size={14} className="apub-icon-purple" />
+            <span className="apub-location">{app.location}</span>
+            {app.location.startsWith('http') && (
+              <a href={app.location} target="_blank" rel="noopener noreferrer" className="apub-link">
+                Abrir <ExternalLink size={10} />
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Error state
+  if (error) {
     return (
-        <div className="apub-page">
-            <div className="apub-bg-glow-1" />
-            <div className="apub-bg-glow-2" />
+      <div className="apub-page">
+        <div className="apub-bg-glow-1" />
+        <div className="apub-bg-glow-2" />
+        <div className="apub-container">
+          <div className="apub-error-box">
+            <AlertTriangle size={48} className="apub-icon-red" />
+            <h2 className="apub-error-title">Agenda Indisponível</h2>
+            <p className="apub-error-text">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="apub-container">
+  return (
+    <div className="apub-page">
+      <div className="apub-bg-glow-1" />
+      <div className="apub-bg-glow-2" />
 
-                {/* HEADER */}
-                <div className="apub-header">
-                    <div className="apub-header-icon-wrap">
-                        <CalendarIcon size={28} className="apub-icon-green" />
-                    </div>
-                    <div>
-                        <h1 className="apub-header-title">
-                            {mode === 'single' ? 'Detalhes da Reunião' :
-                                mode === 'day' ? 'Agenda do Dia' : 'Agenda de Reuniões'}
-                        </h1>
-                        {companyName && <p className="apub-header-company">{companyName}</p>}
-                    </div>
-                    <div className="apub-header-badge">
-                        <Eye size={14} />
-                        <span>Visualização</span>
-                    </div>
+      <div className="apub-container">
+
+        {/* HEADER */}
+        <div className="apub-header">
+          <div className="apub-header-icon-wrap">
+            <CalendarIcon size={28} className="apub-icon-green" />
+          </div>
+          <div>
+            <h1 className="apub-header-title">
+              {mode === 'single' ? 'Detalhes da Reunião' :
+                mode === 'day' ? 'Agenda do Dia' : 'Agenda de Reuniões'}
+            </h1>
+            {companyName && <p className="apub-header-company">{companyName}</p>}
+          </div>
+          <div className="apub-header-badge">
+            <Eye size={14} />
+            <span>Visualização</span>
+          </div>
+        </div>
+
+        {/* Loading */}
+        {loading ? (
+          <div className="apub-loading">
+            <Loader2 className="apub-spinner" size={40} />
+            <p className="apub-loading-text">Carregando agenda...</p>
+          </div>
+        ) : (
+          <>
+            {/* ── SINGLE MODE ────────────────────────── */}
+            {mode === 'single' && (
+              <div className="apub-single-wrap">
+                {appointments.length === 0 ? (
+                  <div className="apub-empty">
+                    <CalendarDays size={48} className="apub-icon-muted" />
+                    <p className="apub-empty-text">Reunião não encontrada ou removida.</p>
+                  </div>
+                ) : (
+                  appointments.map(renderAppointmentCard)
+                )}
+              </div>
+            )}
+
+            {/* ── DAY MODE ───────────────────────────── */}
+            {mode === 'day' && (
+              <div className="apub-day-wrap">
+                <div className="apub-day-header">
+                  <CalendarDays size={20} className="apub-icon-green" />
+                  <h2 className="apub-day-title">
+                    {dateParam ? format(parseISO(dateParam), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : 'Hoje'}
+                  </h2>
                 </div>
 
-                {/* Loading */}
-                {loading ? (
-                    <div className="apub-loading">
-                        <Loader2 className="apub-spinner" size={40} />
-                        <p className="apub-loading-text">Carregando agenda...</p>
-                    </div>
+                {dayAppointments.length === 0 ? (
+                  <div className="apub-empty">
+                    <CalendarDays size={48} className="apub-icon-muted" />
+                    <p className="apub-empty-text">Nenhum compromisso para este dia.</p>
+                  </div>
                 ) : (
-                    <>
-                        {/* ── SINGLE MODE ────────────────────────── */}
-                        {mode === 'single' && (
-                            <div className="apub-single-wrap">
-                                {appointments.length === 0 ? (
-                                    <div className="apub-empty">
-                                        <CalendarDays size={48} className="apub-icon-muted" />
-                                        <p className="apub-empty-text">Reunião não encontrada ou removida.</p>
-                                    </div>
-                                ) : (
-                                    appointments.map(renderAppointmentCard)
-                                )}
-                            </div>
-                        )}
-
-                        {/* ── DAY MODE ───────────────────────────── */}
-                        {mode === 'day' && (
-                            <div className="apub-day-wrap">
-                                <div className="apub-day-header">
-                                    <CalendarDays size={20} className="apub-icon-green" />
-                                    <h2 className="apub-day-title">
-                                        {dateParam ? format(parseISO(dateParam), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : 'Hoje'}
-                                    </h2>
-                                </div>
-
-                                {dayAppointments.length === 0 ? (
-                                    <div className="apub-empty">
-                                        <CalendarDays size={48} className="apub-icon-muted" />
-                                        <p className="apub-empty-text">Nenhum compromisso para este dia.</p>
-                                    </div>
-                                ) : (
-                                    <div className="apub-cards-list">
-                                        {dayAppointments.map(renderAppointmentCard)}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ── MONTH MODE ─────────────────────────── */}
-                        {mode === 'month' && (
-                            <div className="apub-month-layout">
-                                {/* Calendar Grid */}
-                                <div className="apub-calendar-panel">
-                                    <div className="apub-calendar-nav">
-                                        <h3 className="apub-month-name">
-                                            {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
-                                        </h3>
-                                        <div className="apub-nav-btns">
-                                            <button onClick={handlePrevMonth} className="apub-nav-btn">
-                                                <ChevronLeft size={18} />
-                                            </button>
-                                            <button onClick={handleNextMonth} className="apub-nav-btn">
-                                                <ChevronRight size={18} />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="apub-weekdays">
-                                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                                            <div key={d} className="apub-weekday">{d}</div>
-                                        ))}
-                                    </div>
-
-                                    <div className="apub-days-grid">
-                                        {allDays.map((day, idx) => {
-                                            if (!day) return <div key={`e-${idx}`} className="apub-day-cell-empty" />;
-
-                                            const isSelected = isSameDay(day, selectedDate);
-                                            const isToday = isSameDay(day, new Date());
-                                            const dayApps = getAppointmentsForDate(day);
-
-                                            return (
-                                                <button
-                                                    key={day.toString()}
-                                                    onClick={() => setSelectedDate(day)}
-                                                    className={`apub-day-cell ${isSelected ? 'apub-day-selected' : isToday ? 'apub-day-today' : ''}`}
-                                                >
-                                                    <span>{format(day, 'd')}</span>
-                                                    {dayApps.length > 0 && (
-                                                        <div className="apub-day-dots">
-                                                            {dayApps.slice(0, 3).map((app) => (
-                                                                <div
-                                                                    key={app.id}
-                                                                    className="apub-dot"
-                                                                    style={{ backgroundColor: getStatusDotColor(app.status), boxShadow: `0 0 6px ${getStatusDotColor(app.status)}` }}
-                                                                />
-                                                            ))}
-                                                            {dayApps.length > 3 && <div className="apub-dot apub-dot-more" />}
-                                                        </div>
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {/* Selected Day Details */}
-                                <div className="apub-day-detail-panel">
-                                    <div className="apub-detail-panel-header">
-                                        <span className="apub-detail-label">Compromissos para</span>
-                                        <h3 className="apub-detail-date">
-                                            {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
-                                        </h3>
-                                    </div>
-
-                                    <div className="apub-detail-panel-body">
-                                        {selectedDayAppointments.length === 0 ? (
-                                            <div className="apub-empty-small">
-                                                <CalendarDays size={32} className="apub-icon-muted" />
-                                                <p className="apub-empty-text-sm">Nenhum compromisso neste dia.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="apub-cards-list">
-                                                {selectedDayAppointments.map(renderAppointmentCard)}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Footer */}
-                        <div className="apub-footer">
-                            <p>Agenda atualizada em tempo real • Somente visualização</p>
-                        </div>
-                    </>
+                  <div className="apub-cards-list">
+                    {dayAppointments.map(renderAppointmentCard)}
+                  </div>
                 )}
-            </div>
+              </div>
+            )}
 
-            <style>{`
+            {/* ── MONTH MODE ─────────────────────────── */}
+            {mode === 'month' && (
+              <div className="apub-month-layout">
+                {/* Calendar Grid */}
+                <div className="apub-calendar-panel">
+                  <div className="apub-calendar-nav">
+                    <h3 className="apub-month-name">
+                      {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+                    </h3>
+                    <div className="apub-nav-btns">
+                      <button onClick={handlePrevMonth} className="apub-nav-btn" disabled={isPrevMonthDisabled}>
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button onClick={handleNextMonth} className="apub-nav-btn" disabled={isNextMonthDisabled}>
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="apub-weekdays">
+                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+                      <div key={d} className="apub-weekday">{d}</div>
+                    ))}
+                  </div>
+
+                  <div className="apub-days-grid">
+                    {allDays.map((day, idx) => {
+                      if (!day) return <div key={`e-${idx}`} className="apub-day-cell-empty" />;
+
+                      const isSelected = isSameDay(day, selectedDate);
+                      const isToday = isSameDay(day, new Date());
+                      const dayApps = getAppointmentsForDate(day);
+
+                      return (
+                        <button
+                          key={day.toString()}
+                          onClick={() => setSelectedDate(day)}
+                          className={`apub-day-cell ${isSelected ? 'apub-day-selected' : isToday ? 'apub-day-today' : ''}`}
+                        >
+                          <span>{format(day, 'd')}</span>
+                          {dayApps.length > 0 && (
+                            <div className="apub-day-dots">
+                              {dayApps.slice(0, 3).map((app) => (
+                                <div
+                                  key={app.id}
+                                  className="apub-dot"
+                                  style={{ backgroundColor: getStatusDotColor(app.status), boxShadow: `0 0 6px ${getStatusDotColor(app.status)}` }}
+                                />
+                              ))}
+                              {dayApps.length > 3 && <div className="apub-dot apub-dot-more" />}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Selected Day Details */}
+                <div className="apub-day-detail-panel">
+                  <div className="apub-detail-panel-header">
+                    <span className="apub-detail-label">Compromissos para</span>
+                    <h3 className="apub-detail-date">
+                      {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+                    </h3>
+                  </div>
+
+                  <div className="apub-detail-panel-body">
+                    {selectedDayAppointments.length === 0 ? (
+                      <div className="apub-empty-small">
+                        <CalendarDays size={32} className="apub-icon-muted" />
+                        <p className="apub-empty-text-sm">Nenhum compromisso neste dia.</p>
+                      </div>
+                    ) : (
+                      <div className="apub-cards-list">
+                        {selectedDayAppointments.map(renderAppointmentCard)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="apub-footer">
+              <p>Agenda atualizada em tempo real • Somente visualização</p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <style>{`
         /* ── RESET & BASE ─────────────────────── */
         .apub-page {
           min-height: 100vh;
@@ -712,9 +751,17 @@ export default function AgendaPublicPage() {
           justify-content: center;
         }
 
-        .apub-nav-btn:hover {
+        .apub-nav-btn:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.08);
           color: #fff;
+        }
+
+        .apub-nav-btn:disabled {
+          opacity: 0.2;
+          cursor: not-allowed;
+          background: rgba(255, 255, 255, 0.01);
+          border-color: rgba(255, 255, 255, 0.02);
+          color: #475569;
         }
 
         .apub-weekdays {
@@ -916,6 +963,6 @@ export default function AgendaPublicPage() {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

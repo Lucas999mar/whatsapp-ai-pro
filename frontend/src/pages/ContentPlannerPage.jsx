@@ -834,7 +834,7 @@ export default function ContentPlannerPage() {
       {showShareModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
           <div className="absolute inset-0" onClick={() => setShowShareModal(false)}></div>
-          <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-md z-10 shadow-2xl relative">
+          <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-md z-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
 
             <button onClick={() => setShowShareModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-all">
               <X size={18} />
@@ -902,13 +902,13 @@ export default function ContentPlannerPage() {
                         type="button"
                         onClick={() => toggleShareBoard(board.id)}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all border ${isSelected
-                            ? 'bg-blue-500/10 border-blue-500/30 text-white'
-                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                          ? 'bg-blue-500/10 border-blue-500/30 text-white'
+                          : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
                           }`}
                       >
                         <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected
-                            ? 'bg-blue-500 border-blue-500'
-                            : 'border-slate-600'
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'border-slate-600'
                           }`}>
                           {isSelected && <Check size={12} className="text-white" />}
                         </div>
