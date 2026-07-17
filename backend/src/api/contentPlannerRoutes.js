@@ -68,6 +68,42 @@ router.post('/boards', authMiddleware, async (req, res) => {
     }
 });
 
+// Renomear / Atualizar quadro
+router.put('/boards/:id', authMiddleware, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
+
+        // Verifica propriedade do tenant
+        const { data: board } = await supabase
+            .from('content_boards')
+            .select('id')
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (!board) {
+            return res.status(404).json({ error: 'Quadro não encontrado' });
+        }
+
+        const updates = {};
+        if (name !== undefined) updates.name = name.trim();
+
+        const { data: updated, error } = await supabase
+            .from('content_boards')
+            .update(updates)
+            .eq('id', req.params.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Deletar quadro
 router.delete('/boards/:id', authMiddleware, async (req, res) => {
     try {
@@ -503,6 +539,131 @@ router.delete('/cards/:id', authMiddleware, async (req, res) => {
         if (error) throw error;
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── PUBLIC SHARING ROUTES (No auth required) ───────────────────
+
+// Decode share token → tenant_id
+const decodeShareToken = (token) => {
+    try {
+        return Buffer.from(token, 'base64url').toString('utf8');
+    } catch {
+        return null;
+    }
+};
+
+// Generate share token from tenant_id
+router.get('/share-token', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user.tenant_id || req.user.id;
+        const token = Buffer.from(tenantId, 'utf8').toString('base64url');
+
+        // Fetch company name for display
+        const supabase = getSupabase();
+        let companyName = '';
+        try {
+            const { data } = await supabase.from('tenants').select('name').eq('id', tenantId).single();
+            companyName = data?.name || '';
+        } catch { /* ignore */ }
+
+        res.json({ token, company_name: companyName });
+    } catch (err) {
+        console.error('❌ Erro ao gerar token de compartilhamento:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Public route: View shared content planner (no auth)
+router.get('/public/:token', async (req, res) => {
+    try {
+        const tenantId = decodeShareToken(req.params.token);
+        if (!tenantId) {
+            return res.status(400).json({ error: 'Link de compartilhamento inválido' });
+        }
+
+        const supabase = getSupabase();
+        const { board_id, card_id } = req.query;
+
+        // Fetch company name
+        let companyName = '';
+        try {
+            const { data } = await supabase.from('tenants').select('name').eq('id', tenantId).single();
+            companyName = data?.name || '';
+        } catch { /* ignore */ }
+
+        // If a specific card is requested
+        if (card_id) {
+            const { data: card, error: cardErr } = await supabase
+                .from('content_cards')
+                .select('*')
+                .eq('id', card_id)
+                .single();
+
+            if (cardErr || !card) {
+                return res.json({ boards: [], columns: [], cards: [], company_name: companyName });
+            }
+
+            // Verify the card belongs to this tenant through column -> board -> tenant
+            const { data: col } = await supabase.from('content_columns').select('board_id').eq('id', card.column_id).single();
+            if (col) {
+                const { data: board } = await supabase.from('content_boards').select('id, name').eq('id', col.board_id).eq('tenant_id', tenantId).single();
+                if (board) {
+                    return res.json({ boards: [board], columns: [], cards: [card], company_name: companyName });
+                }
+            }
+            return res.json({ boards: [], columns: [], cards: [], company_name: companyName });
+        }
+
+        // Fetch all boards for this tenant
+        const { data: boards, error: boardsErr } = await supabase
+            .from('content_boards')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false });
+
+        if (boardsErr) throw boardsErr;
+
+        // If a specific board is requested
+        const targetBoardId = board_id || (boards && boards.length > 0 ? boards[0].id : null);
+
+        if (!targetBoardId) {
+            return res.json({ boards: boards || [], columns: [], cards: [], company_name: companyName });
+        }
+
+        // Verify the board belongs to this tenant
+        const targetBoard = (boards || []).find(b => b.id === targetBoardId);
+        if (!targetBoard) {
+            return res.json({ boards: boards || [], columns: [], cards: [], company_name: companyName });
+        }
+
+        // Fetch columns and cards for the target board
+        const { data: cols } = await supabase
+            .from('content_columns')
+            .select('*')
+            .eq('board_id', targetBoardId)
+            .order('position');
+
+        let cards = [];
+        if (cols && cols.length > 0) {
+            const colIds = cols.map(c => c.id);
+            const { data: cardsData } = await supabase
+                .from('content_cards')
+                .select('*')
+                .in('column_id', colIds)
+                .order('position');
+            cards = cardsData || [];
+        }
+
+        res.json({
+            boards: boards || [],
+            columns: cols || [],
+            cards,
+            company_name: companyName
+        });
+    } catch (err) {
+        console.error('❌ Erro na rota pública do content planner:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

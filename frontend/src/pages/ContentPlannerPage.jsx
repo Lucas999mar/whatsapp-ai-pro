@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/api';
 import {
   Plus, Trash2, Edit2, Calendar, Tag, Clock, X,
-  GripVertical, FileText, Layout, CheckCircle, AlertCircle, Save
+  GripVertical, FileText, Layout, CheckCircle, AlertCircle, Save,
+  Share2, Link, Copy, Check, Edit3
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,6 +29,10 @@ export default function ContentPlannerPage() {
   const [newBoardName, setNewBoardName] = useState('');
   const [showNewBoardModal, setShowNewBoardModal] = useState(false);
 
+  // State de Edição de Quadro (Renomear)
+  const [showEditBoardModal, setShowEditBoardModal] = useState(false);
+  const [editBoardName, setEditBoardName] = useState('');
+
   // State do Quadro Atual (Colunas e Cards)
   const [columns, setColumns] = useState([]);
   const [cards, setCards] = useState([]);
@@ -48,9 +53,17 @@ export default function ContentPlannerPage() {
   // Nova tag input temporária
   const [newTagInput, setNewTagInput] = useState('');
 
+  // Share States
+  const [shareToken, setShareToken] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareMode, setShareMode] = useState('board'); // 'board', 'card'
+  const [shareCardId, setShareCardId] = useState(null);
+  const [copied, setCopied] = useState(false);
+
   // Carregar lista de quadros ao iniciar
   useEffect(() => {
     fetchBoards();
+    fetchShareToken();
   }, []);
 
   // Carregar dados toda vez que o quadro selecionado mudar
@@ -62,6 +75,55 @@ export default function ContentPlannerPage() {
       setCards([]);
     }
   }, [selectedBoardId]);
+
+  const fetchShareToken = async () => {
+    try {
+      const res = await api.get('/content/share-token');
+      setShareToken(res.data.token);
+    } catch (err) {
+      console.error('Erro ao buscar token de compartilhamento:', err);
+    }
+  };
+
+  const getShareUrl = () => {
+    if (!shareToken) return '';
+    const base = window.location.origin;
+    let url = `${base}/content/share/${shareToken}`;
+    const params = new URLSearchParams();
+
+    if (shareMode === 'card' && shareCardId) {
+      params.set('card_id', shareCardId);
+    } else if (shareMode === 'board' && selectedBoardId) {
+      params.set('board_id', selectedBoardId);
+    }
+
+    const qs = params.toString();
+    return qs ? `${url}?${qs}` : url;
+  };
+
+  const copyShareLink = () => {
+    const url = getShareUrl();
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  const openShareModal = (mode, cardId = null) => {
+    setShareMode(mode);
+    setShareCardId(cardId);
+    setCopied(false);
+    setShowShareModal(true);
+  };
 
   const fetchBoards = async () => {
     try {
@@ -100,6 +162,26 @@ export default function ContentPlannerPage() {
       setShowNewBoardModal(false);
     } catch (err) {
       alert('Erro ao criar quadro: ' + err.message);
+    }
+  };
+
+  const handleOpenEditBoard = () => {
+    const board = boards.find(b => b.id === selectedBoardId);
+    if (!board) return;
+    setEditBoardName(board.name);
+    setShowEditBoardModal(true);
+  };
+
+  const handleRenameBoard = async (e) => {
+    e.preventDefault();
+    if (!editBoardName.trim() || !selectedBoardId) return;
+
+    try {
+      const res = await api.put(`/content/boards/${selectedBoardId}`, { name: editBoardName.trim() });
+      setBoards(prev => prev.map(b => b.id === selectedBoardId ? { ...b, name: res.data.name } : b));
+      setShowEditBoardModal(false);
+    } catch (err) {
+      alert('Erro ao renomear quadro: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -288,7 +370,17 @@ export default function ContentPlannerPage() {
         </div>
 
         {/* CONTROLES DE QUADROS */}
-        <div className="flex items-center gap-3 self-start md:self-auto">
+        <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+          {selectedBoardId && (
+            <button
+              onClick={() => openShareModal('board')}
+              className="flex items-center justify-center gap-2 p-2.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500/20 transition-all active:scale-95"
+              title="Compartilhar Quadro"
+            >
+              <Share2 size={18} />
+            </button>
+          )}
+
           {boards.length > 0 && (
             <div className="flex items-center gap-2 bg-[#0F172A] px-3 py-2.5 rounded-xl border border-white/5 shadow-inner">
               <Layout size={16} className="text-[#25D366]" />
@@ -302,6 +394,16 @@ export default function ContentPlannerPage() {
                 ))}
               </select>
             </div>
+          )}
+
+          {selectedBoardId && (
+            <button
+              onClick={handleOpenEditBoard}
+              className="flex items-center justify-center p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl hover:bg-amber-500/20 transition-all active:scale-95"
+              title="Editar Nome do Quadro"
+            >
+              <Edit3 size={18} />
+            </button>
           )}
 
           <button
@@ -395,7 +497,16 @@ export default function ContentPlannerPage() {
                           <h4 className="text-sm font-black text-white leading-snug group-hover:text-[#25D366] transition-colors line-clamp-2">
                             {card.title}
                           </h4>
-                          <Edit2 size={12} className="text-slate-400 shrink-0 mt-0.5 group-hover:text-[#25D366] transition-colors" />
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openShareModal('card', card.id); }}
+                              className="p-1 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors opacity-0 group-hover/card:opacity-100"
+                              title="Compartilhar Card"
+                            >
+                              <Share2 size={11} />
+                            </button>
+                            <Edit2 size={12} className="text-slate-400 mt-0.5 group-hover:text-[#25D366] transition-colors" />
+                          </div>
                         </div>
 
                         {descText && (
@@ -506,6 +617,47 @@ export default function ContentPlannerPage() {
               className="w-full bg-[#25D366] text-black font-black py-3 rounded-xl hover:brightness-110 active:scale-95 transition-all text-sm uppercase tracking-widest"
             >
               Criar Quadro
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL EDITAR NOME DO QUADRO */}
+      {showEditBoardModal && (
+        <div className="fixed inset-0 bg-black/80 z-[100] backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={handleRenameBoard}
+            className="w-full max-w-md bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl relative space-y-4"
+          >
+            <button
+              type="button"
+              onClick={() => setShowEditBoardModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X size={18} />
+            </button>
+
+            <h3 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2">
+              <Edit3 className="text-amber-400" size={20} /> Renomear Quadro
+            </h3>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Novo Nome</label>
+              <input
+                type="text"
+                placeholder="Digite o novo nome do quadro..."
+                value={editBoardName}
+                onChange={(e) => setEditBoardName(e.target.value)}
+                className="w-full bg-[#1E293B] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-400 transition-colors font-bold"
+                autoFocus
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-amber-500 text-black font-black py-3 rounded-xl hover:brightness-110 active:scale-95 transition-all text-sm uppercase tracking-widest"
+            >
+              Salvar Alteração
             </button>
           </form>
         </div>
@@ -659,6 +811,86 @@ export default function ContentPlannerPage() {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* SHARE MODAL */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
+          <div className="absolute inset-0" onClick={() => setShowShareModal(false)}></div>
+          <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-md z-10 shadow-2xl relative">
+
+            <button onClick={() => setShowShareModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-all">
+              <X size={18} />
+            </button>
+
+            <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-3 tracking-tighter uppercase italic">
+              <Share2 className="text-blue-400" size={28} />
+              Compartilhar Conteúdo
+            </h3>
+            <p className="text-sm text-slate-400 mb-6">
+              {shareMode === 'card' ? 'Compartilhe este card de conteúdo específico.' :
+                'Compartilhe o quadro completo com todas as colunas e cards.'}
+            </p>
+
+            {/* Mode selector */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => { setShareMode('board'); setShareCardId(null); setCopied(false); }}
+                className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'board'
+                  ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                  : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                  }`}
+              >
+                📋 Quadro
+              </button>
+              {shareCardId && (
+                <button
+                  onClick={() => { setShareMode('card'); setCopied(false); }}
+                  className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${shareMode === 'card'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
+                    }`}
+                >
+                  📌 Card
+                </button>
+              )}
+            </div>
+
+            {/* Link display */}
+            <div className="bg-black/30 border border-white/10 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Link size={14} className="text-blue-400" />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Link de Compartilhamento</span>
+              </div>
+              <p className="text-xs text-slate-300 font-mono break-all leading-relaxed">
+                {shareToken ? getShareUrl() : 'Gerando link...'}
+              </p>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-[#25D366]/5 border border-[#25D366]/10 rounded-xl p-4 mb-6">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                <span className="text-[#25D366] font-bold">✨ Atualização automática:</span> Qualquer alteração feita nos cards será refletida automaticamente no link compartilhado. As pessoas que acessarem verão sempre a versão mais atualizada.
+              </p>
+            </div>
+
+            {/* Copy button */}
+            <button
+              onClick={copyShareLink}
+              disabled={!shareToken}
+              className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all ${copied
+                ? 'bg-[#25D366] text-black'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-xl'
+                } disabled:opacity-50`}
+            >
+              {copied ? (
+                <><Check size={18} /> Link Copiado!</>
+              ) : (
+                <><Copy size={18} /> Copiar Link</>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
