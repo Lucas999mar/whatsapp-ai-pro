@@ -17,6 +17,7 @@ export default function ContentPlannerPublicPage() {
     const [searchParams] = useSearchParams();
     const boardIdParam = searchParams.get('board_id');
     const cardIdParam = searchParams.get('card_id');
+    const boardsParam = searchParams.get('boards'); // comma-separated board IDs
 
     const [boards, setBoards] = useState([]);
     const [columns, setColumns] = useState([]);
@@ -35,9 +36,15 @@ export default function ContentPlannerPublicPage() {
         setError(null);
         try {
             const params = new URLSearchParams();
-            if (cardIdParam) params.set('card_id', cardIdParam);
-            else if (selectedBoardId) params.set('board_id', selectedBoardId);
-            else if (boardIdParam) params.set('board_id', boardIdParam);
+            if (cardIdParam) {
+                params.set('card_id', cardIdParam);
+            } else {
+                // Always pass the boards filter if present in URL
+                if (boardsParam) params.set('boards', boardsParam);
+                // Pass selected board to load its columns/cards
+                if (selectedBoardId) params.set('board_id', selectedBoardId);
+                else if (boardIdParam) params.set('board_id', boardIdParam);
+            }
 
             const qs = params.toString();
             const url = `${API_BASE}/content/public/${token}${qs ? `?${qs}` : ''}`;

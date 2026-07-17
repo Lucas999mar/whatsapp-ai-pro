@@ -58,6 +58,7 @@ export default function ContentPlannerPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareMode, setShareMode] = useState('board'); // 'board', 'card'
   const [shareCardId, setShareCardId] = useState(null);
+  const [shareSelectedBoards, setShareSelectedBoards] = useState([]);
   const [copied, setCopied] = useState(false);
 
   // Carregar lista de quadros ao iniciar
@@ -93,8 +94,8 @@ export default function ContentPlannerPage() {
 
     if (shareMode === 'card' && shareCardId) {
       params.set('card_id', shareCardId);
-    } else if (shareMode === 'board' && selectedBoardId) {
-      params.set('board_id', selectedBoardId);
+    } else if (shareMode === 'board' && shareSelectedBoards.length > 0) {
+      params.set('boards', shareSelectedBoards.join(','));
     }
 
     const qs = params.toString();
@@ -122,7 +123,22 @@ export default function ContentPlannerPage() {
     setShareMode(mode);
     setShareCardId(cardId);
     setCopied(false);
+    // Pré-seleciona o quadro atual quando abre o modal
+    if (mode === 'board' && selectedBoardId) {
+      setShareSelectedBoards([selectedBoardId]);
+    }
     setShowShareModal(true);
+  };
+
+  const toggleShareBoard = (boardId) => {
+    setShareSelectedBoards(prev => {
+      if (prev.includes(boardId)) {
+        return prev.filter(id => id !== boardId);
+      } else {
+        return [...prev, boardId];
+      }
+    });
+    setCopied(false);
   };
 
   const fetchBoards = async () => {
@@ -830,7 +846,7 @@ export default function ContentPlannerPage() {
             </h3>
             <p className="text-sm text-slate-400 mb-6">
               {shareMode === 'card' ? 'Compartilhe este card de conteúdo específico.' :
-                'Compartilhe o quadro completo com todas as colunas e cards.'}
+                'Selecione os quadros que deseja compartilhar.'}
             </p>
 
             {/* Mode selector */}
@@ -842,7 +858,7 @@ export default function ContentPlannerPage() {
                   : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
                   }`}
               >
-                📋 Quadro
+                📋 Quadros
               </button>
               {shareCardId && (
                 <button
@@ -856,6 +872,54 @@ export default function ContentPlannerPage() {
                 </button>
               )}
             </div>
+
+            {/* Board selection (only in board mode) */}
+            {shareMode === 'board' && boards.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Selecionar Quadros</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (shareSelectedBoards.length === boards.length) {
+                        setShareSelectedBoards([]);
+                      } else {
+                        setShareSelectedBoards(boards.map(b => b.id));
+                      }
+                      setCopied(false);
+                    }}
+                    className="text-[10px] font-black text-blue-400 uppercase tracking-widest hover:text-blue-300 transition-colors"
+                  >
+                    {shareSelectedBoards.length === boards.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                  {boards.map(board => {
+                    const isSelected = shareSelectedBoards.includes(board.id);
+                    return (
+                      <button
+                        key={board.id}
+                        type="button"
+                        onClick={() => toggleShareBoard(board.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all border ${isSelected
+                            ? 'bg-blue-500/10 border-blue-500/30 text-white'
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                          }`}
+                      >
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected
+                            ? 'bg-blue-500 border-blue-500'
+                            : 'border-slate-600'
+                          }`}>
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </div>
+                        <Layout size={14} className={isSelected ? 'text-blue-400' : 'text-slate-600'} />
+                        <span className="text-sm font-bold truncate">{board.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Link display */}
             <div className="bg-black/30 border border-white/10 rounded-xl p-4 mb-6">
@@ -878,11 +942,11 @@ export default function ContentPlannerPage() {
             {/* Copy button */}
             <button
               onClick={copyShareLink}
-              disabled={!shareToken}
+              disabled={!shareToken || (shareMode === 'board' && shareSelectedBoards.length === 0)}
               className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all ${copied
                 ? 'bg-[#25D366] text-black'
                 : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-xl'
-                } disabled:opacity-50`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {copied ? (
                 <><Check size={18} /> Link Copiado!</>

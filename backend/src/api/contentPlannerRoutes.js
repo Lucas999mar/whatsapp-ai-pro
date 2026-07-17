@@ -584,7 +584,7 @@ router.get('/public/:token', async (req, res) => {
         }
 
         const supabase = getSupabase();
-        const { board_id, card_id } = req.query;
+        const { board_id, card_id, boards: boardsParam } = req.query;
 
         // Fetch company name
         let companyName = '';
@@ -616,33 +616,40 @@ router.get('/public/:token', async (req, res) => {
             return res.json({ boards: [], columns: [], cards: [], company_name: companyName });
         }
 
-        // Fetch all boards for this tenant
-        const { data: boards, error: boardsErr } = await supabase
+        // Parse selected board IDs from `boards` param (comma-separated)
+        const selectedBoardIds = boardsParam ? boardsParam.split(',').filter(Boolean) : [];
+
+        // Fetch boards for this tenant
+        let boardsQuery = supabase
             .from('content_boards')
             .select('*')
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
 
+        // If specific boards were selected, filter to only those
+        if (selectedBoardIds.length > 0) {
+            boardsQuery = boardsQuery.in('id', selectedBoardIds);
+        } else if (board_id) {
+            // Backward compatibility: single board_id param
+            boardsQuery = boardsQuery.eq('id', board_id);
+        }
+
+        const { data: boards, error: boardsErr } = await boardsQuery;
         if (boardsErr) throw boardsErr;
 
-        // If a specific board is requested
-        const targetBoardId = board_id || (boards && boards.length > 0 ? boards[0].id : null);
-
-        if (!targetBoardId) {
-            return res.json({ boards: boards || [], columns: [], cards: [], company_name: companyName });
+        if (!boards || boards.length === 0) {
+            return res.json({ boards: [], columns: [], cards: [], company_name: companyName });
         }
 
-        // Verify the board belongs to this tenant
-        const targetBoard = (boards || []).find(b => b.id === targetBoardId);
-        if (!targetBoard) {
-            return res.json({ boards: boards || [], columns: [], cards: [], company_name: companyName });
-        }
+        // Determine which board to load columns/cards for (first one by default)
+        const targetBoardId = board_id || boards[0].id;
+        const targetBoard = boards.find(b => b.id === targetBoardId) || boards[0];
 
         // Fetch columns and cards for the target board
         const { data: cols } = await supabase
             .from('content_columns')
             .select('*')
-            .eq('board_id', targetBoardId)
+            .eq('board_id', targetBoard.id)
             .order('position');
 
         let cards = [];
