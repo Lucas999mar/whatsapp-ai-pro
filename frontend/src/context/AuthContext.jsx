@@ -37,11 +37,11 @@ export function AuthProvider({ children }) {
       try {
         const res = await api.get('/me/features');
         const freshFeatures = res.data?.features || {};
-        
+
         // Só atualiza se houve mudança real
         const currentStr = JSON.stringify(user.features || {});
         const freshStr = JSON.stringify(freshFeatures);
-        
+
         if (currentStr !== freshStr) {
           console.log('🔄 Features atualizadas pelo servidor:', freshFeatures);
           setUser(prev => {
@@ -74,10 +74,10 @@ export function AuthProvider({ children }) {
   const login = async (id, password, remember = false) => {
     const res = await api.post('/auth/login', { id, password });
     const { token: newToken, user: newUser } = res.data;
-    
+
     setToken(newToken);
     setUser(newUser);
-    
+
     // Store in sessionStorage to allow multiple tabs/accounts
     sessionStorage.setItem('wa_pro_token', newToken);
     sessionStorage.setItem('wa_pro_user', JSON.stringify(newUser));
@@ -105,6 +105,10 @@ export function AuthProvider({ children }) {
     const newUser = { ...user, ...data };
     setUser(newUser);
     sessionStorage.setItem('wa_pro_user', JSON.stringify(newUser));
+    // Sincroniza com localStorage se existir (usuário usou "lembrar-me")
+    if (localStorage.getItem('wa_pro_user')) {
+      localStorage.setItem('wa_pro_user', JSON.stringify(newUser));
+    }
   };
 
   return (

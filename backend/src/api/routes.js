@@ -53,8 +53,9 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
 router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const tenantId = req.user.tenant_id || req.user.id;
     const fileBuffer = fs.readFileSync(req.file.path);
-    const fileName = `logo_${req.user.id}_${Date.now()}${path.extname(req.file.originalname)}`;
+    const fileName = `logo_${tenantId}_${Date.now()}${path.extname(req.file.originalname)}`;
     const supabase = getSupabase();
     const filePath = `logos/${fileName}`;
 
@@ -70,9 +71,14 @@ router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, 
 
     const { data: { publicUrl } } = supabase.storage.from('knowledge-files').getPublicUrl(filePath);
 
-    // Atualiza logo no Supabase usando UPSERT para garantir persistência
-    await supabase.from('tenants').upsert({ id: req.user.id, logo: publicUrl, updated_at: new Date().toISOString() });
+    // Atualiza logo no Supabase usando UPDATE no tenant correto
+    const { error: dbError } = await supabase.from('tenants').update({ logo: publicUrl, updated_at: new Date().toISOString() }).eq('id', tenantId);
+    if (dbError) {
+      console.error(`❌ Erro ao atualizar logo do tenant ${tenantId}:`, dbError.message);
+      throw new Error(`Erro ao salvar logo: ${dbError.message}`);
+    }
 
+    console.log(`✅ Logo atualizada para tenant: ${tenantId}`);
     fs.unlinkSync(req.file.path);
     res.json({ logoUrl: publicUrl });
   } catch (err) {
@@ -412,11 +418,11 @@ router.get('/company/settings', authMiddleware, async (req, res) => {
 router.put('/company/settings', authMiddleware, async (req, res) => {
   try {
     const supabase = getSupabase();
+    const tenantId = req.user.tenant_id || req.user.id;
     const { name, logo, delivery_base_price, delivery_km_price, default_pickup_address } = req.body;
 
-    // Prepara dados para upsert (patching)
+    // Prepara dados para update no tenant correto
     const updateData = {
-      id: req.user.id,
       updated_at: new Date().toISOString()
     };
 
@@ -426,16 +432,17 @@ router.put('/company/settings', authMiddleware, async (req, res) => {
     if (delivery_km_price !== undefined) updateData.delivery_km_price = delivery_km_price;
     if (default_pickup_address !== undefined) updateData.default_pickup_address = default_pickup_address;
 
-    console.log(`💾 Salvando configurações para: ${req.user.id}`, updateData);
+    console.log(`💾 Salvando configurações para tenant: ${tenantId}`, updateData);
 
     const { data, error } = await supabase
       .from('tenants')
-      .upsert(updateData, { onConflict: 'id' })
+      .update(updateData)
+      .eq('id', tenantId)
       .select()
       .single();
 
     if (error) {
-      console.error('❌ Erro no banco de dados:', error.message);
+      console.error(`❌ Erro no banco de dados (tenant ${tenantId}):`, error.message);
       throw error;
     }
 

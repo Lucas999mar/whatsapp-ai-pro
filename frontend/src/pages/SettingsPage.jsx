@@ -51,6 +51,27 @@ export default function SettingsPage() {
   const [savingCompany, setSavingCompany] = useState(false);
   const fileInputRef = useRef(null);
 
+  // 🔄 Busca logo e nome atualizados do banco ao carregar a página
+  useEffect(() => {
+    const fetchCompanySettings = async () => {
+      try {
+        const res = await api.get('/company/settings');
+        if (res.data) {
+          if (res.data.logo) {
+            setCompanyLogo(res.data.logo);
+            updateProfile({ logo: res.data.logo });
+          }
+          if (res.data.name) {
+            setCompanyName(res.data.name);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar configurações da empresa:', err.message);
+      }
+    };
+    fetchCompanySettings();
+  }, []);
+
   const [settings, setSettings] = useState({
     bot_name: '',
     prefix: '!ia',
@@ -277,9 +298,8 @@ export default function SettingsPage() {
         <div className="flex gap-6 border-b border-white/5 pb-1">
           <button
             onClick={() => setActiveTab('general')}
-            className={`pb-4 px-2 font-black text-sm uppercase tracking-wider transition-all relative cursor-pointer ${
-              activeTab === 'general' ? 'text-[#25D366]' : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`pb-4 px-2 font-black text-sm uppercase tracking-wider transition-all relative cursor-pointer ${activeTab === 'general' ? 'text-[#25D366]' : 'text-slate-500 hover:text-slate-300'
+              }`}
           >
             Configurações Gerais
             {activeTab === 'general' && (
@@ -288,9 +308,8 @@ export default function SettingsPage() {
           </button>
           <button
             onClick={() => setActiveTab('collaborators')}
-            className={`pb-4 px-2 font-black text-sm uppercase tracking-wider transition-all relative cursor-pointer ${
-              activeTab === 'collaborators' ? 'text-[#25D366]' : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`pb-4 px-2 font-black text-sm uppercase tracking-wider transition-all relative cursor-pointer ${activeTab === 'collaborators' ? 'text-[#25D366]' : 'text-slate-500 hover:text-slate-300'
+              }`}
           >
             Controle de Acessos / Usuários
             {activeTab === 'collaborators' && (
@@ -423,11 +442,10 @@ export default function SettingsPage() {
                     <button
                       key={p.id}
                       onClick={() => handleChange('ai_provider', p.id)}
-                      className={`flex-1 flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all cursor-pointer ${
-                        settings.ai_provider === p.id
+                      className={`flex-1 flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all cursor-pointer ${settings.ai_provider === p.id
                           ? 'bg-[#25D366]/10 border-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.15)]'
                           : 'bg-white/[0.02] border-white/10 hover:border-white/20'
-                      }`}
+                        }`}
                     >
                       <span className="text-2xl">{p.icon}</span>
                       <span className={`font-bold text-sm ${settings.ai_provider === p.id ? 'text-[#25D366]' : 'text-white'}`}>{p.label}</span>
@@ -606,11 +624,10 @@ export default function SettingsPage() {
                           return (
                             <span
                               key={f.id}
-                              className={`text-[9px] font-bold px-2 py-0.5 rounded-md border ${
-                                isAllowed
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-md border ${isAllowed
                                   ? 'bg-[#25D366]/10 text-[#25D366] border-[#25D366]/20'
                                   : 'bg-red-500/5 text-red-400 border-red-500/10 line-through opacity-40'
-                              }`}
+                                }`}
                             >
                               {f.label}
                             </span>
@@ -631,7 +648,7 @@ export default function SettingsPage() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
           <div className="absolute inset-0" onClick={() => setShowCollabModal(false)}></div>
           <div className="bg-[#0F172A] border border-white/10 rounded-[32px] p-8 w-full max-w-xl z-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-            
+
             <button onClick={() => setShowCollabModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-all cursor-pointer">
               <X size={18} />
             </button>
@@ -699,7 +716,7 @@ export default function SettingsPage() {
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Permissões de Acesso</label>
                   <p className="text-slate-500 text-xs mt-0.5">Marque quais abas e funcionalidades este usuário poderá acessar.</p>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                   {ALL_FEATURES.map(f => {
                     const isChecked = collabForm.features[f.id] !== false;
