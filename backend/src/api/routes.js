@@ -1164,6 +1164,10 @@ router.use('/content', contentPlannerRouter);
 const agendaRouter = require('./agendaRoutes');
 router.use('/agenda', agendaRouter);
 
+// ── MIND MAP (MAPAS MENTAIS) ROUTES ────────────────────────────
+const mindmapRouter = require('./mindmapRoutes');
+router.use('/mindmaps', mindmapRouter);
+
 module.exports = router;
 
 

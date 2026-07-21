@@ -4,7 +4,7 @@ import logoImage from './assets/logo.png';
 import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
-  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout
+  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -29,6 +29,7 @@ import ContentPlannerPage from './pages/ContentPlannerPage';
 import AgendaPage from './pages/AgendaPage';
 import AgendaPublicPage from './pages/AgendaPublicPage';
 import ContentPlannerPublicPage from './pages/ContentPlannerPublicPage';
+import MindMapPage from './pages/MindMapPage';
 
 // Novos componentes de Delivery
 import TrackingPage from './pages/TrackingPage';
@@ -51,6 +52,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/ai-designer', name: 'AI Designer', icon: <Wand2 size={20} /> },
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
+    { path: '/mindmap', name: 'Mapas Mentais', icon: <Network size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
@@ -87,6 +89,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/knowledge': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
+      '/mindmap': 'mindmap',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
       '/learning': 'learning',
@@ -212,6 +215,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/knowledge': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
+      '/mindmap': 'mindmap',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
       '/learning': 'learning',
@@ -324,6 +328,7 @@ function AppContent() {
             <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/ai-designer" element={<AuthGuard><AIDesigner /></AuthGuard>} />
             <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
+            <Route path="/mindmap" element={<AuthGuard><MindMapPage /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
