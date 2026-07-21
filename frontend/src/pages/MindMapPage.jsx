@@ -315,7 +315,10 @@ export default function MindMapPage() {
 
     // ── MOUSE HANDLERS ──
     const handleCanvasMouseDown = (e) => {
-        if (e.target === canvasRef.current || e.target === svgRef.current || e.target.tagName === 'svg') {
+        // Se clicar em um nó ou botão de um nó, ignora o pan (permitindo interaction/arrastar)
+        if (e.target.closest('.mindmap-node') || e.target.closest('button')) return;
+
+        if (e.target === canvasRef.current || e.target === svgRef.current || e.target.tagName === 'svg' || e.target.tagName === 'rect' || !e.target.closest('.mindmap-node')) {
             setSelectedNode(null);
             setEditingNode(null);
             setShowColorPicker(false);
@@ -547,80 +550,83 @@ export default function MindMapPage() {
         return (
             <foreignObject
                 key={node.id}
-                x={node.x}
-                y={node.y}
-                width={dim.w * diamondScale}
-                height={dim.h * diamondScale}
-                style={{ overflow: 'visible' }}
+                x={node.x - 40}
+                y={node.y - 40}
+                width={dim.w * diamondScale + 80}
+                height={dim.h * diamondScale + 80}
+                style={{ overflow: 'visible', pointerEvents: 'none' }}
             >
-                <div
-                    className={`group relative flex items-center justify-center text-center select-none transition-all duration-200 ${draggingNode === node.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    style={{
-                        width: dim.w * diamondScale,
-                        height: dim.h * diamondScale,
-                        borderRadius,
-                        clipPath,
-                        background: `linear-gradient(135deg, ${node.color}22, ${node.color}11)`,
-                        border: `2px solid ${isSelected ? node.color : node.color + '55'}`,
-                        boxShadow: isSelected
-                            ? `0 0 20px ${node.color}40, 0 0 40px ${node.color}15`
-                            : isConnecting
-                                ? `0 0 25px ${node.color}60`
-                                : `0 2px 8px rgba(0,0,0,0.3)`,
-                        backdropFilter: 'blur(8px)',
-                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                    }}
-                    onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
-                    onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
-                >
-                    {/* Pulse ring for connecting mode */}
-                    {isConnecting && (
-                        <div
-                            className="absolute inset-0 rounded-full animate-ping"
-                            style={{ border: `2px solid ${node.color}`, borderRadius, opacity: 0.4 }}
-                        />
-                    )}
+                <div className="w-full h-full flex items-center justify-center pointer-events-none">
+                    <div
+                        className={`mindmap-node group relative flex items-center justify-center text-center select-none transition-all duration-200 ${draggingNode === node.id ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        style={{
+                            pointerEvents: 'all',
+                            width: dim.w * diamondScale,
+                            height: dim.h * diamondScale,
+                            borderRadius,
+                            clipPath,
+                            background: `linear-gradient(135deg, ${node.color}22, ${node.color}11)`,
+                            border: `2px solid ${isSelected ? node.color : node.color + '55'}`,
+                            boxShadow: isSelected
+                                ? `0 0 20px ${node.color}40, 0 0 40px ${node.color}15`
+                                : isConnecting
+                                    ? `0 0 25px ${node.color}60`
+                                    : `0 2px 8px rgba(0,0,0,0.3)`,
+                            backdropFilter: 'blur(8px)',
+                            transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                        }}
+                        onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                        onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
+                    >
+                        {/* Pulse ring for connecting mode */}
+                        {isConnecting && (
+                            <div
+                                className="absolute inset-0 rounded-full animate-ping"
+                                style={{ border: `2px solid ${node.color}`, borderRadius, opacity: 0.4 }}
+                            />
+                        )}
 
-                    {isEditing ? (
-                        <input
-                            ref={editInputRef}
-                            type="text"
-                            value={editText}
-                            onChange={(e) => setEditText(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    updateNodeText(node.id, editText);
-                                } else if (e.key === 'Escape') {
-                                    setEditingNode(null);
-                                }
-                            }}
-                            onBlur={() => updateNodeText(node.id, editText)}
-                            className="bg-transparent text-white text-center w-full px-2 outline-none"
-                            style={{ fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px' }}
-                            autoFocus
-                        />
-                    ) : (
-                        <span
-                            className="text-white font-medium px-3 leading-tight pointer-events-none"
-                            style={{
-                                fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px',
-                                textShadow: '0 1px 3px rgba(0,0,0,0.5)'
-                            }}
-                        >
-                            {node.text}
-                        </span>
-                    )}
+                        {isEditing ? (
+                            <input
+                                ref={editInputRef}
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        updateNodeText(node.id, editText);
+                                    } else if (e.key === 'Escape') {
+                                        setEditingNode(null);
+                                    }
+                                }}
+                                onBlur={() => updateNodeText(node.id, editText)}
+                                className="bg-transparent text-white text-center w-full px-2 outline-none"
+                                style={{ fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px' }}
+                                autoFocus
+                            />
+                        ) : (
+                            <span
+                                className="text-white font-medium px-3 leading-tight pointer-events-none"
+                                style={{
+                                    fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px',
+                                    textShadow: '0 1px 3px rgba(0,0,0,0.5)'
+                                }}
+                            >
+                                {node.text}
+                            </span>
+                        )}
 
-                    {/* Quick-add child button */}
-                    {isSelected && !isEditing && (
-                        <button
-                            className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-lg hover:scale-125 transition-all z-50"
-                            onClick={(e) => { e.stopPropagation(); addNode(node.id); }}
-                            title="Adicionar nó filho"
-                        >
-                            <Plus size={14} />
-                        </button>
-                    )}
+                        {/* Quick-add child button */}
+                        {isSelected && !isEditing && (
+                            <button
+                                className="mindmap-node absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-lg hover:scale-125 transition-all z-50 pointer-events-auto"
+                                onClick={(e) => { e.stopPropagation(); addNode(node.id); }}
+                                title="Adicionar nó filho"
+                            >
+                                <Plus size={14} />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </foreignObject>
         );
@@ -1027,21 +1033,21 @@ export default function MindMapPage() {
 
                 {/* SVG Layer */}
                 <svg
-                    ref={svgRef}
-                    className="absolute inset-0 w-full h-full"
-                    style={{
-                        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                        transformOrigin: '0 0'
-                    }}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ overflow: 'visible' }}
                 >
-                    {/* Edges */}
-                    {edges.map((edge, idx) => renderEdge(edge, idx))}
+                    <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoom})`} style={{ pointerEvents: 'all' }}>
+                        <g ref={svgRef}>
+                            {/* Edges */}
+                            {edges.map((edge, idx) => renderEdge(edge, idx))}
 
-                    {/* Connecting line preview */}
-                    {renderConnectingLine()}
+                            {/* Connecting line preview */}
+                            {renderConnectingLine()}
 
-                    {/* Nodes */}
-                    {nodes.map(node => renderNode(node))}
+                            {/* Nodes */}
+                            {nodes.map(node => renderNode(node))}
+                        </g>
+                    </g>
                 </svg>
 
                 {/* Node Count */}
