@@ -1168,6 +1168,10 @@ router.use('/agenda', agendaRouter);
 const mindmapRouter = require('./mindmapRoutes');
 router.use('/mindmaps', mindmapRouter);
 
+// ── CONTRACTS & SIGNATURES ROUTES ──────────────────────────────
+const contractRouter = require('./contractRoutes');
+router.use('/contracts', contractRouter);
+
 module.exports = router;
 
 

@@ -4,7 +4,8 @@ import logoImage from './assets/logo.png';
 import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
-  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network
+  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network,
+  FileSignature
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -37,6 +38,10 @@ import MotoboyApp from './pages/MotoboyApp';
 import MotoboyRegister from './pages/MotoboyRegister';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 
+// Componentes de Contratos
+import ContractsPage from './pages/ContractsPage';
+import ContractSignaturePage from './pages/ContractSignaturePage';
+
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -57,6 +62,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
+    { path: '/contracts', name: 'Contratos & Assinaturas', icon: <FileSignature size={20} /> },
     { path: '/delivery-dashboard', name: 'Monitor Delivery (Uber)', icon: <Bike size={20} /> },
     { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
@@ -96,6 +102,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/broadcast': 'broadcast',
       '/follow-up': 'followUp',
       '/os': 'os',
+      '/contracts': 'contracts',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
       '/integrations': 'integrations'
@@ -266,6 +273,7 @@ function AppContent() {
         <Route path="/motoboy/register" element={<MotoboyRegister />} />
         <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
         <Route path="/content/share/:token" element={<ContentPlannerPublicPage />} />
+        <Route path="/contracts/sign/:id" element={<ContractSignaturePage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
@@ -334,6 +342,8 @@ function AppContent() {
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
+            <Route path="/contracts" element={<AuthGuard><ContractsPage /></AuthGuard>} />
+            <Route path="/contracts/sign/:id" element={<ContractSignaturePage />} />
             <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/tracking/:code" element={<TrackingPage />} />
             <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
