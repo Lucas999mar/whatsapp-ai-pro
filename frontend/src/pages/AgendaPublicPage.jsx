@@ -539,6 +539,9 @@ export default function AgendaPublicPage() {
           border-radius: 20px;
           padding: 24px;
           transition: all 0.3s ease;
+          min-width: 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
 
         .apub-card:hover {
@@ -586,10 +589,16 @@ export default function AgendaPublicPage() {
 
         .apub-detail-row {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 10px;
           font-size: 13px;
           color: #94a3b8;
+          min-width: 0;
+        }
+
+        .apub-detail-row svg {
+          flex-shrink: 0;
+          margin-top: 2px;
         }
 
         .apub-phone {
@@ -597,9 +606,10 @@ export default function AgendaPublicPage() {
         }
 
         .apub-location {
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          flex: 1;
+          min-width: 0;
+          white-space: normal;
+          word-break: break-word;
         }
 
         .apub-link {

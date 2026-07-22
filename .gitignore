@@ -11,3 +11,5 @@ uploads/*
 
 .vercel
 backend/auth_info*
+.vercel
+.env*
