@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
   Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network,
-  FileSignature
+  FileSignature, BarChart2
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -42,6 +42,9 @@ import DeliveryDashboard from './pages/DeliveryDashboard';
 import ContractsPage from './pages/ContractsPage';
 import ContractSignaturePage from './pages/ContractSignaturePage';
 
+// Componente de Analytics de Redes Sociais
+import SocialAnalyticsPage from './pages/SocialAnalyticsPage';
+
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -57,6 +60,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/creative-center', name: 'Centro Criativo', icon: <Sparkles size={20} /> },
     { path: '/ai-designer', name: 'AI Designer', icon: <Wand2 size={20} /> },
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
+    { path: '/social-analytics', name: 'Analytics de Redes', icon: <BarChart2 size={20} /> },
     { path: '/mindmap', name: 'Mapas Mentais', icon: <Network size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
@@ -95,6 +99,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/knowledge': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
+      '/social-analytics': 'socialAnalytics',
       '/mindmap': 'mindmap',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -222,6 +227,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/knowledge': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
+      '/social-analytics': 'socialAnalytics',
       '/mindmap': 'mindmap',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -336,6 +342,7 @@ function AppContent() {
             <Route path="/creative-center" element={<AuthGuard><CreativeCenter /></AuthGuard>} />
             <Route path="/ai-designer" element={<AuthGuard><AIDesigner /></AuthGuard>} />
             <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
+            <Route path="/social-analytics" element={<AuthGuard><SocialAnalyticsPage /></AuthGuard>} />
             <Route path="/mindmap" element={<AuthGuard><MindMapPage /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />

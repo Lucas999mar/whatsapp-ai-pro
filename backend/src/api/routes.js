@@ -1172,6 +1172,10 @@ router.use('/mindmaps', mindmapRouter);
 const contractRouter = require('./contractRoutes');
 router.use('/contracts', contractRouter);
 
+// ── SOCIAL MEDIA ANALYTICS & AI CONSULTANT ROUTES ──────────────
+const socialAnalyticsRouter = require('./socialAnalyticsRoutes');
+router.use('/social-analytics', socialAnalyticsRouter);
+
 module.exports = router;
 
 
