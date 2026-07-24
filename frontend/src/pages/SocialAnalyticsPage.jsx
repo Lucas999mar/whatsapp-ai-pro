@@ -132,11 +132,11 @@ export default function SocialAnalyticsPage() {
             // Caminho A: Simulação realista de redirecionamento para login do Provedor
             setConnectionStep('oauth_connecting');
             setTimeout(() => {
-                const name = accountName.trim().replace('@', '');
-                // Gera duas páginas comerciais baseadas no nome
+                const name = accountName.trim();
+                // O primeiro item do array de escolha DEVE ser exatamente o nome real digitado
                 setSimulatedAccountChoices([
-                    { name: `${name} Business Manager`, page: `${accountName} Principal` },
-                    { name: `Criador de Conteúdo - ${name}`, page: `${accountName} Canal Secundário` }
+                    { name: name, page: `Perfil Oficial (${name})` },
+                    { name: name.startsWith('@') ? `${name.substring(1)}_business` : `${name}_business`, page: `Página Comercial Vinculada` }
                 ]);
                 setConnectionStep('oauth_authorize');
             }, 1500);

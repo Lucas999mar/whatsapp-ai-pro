@@ -135,14 +135,22 @@ router.post('/connect', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: 'Parâmetros platform, account_name e auth_type são obrigatórios' });
     }
 
+    // Normalização do nome da conta para assegurar fidelidade ao perfil digitado
+    let finalAccountName = account_name.trim();
+    if (['instagram', 'tiktok', 'facebook', 'kwai'].includes(platform.toLowerCase())) {
+        if (!finalAccountName.startsWith('@')) {
+            finalAccountName = '@' + finalAccountName;
+        }
+    }
+
     // Gera dados simulados
-    const mockMetrics = generateMockMetrics(platform, account_name);
+    const mockMetrics = generateMockMetrics(platform, finalAccountName);
     const newConnection = {
         id: require('crypto').randomUUID(),
         tenant_id: tenantId,
         platform: platform.toLowerCase(),
-        account_name: account_name,
-        avatar_url: `https://api.dicebear.com/7.x/identicon/svg?seed=${account_name}-${platform}`,
+        account_name: finalAccountName,
+        avatar_url: `https://api.dicebear.com/7.x/identicon/svg?seed=${finalAccountName}-${platform}`,
         auth_type,
         auth_data: auth_type === 'link' ? { url } : { credentials: '***_connected_***' },
         status: 'active',
