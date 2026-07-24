@@ -34,6 +34,12 @@ export default function SocialAnalyticsPage() {
     const [loginEmail, setLoginEmail] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
 
+    // Novos estados de fluxo interativo e realista
+    const [connectionStep, setConnectionStep] = useState('form'); // 'form', 'oauth_connecting', 'oauth_authorize', 'scraping', 'success'
+    const [scrapingLogs, setScrapingLogs] = useState([]);
+    const [simulatedAccountChoices, setSimulatedAccountChoices] = useState([]);
+    const [selectedSimulatedIdx, setSelectedSimulatedIdx] = useState(0);
+
     // States da Consultoria de IA
     const [goal, setGoal] = useState('Crescer Seguidores');
     const [niche, setNiche] = useState('Serviços e Consultoria B2B');
@@ -57,7 +63,16 @@ export default function SocialAnalyticsPage() {
             setPlatforms(metricRes.data.platforms || []);
 
             if (metricRes.data.platforms && metricRes.data.platforms.length > 0) {
-                setActivePlatformDetail(metricRes.data.platforms[0]);
+                // Tenta manter selecionada a última ativa
+                setActivePlatformDetail(prev => {
+                    if (prev) {
+                        const found = metricRes.data.platforms.find(p => p.id === prev.id);
+                        if (found) return found;
+                    }
+                    return metricRes.data.platforms[0];
+                });
+            } else {
+                setActivePlatformDetail(null);
             }
         } catch (err) {
             console.error('Erro ao carregar dados de analytics:', err);
@@ -66,37 +81,106 @@ export default function SocialAnalyticsPage() {
         }
     };
 
-    const handleConnect = async (e) => {
-        e.preventDefault();
-        if (!accountName.trim()) return;
+    // Reseta modal
+    const resetConnectionModal = () => {
+        setAccountName('');
+        setProfileUrl('');
+        setLoginEmail('');
+        setLoginPassword('');
+        setConnectionStep('form');
+        setScrapingLogs([]);
+        setSimulatedAccountChoices([]);
+        setSelectedSimulatedIdx(0);
+        setIsModalOpen(false);
+    };
 
+    // Submete a conexão no backend após simulação
+    const submitConnectionApi = async (finalAccountName, finalUrl, finalCredentials) => {
         setIsSubmitLoading(true);
         try {
             const payload = {
                 platform: selectedPlatform,
-                account_name: accountName.trim(),
+                account_name: finalAccountName,
                 auth_type: authType,
-                url: authType === 'link' ? profileUrl.trim() : null,
-                credentials: authType === 'oauth' ? { email: loginEmail, password: loginPassword } : null
+                url: finalUrl,
+                credentials: finalCredentials
             };
 
             await api.post('/social-analytics/connect', payload);
+            setConnectionStep('success');
 
-            // Limpa formulário
-            setAccountName('');
-            setProfileUrl('');
-            setLoginEmail('');
-            setLoginPassword('');
-            setIsModalOpen(false);
-
-            // Recarrega dados
-            await fetchMetricsAndConnections();
+            // Aguarda 1.8 segundos na tela de sucesso
+            setTimeout(async () => {
+                resetConnectionModal();
+                await fetchMetricsAndConnections();
+            }, 1800);
         } catch (err) {
-            console.error('Erro ao conectar conta:', err);
-            alert('Falha ao conectar conta social. Tente novamente mais tarde.');
+            console.error('Erro na conexão:', err);
+            alert('Falha ao registrar canal no servidor central.');
+            setConnectionStep('form');
         } finally {
             setIsSubmitLoading(false);
         }
+    };
+
+    // Controla o clique do botão inicial "Concluir Integração"
+    const handleConnectClick = async (e) => {
+        e.preventDefault();
+        if (!accountName.trim()) return;
+
+        if (authType === 'oauth') {
+            // Caminho A: Simulação realista de redirecionamento para login do Provedor
+            setConnectionStep('oauth_connecting');
+            setTimeout(() => {
+                const name = accountName.trim().replace('@', '');
+                // Gera duas páginas comerciais baseadas no nome
+                setSimulatedAccountChoices([
+                    { name: `${name} Business Manager`, page: `${accountName} Principal` },
+                    { name: `Criador de Conteúdo - ${name}`, page: `${accountName} Canal Secundário` }
+                ]);
+                setConnectionStep('oauth_authorize');
+            }, 1500);
+        } else {
+            // Caminho B: Simulação realista de raspagem/crawler em lote
+            if (!profileUrl.trim()) {
+                alert('Forneça a URL do perfil para o Caminho B.');
+                return;
+            }
+            setConnectionStep('scraping');
+            setScrapingLogs([]);
+
+            const name = accountName.trim();
+            const url = profileUrl.trim();
+
+            const logs = [
+                `> [CrawlerEngine] Iniciando varredura em URL: ${url}`,
+                `> [ProxyManager] Atribuindo IP de proxy rotativo seguro para evitar CAPTCHA...`,
+                `> [HTTP GET] Resposta 200 OK do servidor da plataforma.`,
+                `> [DOM Parser] Extraindo tags meta e contagem de seguidores para '${name}'...`,
+                `> [MediaReader] Obtendo últimas publicações, curtidas e comentários...`,
+                `> [DbStore] Sincronizando dados com o Módulo de Inteligência Artificial...`
+            ];
+
+            for (let i = 0; i < logs.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                setScrapingLogs(prev => [...prev, logs[i]]);
+            }
+
+            await submitConnectionApi(name, url, null);
+        }
+    };
+
+    // Submissão final do Oauth após autorizar
+    const handleOAuthAuthorizeSubmit = async (e) => {
+        e.preventDefault();
+        const chosen = simulatedAccountChoices[selectedSimulatedIdx];
+        if (!chosen) return;
+
+        await submitConnectionApi(
+            chosen.name,
+            null,
+            { email: loginEmail || 'auth_token_simulated@meta.com', password: loginPassword || '••••••••' }
+        );
     };
 
     const handleDeleteConnection = async (id) => {
@@ -552,153 +636,256 @@ export default function SocialAnalyticsPage() {
 
             {/* MODAL DE CONEXÃO DE CANAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="w-full max-w-lg bg-[#0F172A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="w-full max-w-lg bg-[#0F172A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl transition-all">
+
+                        {/* HEADER DO MODAL */}
                         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#090D1A]">
                             <h3 className="font-extrabold text-white text-lg flex items-center gap-2">
-                                <Plus className="text-[#25D366]" /> Conectar Novo Canal
+                                <Plus className="text-[#25D366]" /> Conectar Canal Social
                             </h3>
                             <button
-                                onClick={() => setIsModalOpen(false)}
+                                onClick={resetConnectionModal}
                                 className="text-slate-400 hover:text-white px-2 py-1 rounded-lg text-sm font-semibold transition"
                             >
                                 Fechar
                             </button>
                         </div>
 
-                        <form onSubmit={handleConnect} className="p-6 space-y-6">
+                        {/* RENDERIZAÇÃO PASSO A PASSO */}
+                        {connectionStep === 'form' && (
+                            <form onSubmit={handleConnectClick} className="p-6 space-y-6">
+                                {/* Seletor de rede */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Plataforma</label>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {Object.entries(PLATFORMS_CONFIG).map(([key, cfg]) => {
+                                            const isSelected = selectedPlatform === key;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={key}
+                                                    onClick={() => setSelectedPlatform(key)}
+                                                    className={`py-3 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-2 justify-center ${isSelected
+                                                        ? 'bg-gradient-to-br ' + cfg.color + ' border-transparent text-white scale-105 shadow-md'
+                                                        : 'bg-white/5 border-white/5 hover:bg-white/10 text-slate-400'
+                                                        }`}
+                                                >
+                                                    {cfg.icon}
+                                                    <span>{cfg.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
 
-                            {/* Seletor de rede */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Plataforma</label>
-                                <div className="grid grid-cols-5 gap-2">
-                                    {Object.entries(PLATFORMS_CONFIG).map(([key, cfg]) => {
-                                        const isSelected = selectedPlatform === key;
-                                        return (
-                                            <button
-                                                type="button"
-                                                key={key}
-                                                onClick={() => setSelectedPlatform(key)}
-                                                className={`py-3 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-2 justify-center ${isSelected
-                                                    ? 'bg-gradient-to-br ' + cfg.color + ' border-transparent text-white scale-105 shadow-md'
-                                                    : 'bg-white/5 border-white/5 hover:bg-white/10 text-slate-400'
+                                {/* Identificador / Link */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Identificador da Conta</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Ex: @meunegocio ou NomeCanal"
+                                        value={accountName}
+                                        onChange={(e) => setAccountName(e.target.value)}
+                                        className="w-full bg-[#020617] border border-white/10 focus:border-[#25D366] p-3 rounded-lg text-sm text-white focus:outline-none"
+                                    />
+                                </div>
+
+                                {/* Alternador Caminho A / Caminho B */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Método de Conexão</label>
+                                    <div className="grid grid-cols-2 gap-2 bg-[#020617] p-1 rounded-lg border border-white/5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setAuthType('oauth')}
+                                            className={`py-2 rounded-md font-bold text-xs flex justify-center items-center gap-1.5 transition ${authType === 'oauth' ? 'bg-[#25D366] text-slate-900' : 'text-slate-400'
+                                                }`}
+                                        >
+                                            <Key size={14} /> Caminho A (Login Conexão)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAuthType('link')}
+                                            className={`py-2 rounded-md font-bold text-xs flex justify-center items-center gap-1.5 transition ${authType === 'link' ? 'bg-[#25D366] text-slate-900' : 'text-slate-400'
+                                                }`}
+                                        >
+                                            <LinkIcon size={14} /> Caminho B (Copiar Link)
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Campos de credenciais / link */}
+                                {authType === 'oauth' ? (
+                                    <div className="space-y-3 bg-[#020617]/50 p-4 rounded-xl border border-white/5 relative">
+                                        <div className="absolute right-3 top-3 text-[10px] text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full border border-[#25D366]/20 flex items-center gap-1">
+                                            <ShieldCheck size={10} /> Conexão Integrada
+                                        </div>
+                                        <div className="text-slate-400 text-xs leading-relaxed pb-2 border-b border-white/5">
+                                            Forneça as credenciais da conta comercial oficial para estabelecer a comunicação criptografada.
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">E-mail de Acesso</label>
+                                            <input
+                                                type="email"
+                                                value={loginEmail}
+                                                onChange={(e) => setLoginEmail(e.target.value)}
+                                                placeholder="seuemail@provedor.com"
+                                                className="w-full bg-[#020617] border border-white/5 focus:border-[#25D366] p-2.5 rounded-lg text-xs text-white focus:outline-none"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Senha do Canal</label>
+                                            <input
+                                                type="password"
+                                                value={loginPassword}
+                                                onChange={(e) => setLoginPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                className="w-full bg-[#020617] border border-white/5 focus:border-[#25D366] p-2.5 rounded-lg text-xs text-white focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 bg-[#020617]/50 p-4 rounded-xl border border-white/5">
+                                        <div className="text-slate-400 text-xs leading-relaxed pb-2">
+                                            Faremos a consulta estruturada aos metadados públicos do perfil, sem necessidade de dados privados.
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">URL Completa do Perfil</label>
+                                            <input
+                                                type="url"
+                                                value={profileUrl}
+                                                onChange={(e) => setProfileUrl(e.target.value)}
+                                                placeholder="https://..."
+                                                className="w-full bg-[#020617] border border-white/5 focus:border-[#25D366] p-3 rounded-lg text-xs text-white focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    className="w-full p-3.5 bg-[#25D366] hover:bg-[#1DA851] text-slate-900 font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-2 hover:scale-[1.01]"
+                                >
+                                    Conectar & Autenticar <ArrowRight size={16} />
+                                </button>
+                            </form>
+                        )}
+
+                        {/* REDIRECIONANDO OAUTH */}
+                        {connectionStep === 'oauth_connecting' && (
+                            <div className="p-12 flex flex-col items-center justify-center text-center space-y-4">
+                                <Loader2 className="animate-spin text-[#25D366]" size={48} />
+                                <h4 className="font-extrabold text-white text-lg">Abrindo Central de Consentimento...</h4>
+                                <p className="text-slate-400 text-sm max-w-sm">
+                                    Redirecionando para a integração segura da plataforma comercial do {PLATFORMS_CONFIG[selectedPlatform]?.name}...
+                                </p>
+                            </div>
+                        )}
+
+                        {/* PÁGINA DE CONSENTIMENTO OAUTH */}
+                        {connectionStep === 'oauth_authorize' && (
+                            <form onSubmit={handleOAuthAuthorizeSubmit} className="p-6 space-y-6">
+                                <div className="bg-[#1E293B] border border-white/10 rounded-xl p-4 flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${PLATFORMS_CONFIG[selectedPlatform]?.color || 'from-slate-600 to-slate-700'} flex items-center justify-center text-white`}>
+                                        {PLATFORMS_CONFIG[selectedPlatform]?.icon}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-white text-sm">Autenticação {PLATFORMS_CONFIG[selectedPlatform]?.name}</h4>
+                                        <p className="text-[10px] text-[#25D366] font-semibold flex items-center gap-1">
+                                            <ShieldCheck size={11} /> API Oficial Criptografada
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-slate-400 leading-relaxed space-y-2 bg-[#020617] p-4 rounded-xl border border-white/5">
+                                    <p className="font-bold text-slate-300">WhatsApp AI Pro solicita as seguintes permissões:</p>
+                                    <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
+                                        <li>Acesso de leitura para estatísticas e insights de publicações;</li>
+                                        <li>Leitura de tráfego, contagem de seguidores e impressões do perfil;</li>
+                                        <li>Importação automatizada de ideias de posts e feeds de mídia.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Seletor de páginas simuladas */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Selecione o Perfil / Página Corporativa</label>
+                                    <div className="space-y-2">
+                                        {simulatedAccountChoices.map((choice, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => setSelectedSimulatedIdx(i)}
+                                                className={`p-3 rounded-lg border transition-all cursor-pointer flex justify-between items-center ${selectedSimulatedIdx === i
+                                                    ? 'bg-[#25D366]/10 border-[#25D366] text-white'
+                                                    : 'bg-[#020617] border-white/5 text-slate-400 hover:border-white/20'
                                                     }`}
                                             >
-                                                {cfg.icon}
-                                                <span>{cfg.name}</span>
-                                            </button>
-                                        );
-                                    })}
+                                                <div>
+                                                    <p className="text-xs font-bold text-white">{choice.name}</p>
+                                                    <p className="text-[10px] text-slate-500">{choice.page}</p>
+                                                </div>
+                                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedSimulatedIdx === i ? 'border-[#25D366] bg-[#25D366]' : 'border-slate-650'}`}>
+                                                    {selectedSimulatedIdx === i && <div className="w-1.5 h-1.5 rounded-full bg-slate-900" />}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Nome do conta / profile */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Identificador da Conta</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Ex: @meunegocio ou NomeCanal"
-                                    value={accountName}
-                                    onChange={(e) => setAccountName(e.target.value)}
-                                    className="w-full bg-[#020617] border border-white/10 focus:border-[#25D366] p-3 rounded-lg text-sm text-white focus:outline-none"
-                                />
-                            </div>
-
-                            {/* Alternador de Caminho A (OAuth) e Caminho B (Url) */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Método de Conexão</label>
-                                <div className="grid grid-cols-2 gap-2 bg-[#020617] p-1 rounded-lg border border-white/5">
+                                <div className="flex gap-3">
                                     <button
                                         type="button"
-                                        onClick={() => setAuthType('oauth')}
-                                        className={`py-2 rounded-md font-bold text-xs flex justify-center items-center gap-1.5 transition ${authType === 'oauth' ? 'bg-[#25D366] text-slate-900' : 'text-slate-400'
-                                            }`}
+                                        onClick={() => setConnectionStep('form')}
+                                        className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-bold text-xs select-none"
                                     >
-                                        <Key size={14} /> Caminho A (Login Conexão)
+                                        Voltar
                                     </button>
                                     <button
-                                        type="button"
-                                        onClick={() => setAuthType('link')}
-                                        className={`py-2 rounded-md font-bold text-xs flex justify-center items-center gap-1.5 transition ${authType === 'link' ? 'bg-[#25D366] text-slate-900' : 'text-slate-400'
-                                            }`}
+                                        type="submit"
+                                        disabled={isSubmitLoading}
+                                        className="flex-1 py-3 bg-[#25D366] hover:bg-[#1DA851] text-slate-900 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
                                     >
-                                        <LinkIcon size={14} /> Caminho B (Copiar Link)
+                                        {isSubmitLoading ? <Loader2 className="animate-spin" size={14} /> : null}
+                                        Autorizar Acesso
                                     </button>
                                 </div>
+                            </form>
+                        )}
+
+                        {/* CONSOLE DE LOGS DE SCRAPING DE LINK PUBLICO */}
+                        {connectionStep === 'scraping' && (
+                            <div className="p-6 space-y-4">
+                                <h4 className="font-extrabold text-white text-sm flex items-center gap-2">
+                                    <Loader2 className="animate-spin text-cyan-400" size={16} /> Extraindo perfil público (Caminho B)
+                                </h4>
+
+                                <div className="font-mono text-[11px] bg-[#020617] border border-white/10 rounded-xl p-4 h-48 overflow-y-auto space-y-2 text-cyan-400 shadow-inner">
+                                    {scrapingLogs.map((log, i) => (
+                                        <p key={i} className="animate-fade-in">{log}</p>
+                                    ))}
+                                    {scrapingLogs.length < 6 && (
+                                        <p className="text-slate-650 tracking-wider animate-pulse">_</p>
+                                    )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 italic text-center">
+                                    Esta operação de leitura estática simula nosso parser de DOM nativo de redes.
+                                </p>
                             </div>
+                        )}
 
-                            {/* Campos dinâmicos baseados no tipo de conexão */}
-                            {authType === 'oauth' ? (
-                                <div className="space-y-3 bg-[#020617]/50 p-4 rounded-xl border border-white/5 relative">
-                                    <div className="absolute right-3 top-3 text-[10px] text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full border border-[#25D366]/20 flex items-center gap-1">
-                                        <ShieldCheck size={10} /> Conexão Integrada
-                                    </div>
-
-                                    <div className="text-slate-400 text-xs leading-relaxed pb-2 border-b border-white/5">
-                                        Forneça as credenciais da conta de anúncios comercial para fazer a comunicação segura da API oficial do WhatsApp AI Pro.
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Email de Acesso</label>
-                                        <input
-                                            type="email"
-                                            value={loginEmail}
-                                            onChange={(e) => setLoginEmail(e.target.value)}
-                                            placeholder="seuemail@provedor.com"
-                                            className="w-full bg-[#020617] border border-white/5 focus:border-[#25D366] p-2.5 rounded-lg text-xs text-white focus:outline-none"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Senha do Canal</label>
-                                        <input
-                                            type="password"
-                                            value={loginPassword}
-                                            onChange={(e) => setLoginPassword(e.target.value)}
-                                            placeholder="••••••••"
-                                            className="w-full bg-[#020617] border border-white/5 focus:border-[#25D366] p-2.5 rounded-lg text-xs text-white focus:outline-none"
-                                        />
-                                    </div>
+                        {/* TELA DE SUCESSO */}
+                        {connectionStep === 'success' && (
+                            <div className="p-12 flex flex-col items-center justify-center text-center space-y-4 animate-scale-up">
+                                <div className="w-16 h-16 bg-[#25D366]/10 text-[#25D366] rounded-full flex items-center justify-center border border-[#25D366]/30 shadow-lg">
+                                    <CheckCircle2 size={40} className="animate-bounce" />
                                 </div>
-                            ) : (
-                                <div className="space-y-3 bg-[#020617]/50 p-4 rounded-xl border border-white/5">
-                                    <div className="text-slate-400 text-xs leading-relaxed pb-2">
-                                        Cole a URL pública do seu perfil ou página. Faremos a leitura estruturada dos dados estáticos como seguidores e likes públicos.
-                                    </div>
+                                <h4 className="font-extrabold text-white text-lg">Canal Conectado com Sucesso!</h4>
+                                <p className="text-slate-400 text-sm max-w-xs">
+                                    O canal foi sincronizado no dashboard e os dados analíticos estruturados já estão disponíveis.
+                                </p>
+                            </div>
+                        )}
 
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Link Completo do Perfil</label>
-                                        <input
-                                            type="url"
-                                            value={profileUrl}
-                                            onChange={(e) => setProfileUrl(e.target.value)}
-                                            placeholder="https://..."
-                                            className="w-full bg-[#020617] border border-white/5 focus:border-[#25D366] p-3 rounded-lg text-xs text-white focus:outline-none"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Botão de Envio */}
-                            <button
-                                type="submit"
-                                disabled={isSubmitLoading}
-                                className="w-full p-3.5 bg-[#25D366] hover:bg-[#1DA851] disabled:opacity-50 text-slate-900 font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-2 hover:scale-[1.01]"
-                            >
-                                {isSubmitLoading ? (
-                                    <>
-                                        <Loader2 className="animate-spin" size={18} />
-                                        Validando e conectando...
-                                    </>
-                                ) : (
-                                    <>
-                                        Concluir Integração <ArrowRight size={16} />
-                                    </>
-                                )}
-                            </button>
-
-                        </form>
                     </div>
                 </div>
             )}

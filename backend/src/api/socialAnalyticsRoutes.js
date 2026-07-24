@@ -33,58 +33,74 @@ function saveSandboxData(data) {
     }
 }
 
-// Gerador de dados de teste (Métricas simuladas realistas)
+// Gerador de dados de teste (Métricas simuladas realistas e dinâmicas)
 function generateMockMetrics(platform, accountName) {
-    const categories = ['Instagram', 'TikTok', 'YouTube', 'Facebook', 'Kwai'];
-    const base = {
-        instagram: { followers: 15400, reach: 45000, impressions: 89000, views: 24000, posts: 142, engRate: 4.8 },
-        tiktok: { followers: 32000, reach: 98000, impressions: 180000, views: 156000, posts: 89, engRate: 8.5 },
-        youtube: { followers: 8900, reach: 12000, impressions: 45000, views: 32000, posts: 56, engRate: 6.2 },
-        facebook: { followers: 7400, reach: 11000, impressions: 22000, views: 4200, posts: 210, engRate: 3.1 },
-        kwai: { followers: 23500, reach: 67000, impressions: 120000, views: 98000, posts: 74, engRate: 7.9 }
-    };
+    let cleanName = accountName;
+    if (cleanName.includes('instagram.com/') || cleanName.includes('tiktok.com/') || cleanName.includes('youtube.com/')) {
+        try {
+            const parts = cleanName.split('/');
+            cleanName = parts[parts.length - 1] || cleanName;
+        } catch (e) { }
+    }
+    if (cleanName.includes('?')) {
+        cleanName = cleanName.split('?')[0];
+    }
+    if (!cleanName.startsWith('@') && platform.toLowerCase() !== 'youtube') {
+        cleanName = '@' + cleanName;
+    }
 
-    const pData = base[platform.toLowerCase()] || base.instagram;
-    const factor = 0.8 + Math.random() * 0.4; // Variação de +- 20%
+    // Calcula hash consistente para manter as métricas estáveis por perfil inserido
+    let hash = 0;
+    for (let i = 0; i < cleanName.length; i++) {
+        hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    hash = Math.abs(hash);
 
-    // Postagens recentes fictícias
+    const followers = 1200 + (hash % 145000); // 1.2K a 146.2K seguidores
+    const reach = Math.round(followers * (1.5 + (hash % 60) / 10));
+    const impressions = Math.round(reach * 1.6);
+    const views = Math.round(impressions * 0.45);
+    const postsCount = 12 + (hash % 240);
+    const engagementRate = parseFloat((1.2 + (hash % 120) / 10).toFixed(2));
+
+    // Dynamic posts based on platform and cleanName
     const postIdeas = {
         instagram: [
-            { id: '1', url: 'https://instagram.com/p/1', caption: 'Como escalar suas vendas no digital em 5 passos simples 💸✨', views: 8200, likes: 642, comments: 45, date: '2026-07-22' },
-            { id: '2', url: 'https://instagram.com/p/2', caption: 'Rotina de bastidores: Como criamos o planejamento semanal do WhatsApp AI Pro 🎬🖥️', views: 6500, likes: 412, comments: 28, date: '2026-07-20' },
-            { id: '3', url: 'https://instagram.com/p/3', caption: 'Nova funcionalidade liberada: Assinatura Eletrônica integrada! 🚀📝', views: 12400, likes: 984, comments: 112, date: '2026-07-18' }
+            { id: '1', url: `https://instagram.com/${cleanName.replace('@', '')}/p/1`, caption: `O segredo para alavancar ${cleanName} no mercado digital hoje! 💥📈 #marketing`, views: Math.round(views * 0.12), likes: Math.round(followers * 0.04), comments: Math.round(followers * 0.005), date: '2026-07-22' },
+            { id: '2', url: `https://instagram.com/${cleanName.replace('@', '')}/p/2`, caption: `Bastidores: Entregando soluções customizadas para os clientes de ${cleanName}. 😉🚀 #business`, views: Math.round(views * 0.08), likes: Math.round(followers * 0.03), comments: Math.round(followers * 0.003), date: '2026-07-20' },
+            { id: '3', url: `https://instagram.com/${cleanName.replace('@', '')}/p/3`, caption: `Resultados do novo teste de automação de campanhas da marca! #resultados #ia`, views: Math.round(views * 0.15), likes: Math.round(followers * 0.06), comments: Math.round(followers * 0.009), date: '2026-07-18' }
         ],
         tiktok: [
-            { id: '1', url: 'https://tiktok.com/v/1', caption: 'Pov: você usa IA para automatizar 90% do seu trabalho diário 😂🤖 #dev #productivity', views: 45000, likes: 4200, comments: 184, date: '2026-07-23' },
-            { id: '2', url: 'https://tiktok.com/v/2', caption: 'A melhor ferramenta de inteligência artificial de 2026 🔥💡 #tecnologia #ia', views: 89000, likes: 9300, comments: 342, date: '2026-07-21' }
+            { id: '1', url: `https://tiktok.com/@${cleanName.replace('@', '')}/video/1`, caption: `Gravei a reação ao ver as métricas de zero a mil em segundos de ${cleanName}! 😱⚡ #fy #dev`, views: Math.round(views * 0.35), likes: Math.round(followers * 0.09), comments: Math.round(followers * 0.009), date: '2026-07-23' },
+            { id: '2', url: `https://tiktok.com/@${cleanName.replace('@', '')}/video/2`, caption: `Como a nossa inteligência artificial resolveu um problema gigante do comercial. #ia #business`, views: Math.round(views * 0.55), likes: Math.round(followers * 0.12), comments: Math.round(followers * 0.015), date: '2026-07-21' }
         ],
         youtube: [
-            { id: '1', url: 'https://youtube.com/watch?v=1', caption: 'Curso Completo de Integração de IA no WhatsApp 🚀', views: 15400, likes: 1200, comments: 95, date: '2026-07-15' },
-            { id: '2', url: 'https://youtube.com/watch?v=2', caption: 'Como configurar o Supabase em 10 minutos (Tutorial Prático)', views: 8200, likes: 580, comments: 48, date: '2026-07-10' }
+            { id: '1', url: `https://youtube.com/c/${cleanName.replace('@', '')}/watch?v=1`, caption: `A Estratégia Definitiva de Escala de Audiência Aplicada em ${cleanName}`, views: Math.round(views * 0.12), likes: Math.round(followers * 0.05), comments: Math.round(followers * 0.008), date: '2026-07-15' },
+            { id: '2', url: `https://youtube.com/c/${cleanName.replace('@', '')}/watch?v=2`, caption: `Como Implementamos ChatBots de Alta Conversão no Whatsapp (Passo a Passo Completo)`, views: Math.round(views * 0.09), likes: Math.round(followers * 0.04), comments: Math.round(followers * 0.005), date: '2026-07-10' }
         ],
         facebook: [
-            { id: '1', url: 'https://facebook.com/posts/1', caption: 'Conheça o WhatsApp AI Pro, seu assistente inteligente completo para empresas.', views: 3200, likes: 89, comments: 14, date: '2026-07-24' }
+            { id: '1', url: `https://facebook.com/${cleanName.replace('@', '')}/posts/1`, caption: `Sejam bem-vindos à página oficial de ${cleanName}. Acompanhe aqui nossas dicas e novidades corporativas diárias!`, views: Math.round(views * 0.05), likes: Math.round(followers * 0.015), comments: Math.round(followers * 0.001), date: '2026-07-24' }
         ],
         kwai: [
-            { id: '1', url: 'https://kwai.com/v/1', caption: 'Dica rápida de automação que vai economizar horas do seu dia ⚡🚀', views: 23000, likes: 1450, comments: 62, date: '2026-07-22' }
+            { id: '1', url: `https://kwai.com/${cleanName.replace('@', '')}/v/1`, caption: `Passo a passo rápido para configurar e triplicar a conversão da sua assessoria! 📱🚀 #marketing`, views: Math.round(views * 0.28), likes: Math.round(followers * 0.07), comments: Math.round(followers * 0.008), date: '2026-07-22' }
         ]
     };
 
     const trends = {
-        instagram: ['Marketing de Conteúdo', 'Inteligência Artificial', 'Estilo de Vida Produtivo', 'Automação Corporativa'],
-        tiktok: ['#IA', '#trend2026', '#corporativefunny', '#lifehacks'],
-        youtube: ['Programação I.A', 'Tutoriais Supabase', 'Vender no Automático', 'SaaS Growth'],
-        facebook: ['Empresas Inovadoras', 'Novidades Tecnológicas', 'Negócios Locais'],
-        kwai: ['Dicas Rápidas', 'Faça Você Mesmo', 'Trabalho Inteligente']
+        instagram: [`Inovação em ${cleanName}`, 'Inteligência Artificial', 'Marketing Digital', 'SaaS Growth'],
+        tiktok: [`#${cleanName.replace('@', '')}`, '#trend2026', '#IA', '#sucesso'],
+        youtube: [`Canal ${cleanName}`, 'Automação Corporativa', 'Como Vender Mais', 'SaaS Tech'],
+        facebook: [`Negócios ${cleanName}`, 'Novidades Digitais', 'Mercado Local'],
+        kwai: [`Dicas de ${cleanName}`, 'Dinheiro Online', 'Produtividade']
     };
 
     return {
-        followers: Math.round(pData.followers * factor),
-        reach: Math.round(pData.reach * factor),
-        impressions: Math.round(pData.impressions * factor),
-        views: Math.round(pData.views * factor),
-        posts_count: Math.round(pData.posts * factor),
-        engagement_rate: parseFloat((pData.engRate * (0.9 + Math.random() * 0.2)).toFixed(2)),
+        followers,
+        reach,
+        impressions,
+        views,
+        posts_count: postsCount,
+        engagement_rate: engagementRate,
         trends: trends[platform.toLowerCase()] || [],
         recent_posts: postIdeas[platform.toLowerCase()] || []
     };
