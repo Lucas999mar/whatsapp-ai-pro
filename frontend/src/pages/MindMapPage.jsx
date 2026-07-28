@@ -494,9 +494,14 @@ export default function MindMapPage() {
         const svgEl = svgRef.current;
         if (!svgEl) return;
 
-        // Calculate bounding box
+        // Calculate bounding box using only visible nodes (excluding collapsed/hidden branches)
+        const hiddenNodeIds = getHiddenNodeIds(nodes, edges);
+        const visibleNodes = nodes.filter(node => !hiddenNodeIds.has(node.id));
+
+        if (visibleNodes.length === 0) return;
+
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        nodes.forEach(node => {
+        visibleNodes.forEach(node => {
             const dim = getNodeDimensions(node);
             minX = Math.min(minX, node.x - dim.w / 2 - 20);
             minY = Math.min(minY, node.y - dim.h / 2 - 20);
@@ -507,34 +512,68 @@ export default function MindMapPage() {
         const width = maxX - minX + 60;
         const height = maxY - minY + 60;
 
-        // Create off-screen SVG
+        // Create off-screen SVG content with responsive typography and hidden action elements
         const svgData = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${minX - 30} ${minY - 30} ${width} ${height}">
+        <style>
+          .mindmap-node {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            box-sizing: border-box;
+          }
+          button, .edge-delete-btn, .quick-add-btn {
+            display: none !important;
+          }
+        </style>
         <rect x="${minX - 30}" y="${minY - 30}" width="${width}" height="${height}" fill="#0B0F19"/>
         ${svgEl.innerHTML}
       </svg>
     `;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width * 2;
-        canvas.height = height * 2;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(2, 2);
-
-        const img = new Image();
-        const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0);
-            URL.revokeObjectURL(url);
-            const pngUrl = canvas.toDataURL('image/png');
+        const downloadSvgFallback = (data) => {
+            const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = pngUrl;
-            a.download = `${mapTitle || 'mindmap'}.png`;
+            a.href = svgUrl;
+            a.download = `${mapTitle || 'mindmap'}.svg`;
             a.click();
+            URL.revokeObjectURL(svgUrl);
         };
-        img.src = url;
+
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(2, 2);
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+
+            img.onload = () => {
+                try {
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                    const pngUrl = canvas.toDataURL('image/png');
+                    const a = document.createElement('a');
+                    a.href = pngUrl;
+                    a.download = `${mapTitle || 'mindmap'}.png`;
+                    a.click();
+                } catch (canvasErr) {
+                    console.error("Canvas draw failed, falling back to SVG export", canvasErr);
+                    downloadSvgFallback(svgData);
+                }
+            };
+            img.onerror = (e) => {
+                console.error("Failed to load SVG into image", e);
+                downloadSvgFallback(svgData);
+            };
+            img.src = url;
+        } catch (err) {
+            console.error("Export sequence failed", err);
+            downloadSvgFallback(svgData);
+        }
     };
 
     // ── BACK TO GALLERY ──
@@ -666,7 +705,7 @@ export default function MindMapPage() {
                 height={dim.h * diamondScale + 80}
                 style={{ overflow: 'visible', pointerEvents: 'none' }}
             >
-                <div className="w-full h-full flex items-center justify-center pointer-events-none">
+                <div className="w-full h-full flex items-center justify-center pointer-events-none" style={{ boxSizing: 'border-box' }}>
                     <div
                         className={`mindmap-node group relative flex flex-col items-center justify-center text-center select-none transition-all duration-200 ${draggingNode === node.id ? 'cursor-grabbing' : 'cursor-grab'}`}
                         style={{
@@ -688,7 +727,9 @@ export default function MindMapPage() {
                             transform: isSelected ? 'scale(1.05)' : 'scale(1)',
                             alignItems: isCard ? 'flex-start' : 'center',
                             justifyContent: isCard ? 'flex-start' : 'center',
-                            overflow: 'hidden'
+                            overflow: 'visible',
+                            position: 'relative',
+                            boxSizing: 'border-box'
                         }}
                         onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                         onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
@@ -702,29 +743,43 @@ export default function MindMapPage() {
                         )}
 
                         {isCard ? (
-                            <div className="w-full h-full flex flex-col text-left relative">
+                            <div
+                                className="w-full h-full flex flex-col text-left relative overflow-hidden"
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    textAlign: 'left',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    borderRadius: '12px',
+                                    boxSizing: 'border-box'
+                                }}
+                            >
                                 {node.tagText && (
-                                    <div className="absolute top-2 left-2 z-10">
+                                    <div className="absolute top-2 left-2 z-10" style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10 }}>
                                         <span
                                             className="px-2 py-0.5 rounded-md text-[9px] font-bold text-white uppercase tracking-wider animate-fadeIn"
-                                            style={{ backgroundColor: node.tagColor || node.color || '#3B82F6' }}
+                                            style={{ backgroundColor: node.tagColor || node.color || '#3B82F6', fontSize: '9px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}
                                         >
                                             {node.tagText}
                                         </span>
                                     </div>
                                 )}
                                 {node.image ? (
-                                    <div className="w-full h-20 overflow-hidden bg-slate-900 border-b border-white/5 relative">
+                                    <div className="w-full h-20 overflow-hidden bg-slate-900 border-b border-white/5 relative" style={{ width: '100%', height: '80px', overflow: 'hidden', backgroundColor: '#0F172A', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
                                         <img
                                             src={node.image}
                                             alt="node content"
                                             className="w-full h-full object-cover"
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         />
                                     </div>
                                 ) : (
-                                    node.tagText && <div className="h-6 w-full" />
+                                    node.tagText && <div className="h-6 w-full" style={{ height: '24px', width: '100%' }} />
                                 )}
-                                <div className="p-3 flex-1 flex flex-col justify-between overflow-hidden w-full">
+                                <div className="p-3 flex-1 flex flex-col justify-between overflow-hidden w-full" style={{ padding: '12px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
                                     {isEditing ? (
                                         <textarea
                                             ref={editInputRef}
@@ -744,11 +799,13 @@ export default function MindMapPage() {
                                                 setEditingNode(null);
                                             }}
                                             className="bg-transparent text-white w-full h-full resize-none outline-none text-xs custom-scrollbar"
+                                            style={{ background: 'transparent', color: '#ffffff', width: '100%', height: '100%', resize: 'none', border: 'none', outline: 'none', fontSize: '12px' }}
                                             autoFocus
                                         />
                                     ) : (
                                         <span
                                             className="text-slate-200 text-xs font-semibold whitespace-pre-wrap break-words leading-snug max-h-full overflow-y-auto custom-scrollbar"
+                                            style={{ color: '#E2E8F0', fontSize: '12px', fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowY: 'auto', maxHeight: '100%', fontFamily: 'sans-serif' }}
                                         >
                                             {node.text}
                                         </span>
@@ -760,7 +817,7 @@ export default function MindMapPage() {
                                 {node.tagText && (
                                     <span
                                         className="absolute -top-3 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-md text-[8px] font-bold text-white uppercase tracking-wider whitespace-nowrap shadow-md z-10 animate-fadeIn"
-                                        style={{ backgroundColor: node.tagColor || node.color || '#3B82F6' }}
+                                        style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: node.tagColor || node.color || '#3B82F6', fontSize: '8px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', whiteSpace: 'nowrap', zIndex: 10 }}
                                     >
                                         {node.tagText}
                                     </span>
@@ -784,20 +841,25 @@ export default function MindMapPage() {
                                             setEditingNode(null);
                                         }}
                                         className="bg-transparent text-white text-center w-full px-2 outline-none"
-                                        style={{ fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px' }}
+                                        style={{ background: 'transparent', color: '#ffffff', textAlign: 'center', width: '100%', padding: '0 8px', border: 'none', outline: 'none', fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px' }}
                                         autoFocus
                                     />
                                 ) : (
-                                    <div className="flex flex-col items-center gap-1">
+                                    <div className="flex flex-col items-center gap-1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                                         {node.image && (
-                                            <div className="w-8 h-8 rounded overflow-hidden mb-1 border border-white/10 shadow-sm animate-fadeIn">
-                                                <img src={node.image} className="w-full h-full object-cover" />
+                                            <div className="w-8 h-8 rounded overflow-hidden mb-1 border border-white/10 shadow-sm animate-fadeIn" style={{ width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', marginBottom: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                <img src={node.image} className="w-full h-full object-cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             </div>
                                         )}
                                         <span
                                             className="text-white font-medium px-3 leading-tight pointer-events-none"
                                             style={{
                                                 fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px',
+                                                color: '#ffffff',
+                                                fontWeight: 500,
+                                                padding: '0 12px',
+                                                lineHeight: 1.25,
+                                                fontFamily: 'sans-serif',
                                                 textShadow: '0 1px 3px rgba(0,0,0,0.5)'
                                             }}
                                         >
@@ -811,7 +873,16 @@ export default function MindMapPage() {
                         {/* Collapse/Expand Toggle Button */}
                         {hasChildren && (
                             <button
-                                className="absolute right-0 translate-x-1/2 bottom-1/2 translate-y-1/2 w-5 h-5 rounded-full bg-[#1E293B] border border-white/20 flex items-center justify-center text-slate-350 hover:text-white transition-all shadow-md z-[60] pointer-events-auto hover:scale-110 active:scale-95"
+                                className="absolute right-0 translate-x-1/2 bottom-1/2 translate-y-1/2 w-7 h-7 rounded-full bg-[#0F172A] flex items-center justify-center text-slate-200 hover:text-white transition-all shadow-lg z-[60] pointer-events-auto hover:scale-110 active:scale-95 border-2"
+                                style={{
+                                    borderColor: node.color || '#3B82F6',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxSizing: 'border-box',
+                                    padding: 0
+                                }}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     toggleNodeCollapse(node.id);
@@ -819,9 +890,9 @@ export default function MindMapPage() {
                                 title={node.collapsed ? "Expandir" : "Recolher"}
                             >
                                 {node.collapsed ? (
-                                    <span className="text-[10px] font-bold font-mono text-green-400">+{getDescendantCount(node.id)}</span>
+                                    <span className="text-[10px] font-black font-mono text-green-400">+{getDescendantCount(node.id)}</span>
                                 ) : (
-                                    <span className="text-[10px] font-bold font-mono text-slate-400">-</span>
+                                    <span className="text-[11px] font-black font-mono text-slate-200">-</span>
                                 )}
                             </button>
                         )}
@@ -832,6 +903,7 @@ export default function MindMapPage() {
                                 className="mindmap-node absolute left-1/2 -translate-x-1/2 -bottom-3 w-6 h-6 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-lg hover:scale-125 transition-all z-50 pointer-events-auto"
                                 onClick={(e) => { e.stopPropagation(); addNode(node.id); }}
                                 title="Adicionar nó filho"
+                                style={{ cursor: 'pointer' }}
                             >
                                 <Plus size={14} />
                             </button>
