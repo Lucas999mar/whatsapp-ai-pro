@@ -24,6 +24,37 @@ const NODE_COLORS = [
     '#84CC16', '#A855F7', '#FBBF24', '#34D399', '#60A5FA',
 ];
 
+// ── HELPER: GET HIDDEN NODES (COLLAPSED SUB-TREES) ──
+const getHiddenNodeIds = (nodes, edges) => {
+    const hidden = new Set();
+    if (!nodes || nodes.length === 0) return hidden;
+    const collapsedNodes = nodes.filter(n => n.collapsed);
+    if (collapsedNodes.length === 0) return hidden;
+
+    const queue = [];
+    collapsedNodes.forEach(n => {
+        edges.forEach(e => {
+            if (e.from === n.id) {
+                queue.push(e.to);
+            }
+        });
+    });
+
+    let head = 0;
+    while (head < queue.length) {
+        const currentId = queue[head++];
+        if (!hidden.has(currentId)) {
+            hidden.add(currentId);
+            edges.forEach(e => {
+                if (e.from === currentId) {
+                    queue.push(e.to);
+                }
+            });
+        }
+    }
+    return hidden;
+};
+
 // ── MINI COMPONENT: Color Picker ──
 function ColorPicker({ currentColor, onSelect, onClose }) {
     return (
@@ -210,7 +241,11 @@ export default function MindMapPage() {
             y: parentNode ? parentNode.y + Math.sin(angle) * dist : 300 + Math.random() * 200 - 100,
             color: NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)],
             size: 'sm',
-            shape: 'rounded'
+            shape: 'rounded',
+            tagText: '',
+            tagColor: '',
+            collapsed: false,
+            image: null
         };
 
         setNodes(prev => [...prev, newNode]);
@@ -223,6 +258,39 @@ export default function MindMapPage() {
         // Enter edit mode
         setEditingNode(id);
         setEditText('Novo Nó');
+    };
+
+    const addCardNode = (parentId = null) => {
+        const id = 'node_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        const parentNode = parentId ? nodes.find(n => n.id === parentId) : null;
+
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 180 + Math.random() * 80;
+
+        const newNode = {
+            id,
+            text: 'Novo Quadro\nDescreva sua ideia...',
+            x: parentNode ? parentNode.x + Math.cos(angle) * dist : 400 + Math.random() * 200 - 100,
+            y: parentNode ? parentNode.y + Math.sin(angle) * dist : 300 + Math.random() * 200 - 100,
+            color: '#3B82F6',
+            size: 'md',
+            shape: 'card',
+            tagText: 'Etiqueta',
+            tagColor: '#3B82F6',
+            collapsed: false,
+            image: null
+        };
+
+        setNodes(prev => [...prev, newNode]);
+
+        if (parentId) {
+            setEdges(prev => [...prev, { from: parentId, to: id }]);
+        }
+
+        setSelectedNode(id);
+        // Enter edit mode
+        setEditingNode(id);
+        setEditText(newNode.text);
     };
 
     const deleteNode = (nodeId) => {
@@ -254,7 +322,20 @@ export default function MindMapPage() {
 
     const updateNodeText = (nodeId, text) => {
         setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, text } : n));
-        setEditingNode(null);
+    };
+
+    const toggleNodeCollapse = (nodeId) => {
+        setNodes(prev => {
+            const nextNodes = prev.map(n => n.id === nodeId ? { ...n, collapsed: !n.collapsed } : n);
+            const hiddenSet = getHiddenNodeIds(nextNodes, edges);
+            if (selectedNode && hiddenSet.has(selectedNode)) {
+                setTimeout(() => {
+                    setSelectedNode(null);
+                    setEditingNode(null);
+                }, 0);
+            }
+            return nextNodes;
+        });
     };
 
     const cycleNodeSize = (nodeId) => {
@@ -267,7 +348,7 @@ export default function MindMapPage() {
     };
 
     const cycleNodeShape = (nodeId) => {
-        const shapes = ['rounded', 'pill', 'diamond'];
+        const shapes = ['rounded', 'pill', 'diamond', 'card'];
         setNodes(prev => prev.map(n => {
             if (n.id !== nodeId) return n;
             const idx = shapes.indexOf(n.shape || 'rounded');
@@ -309,6 +390,14 @@ export default function MindMapPage() {
     };
 
     const getNodeDimensions = (node) => {
+        if (node.shape === 'card') {
+            const cardSizes = {
+                sm: { w: 200, h: 100 },
+                md: { w: 240, h: 130 },
+                lg: { w: 280, h: 160 }
+            };
+            return cardSizes[node.size] || cardSizes.md;
+        }
         const sizeMap = { sm: { w: 120, h: 40 }, md: { w: 160, h: 50 }, lg: { w: 200, h: 60 } };
         return sizeMap[node.size] || sizeMap.md;
     };
@@ -534,6 +623,27 @@ export default function MindMapPage() {
         const isEditing = editingNode === node.id;
         const isConnecting = connectingFrom === node.id;
 
+        const hasChildren = edges.some(e => e.from === node.id);
+        const getDescendantCount = (nodeId) => {
+            let count = 0;
+            const queue = [nodeId];
+            const visited = new Set();
+            visited.add(nodeId);
+            let head = 0;
+            while (head < queue.length) {
+                const current = queue[head++];
+                edges.forEach(e => {
+                    if (e.from === current && !visited.has(e.to)) {
+                        visited.add(e.to);
+                        queue.push(e.to);
+                        count++;
+                    }
+                });
+            }
+            return count;
+        };
+
+        const isCard = node.shape === 'card';
         let borderRadius;
         let clipPath;
         if (node.shape === 'pill') {
@@ -558,22 +668,27 @@ export default function MindMapPage() {
             >
                 <div className="w-full h-full flex items-center justify-center pointer-events-none">
                     <div
-                        className={`mindmap-node group relative flex items-center justify-center text-center select-none transition-all duration-200 ${draggingNode === node.id ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        className={`mindmap-node group relative flex flex-col items-center justify-center text-center select-none transition-all duration-200 ${draggingNode === node.id ? 'cursor-grabbing' : 'cursor-grab'}`}
                         style={{
                             pointerEvents: 'all',
                             width: dim.w * diamondScale,
                             height: dim.h * diamondScale,
-                            borderRadius,
-                            clipPath,
-                            background: `linear-gradient(135deg, ${node.color}22, ${node.color}11)`,
-                            border: `2px solid ${isSelected ? node.color : node.color + '55'}`,
+                            borderRadius: isCard ? '12px' : borderRadius,
+                            clipPath: isCard ? 'none' : clipPath,
+                            background: isCard
+                                ? `linear-gradient(135deg, #1E293B, #0F172A)`
+                                : `linear-gradient(135deg, ${node.color}22, ${node.color}11)`,
+                            border: `2px solid ${isSelected ? node.color : isCard ? '#334155' : node.color + '55'}`,
                             boxShadow: isSelected
                                 ? `0 0 20px ${node.color}40, 0 0 40px ${node.color}15`
                                 : isConnecting
                                     ? `0 0 25px ${node.color}60`
-                                    : `0 2px 8px rgba(0,0,0,0.3)`,
+                                    : `0 4px 12px rgba(0,0,0,0.4)`,
                             backdropFilter: 'blur(8px)',
                             transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                            alignItems: isCard ? 'flex-start' : 'center',
+                            justifyContent: isCard ? 'flex-start' : 'center',
+                            overflow: 'hidden'
                         }}
                         onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                         onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
@@ -582,44 +697,139 @@ export default function MindMapPage() {
                         {isConnecting && (
                             <div
                                 className="absolute inset-0 rounded-full animate-ping"
-                                style={{ border: `2px solid ${node.color}`, borderRadius, opacity: 0.4 }}
+                                style={{ border: `2px solid ${node.color}`, borderRadius: isCard ? '12px' : borderRadius, opacity: 0.4 }}
                             />
                         )}
 
-                        {isEditing ? (
-                            <input
-                                ref={editInputRef}
-                                type="text"
-                                value={editText}
-                                onChange={(e) => setEditText(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        updateNodeText(node.id, editText);
-                                    } else if (e.key === 'Escape') {
-                                        setEditingNode(null);
-                                    }
-                                }}
-                                onBlur={() => updateNodeText(node.id, editText)}
-                                className="bg-transparent text-white text-center w-full px-2 outline-none"
-                                style={{ fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px' }}
-                                autoFocus
-                            />
+                        {isCard ? (
+                            <div className="w-full h-full flex flex-col text-left relative">
+                                {node.tagText && (
+                                    <div className="absolute top-2 left-2 z-10">
+                                        <span
+                                            className="px-2 py-0.5 rounded-md text-[9px] font-bold text-white uppercase tracking-wider animate-fadeIn"
+                                            style={{ backgroundColor: node.tagColor || node.color || '#3B82F6' }}
+                                        >
+                                            {node.tagText}
+                                        </span>
+                                    </div>
+                                )}
+                                {node.image ? (
+                                    <div className="w-full h-20 overflow-hidden bg-slate-900 border-b border-white/5 relative">
+                                        <img
+                                            src={node.image}
+                                            alt="node content"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                ) : (
+                                    node.tagText && <div className="h-6 w-full" />
+                                )}
+                                <div className="p-3 flex-1 flex flex-col justify-between overflow-hidden w-full">
+                                    {isEditing ? (
+                                        <textarea
+                                            ref={editInputRef}
+                                            value={editText}
+                                            onChange={(e) => setEditText(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    updateNodeText(node.id, editText);
+                                                    setEditingNode(null);
+                                                } else if (e.key === 'Escape') {
+                                                    setEditingNode(null);
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                updateNodeText(node.id, editText);
+                                                setEditingNode(null);
+                                            }}
+                                            className="bg-transparent text-white w-full h-full resize-none outline-none text-xs custom-scrollbar"
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        <span
+                                            className="text-slate-200 text-xs font-semibold whitespace-pre-wrap break-words leading-snug max-h-full overflow-y-auto custom-scrollbar"
+                                        >
+                                            {node.text}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         ) : (
-                            <span
-                                className="text-white font-medium px-3 leading-tight pointer-events-none"
-                                style={{
-                                    fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px',
-                                    textShadow: '0 1px 3px rgba(0,0,0,0.5)'
+                            <>
+                                {node.tagText && (
+                                    <span
+                                        className="absolute -top-3 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-md text-[8px] font-bold text-white uppercase tracking-wider whitespace-nowrap shadow-md z-10 animate-fadeIn"
+                                        style={{ backgroundColor: node.tagColor || node.color || '#3B82F6' }}
+                                    >
+                                        {node.tagText}
+                                    </span>
+                                )}
+                                {isEditing ? (
+                                    <input
+                                        ref={editInputRef}
+                                        type="text"
+                                        value={editText}
+                                        onChange={(e) => setEditText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                updateNodeText(node.id, editText);
+                                                setEditingNode(null);
+                                            } else if (e.key === 'Escape') {
+                                                setEditingNode(null);
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            updateNodeText(node.id, editText);
+                                            setEditingNode(null);
+                                        }}
+                                        className="bg-transparent text-white text-center w-full px-2 outline-none"
+                                        style={{ fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px' }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center gap-1">
+                                        {node.image && (
+                                            <div className="w-8 h-8 rounded overflow-hidden mb-1 border border-white/10 shadow-sm animate-fadeIn">
+                                                <img src={node.image} className="w-full h-full object-cover" />
+                                            </div>
+                                        )}
+                                        <span
+                                            className="text-white font-medium px-3 leading-tight pointer-events-none"
+                                            style={{
+                                                fontSize: node.size === 'lg' ? '15px' : node.size === 'md' ? '13px' : '11px',
+                                                textShadow: '0 1px 3px rgba(0,0,0,0.5)'
+                                            }}
+                                        >
+                                            {node.text}
+                                        </span>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Collapse/Expand Toggle Button */}
+                        {hasChildren && (
+                            <button
+                                className="absolute right-0 translate-x-1/2 bottom-1/2 translate-y-1/2 w-5 h-5 rounded-full bg-[#1E293B] border border-white/20 flex items-center justify-center text-slate-350 hover:text-white transition-all shadow-md z-[60] pointer-events-auto hover:scale-110 active:scale-95"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleNodeCollapse(node.id);
                                 }}
+                                title={node.collapsed ? "Expandir" : "Recolher"}
                             >
-                                {node.text}
-                            </span>
+                                {node.collapsed ? (
+                                    <span className="text-[10px] font-bold font-mono text-green-400">+{getDescendantCount(node.id)}</span>
+                                ) : (
+                                    <span className="text-[10px] font-bold font-mono text-slate-400">-</span>
+                                )}
+                            </button>
                         )}
 
                         {/* Quick-add child button */}
                         {isSelected && !isEditing && (
                             <button
-                                className="mindmap-node absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-lg hover:scale-125 transition-all z-50 pointer-events-auto"
+                                className="mindmap-node absolute left-1/2 -translate-x-1/2 -bottom-3 w-6 h-6 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-lg hover:scale-125 transition-all z-50 pointer-events-auto"
                                 onClick={(e) => { e.stopPropagation(); addNode(node.id); }}
                                 title="Adicionar nó filho"
                             >
@@ -848,6 +1058,7 @@ export default function MindMapPage() {
     // RENDER: EDITOR VIEW
     // ══════════════════════════════════════════════════════════════
     const selectedNodeData = selectedNode ? nodes.find(n => n.id === selectedNode) : null;
+    const hiddenNodeIds = getHiddenNodeIds(nodes, edges);
 
     return (
         <div className="fixed inset-0 lg:left-64 bg-[#0B0F19] flex flex-col z-20 animate-fadeIn">
@@ -963,6 +1174,15 @@ export default function MindMapPage() {
                         <span className="hidden sm:inline">Nó</span>
                     </button>
 
+                    <button
+                        onClick={() => addCardNode()}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 transition-all text-sm font-medium ml-1.5"
+                        title="Adicionar Quadro"
+                    >
+                        <Plus size={16} />
+                        <span className="hidden sm:inline">Quadro</span>
+                    </button>
+
                     <div className="h-6 w-px bg-white/5 mx-1" />
 
                     <button onClick={zoomOut} className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all" title="Zoom Out">
@@ -1004,65 +1224,291 @@ export default function MindMapPage() {
                 </div>
             )}
 
-            {/* ── Canvas ── */}
-            <div
-                ref={canvasRef}
-                className="flex-1 overflow-hidden relative"
-                style={{ cursor: isPanning ? 'grabbing' : connectingFrom ? 'crosshair' : 'grab' }}
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-                onMouseLeave={handleCanvasMouseUp}
-                onWheel={handleWheel}
-            >
-                {/* Grid Background */}
+            {/* ── Work Area ── */}
+            <div className="flex-1 flex flex-row overflow-hidden relative">
+                {/* ── Canvas ── */}
                 <div
-                    className="absolute inset-0"
-                    style={{
-                        backgroundImage: `
-              radial-gradient(circle at 1px 1px, rgba(148,163,184,0.05) 1px, transparent 0)
-            `,
-                        backgroundSize: `${30 * zoom}px ${30 * zoom}px`,
-                        backgroundPosition: `${panOffset.x}px ${panOffset.y}px`
-                    }}
-                />
-
-                {/* Ambient glow */}
-                <div className="absolute top-[20%] left-[30%] w-[40%] h-[40%] rounded-full bg-purple-500/3 blur-[120px] pointer-events-none" />
-                <div className="absolute bottom-[20%] right-[20%] w-[30%] h-[30%] rounded-full bg-blue-500/3 blur-[100px] pointer-events-none" />
-
-                {/* SVG Layer */}
-                <svg
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                    style={{ overflow: 'visible' }}
+                    ref={canvasRef}
+                    className="flex-1 h-full overflow-hidden relative"
+                    style={{ cursor: isPanning ? 'grabbing' : connectingFrom ? 'crosshair' : 'grab' }}
+                    onMouseDown={handleCanvasMouseDown}
+                    onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUp}
+                    onMouseLeave={handleCanvasMouseUp}
+                    onWheel={handleWheel}
                 >
-                    <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoom})`} style={{ pointerEvents: 'all' }}>
-                        <g ref={svgRef}>
-                            {/* Edges */}
-                            {edges.map((edge, idx) => renderEdge(edge, idx))}
+                    {/* Grid Background */}
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            backgroundImage: `
+                  radial-gradient(circle at 1px 1px, rgba(148,163,184,0.05) 1px, transparent 0)
+                `,
+                            backgroundSize: `${30 * zoom}px ${30 * zoom}px`,
+                            backgroundPosition: `${panOffset.x}px ${panOffset.y}px`
+                        }}
+                    />
 
-                            {/* Connecting line preview */}
-                            {renderConnectingLine()}
+                    {/* Ambient glow */}
+                    <div className="absolute top-[20%] left-[30%] w-[40%] h-[40%] rounded-full bg-purple-500/3 blur-[120px] pointer-events-none" />
+                    <div className="absolute bottom-[20%] right-[20%] w-[30%] h-[30%] rounded-full bg-blue-500/3 blur-[100px] pointer-events-none" />
 
-                            {/* Nodes */}
-                            {nodes.map(node => renderNode(node))}
+                    {/* SVG Layer */}
+                    <svg
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                        style={{ overflow: 'visible' }}
+                    >
+                        <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoom})`} style={{ pointerEvents: 'all' }}>
+                            <g ref={svgRef}>
+                                {/* Edges */}
+                                {edges.filter(e => !hiddenNodeIds.has(e.from) && !hiddenNodeIds.has(e.to)).map((edge, idx) => renderEdge(edge, idx))}
+
+                                {/* Connecting line preview */}
+                                {renderConnectingLine()}
+
+                                {/* Nodes */}
+                                {nodes.filter(n => !hiddenNodeIds.has(n.id)).map(node => renderNode(node))}
+                            </g>
                         </g>
-                    </g>
-                </svg>
+                    </svg>
 
-                {/* Node Count */}
-                <div className="absolute bottom-4 left-4 flex items-center gap-3 text-xs text-slate-500 bg-[#0F172A]/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/5">
-                    <span>{nodes.length} nós</span>
-                    <span>•</span>
-                    <span>{edges.length} conexões</span>
+                    {/* Node Count */}
+                    <div className="absolute bottom-4 left-4 flex items-center gap-3 text-xs text-slate-500 bg-[#0F172A]/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/5">
+                        <span>{nodes.length} nós</span>
+                        <span>•</span>
+                        <span>{edges.length} conexões</span>
+                    </div>
                 </div>
+
+                {/* ── Right Panel: Node Properties ── */}
+                {selectedNodeData && (
+                    <div className="w-80 bg-[#0F172A] border-l border-white/10 h-full flex flex-col z-[35] animate-slideLeft">
+                        {/* Sidebar Header */}
+                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <Palette size={14} className="text-purple-400" />
+                                Propriedades do Nó
+                            </h3>
+                            <button
+                                onClick={() => setSelectedNode(null)}
+                                className="p-1 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-all"
+                                title="Fechar painel"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Sidebar Content */}
+                        <div className="flex-1 p-4 overflow-y-auto space-y-6 text-sm custom-scrollbar">
+                            {/* Text Input */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-slate-400 font-bold block">Texto / Título</label>
+                                <textarea
+                                    value={selectedNodeData.text}
+                                    onChange={(e) => updateNodeText(selectedNode, e.target.value)}
+                                    className="w-full bg-[#1E293B] border border-white/10 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 text-xs h-20 resize-none font-medium"
+                                    placeholder="Escreva algo..."
+                                />
+                            </div>
+
+                            {/* Shape */}
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-400 font-bold block">Formato</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { value: 'rounded', label: 'Arredondado' },
+                                        { value: 'pill', label: 'Pílula' },
+                                        { value: 'diamond', label: 'Losango' },
+                                        { value: 'card', label: 'Quadro (Card)' }
+                                    ].map(item => (
+                                        <button
+                                            key={item.value}
+                                            onClick={() => {
+                                                setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, shape: item.value } : n));
+                                            }}
+                                            className={`py-2 px-1 rounded-lg border text-[11px] font-semibold text-center transition-all ${selectedNodeData.shape === item.value || (!selectedNodeData.shape && item.value === 'rounded') ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-[#1E293B]/60 border-white/5 text-slate-400 hover:text-white'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Node Size */}
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-400 font-bold block">Tamanho</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { value: 'sm', label: 'Pequeno' },
+                                        { value: 'md', label: 'Médio' },
+                                        { value: 'lg', label: 'Grande' }
+                                    ].map(item => (
+                                        <button
+                                            key={item.value}
+                                            onClick={() => {
+                                                setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, size: item.value } : n));
+                                            }}
+                                            className={`py-1.5 px-2 rounded-lg border text-xs text-center transition-all ${selectedNodeData.size === item.value || (!selectedNodeData.size && item.value === 'md') ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-[#1E293B]/60 border-white/5 text-slate-400 hover:text-white'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Node Color */}
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-400 font-bold block">Cor de Destaque</label>
+                                <div className="grid grid-cols-5 gap-2">
+                                    {NODE_COLORS.map(c => (
+                                        <button
+                                            key={c}
+                                            onClick={() => updateNodeColor(selectedNode, c)}
+                                            className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-125 ${selectedNodeData.color === c ? 'border-white scale-110' : 'border-transparent'}`}
+                                            style={{ backgroundColor: c }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Image Header */}
+                            <div className="space-y-2 pt-3 border-t border-white/5">
+                                <label className="text-xs text-slate-400 font-bold block mb-1 flex items-center justify-between">
+                                    <span>Imagem do Elemento</span>
+                                    {selectedNodeData.image && (
+                                        <button
+                                            onClick={() => setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, image: null } : n))}
+                                            className="text-red-400 hover:text-red-300 text-[10px] font-bold"
+                                        >
+                                            Remover
+                                        </button>
+                                    )}
+                                </label>
+
+                                {selectedNodeData.image && (
+                                    <div className="mb-2 rounded-lg overflow-hidden border border-white/10 max-h-24 bg-slate-900 flex justify-center items-center">
+                                        <img src={selectedNodeData.image} alt="preview" className="max-h-24 object-contain" />
+                                    </div>
+                                )}
+
+                                <div className="space-y-2">
+                                    <label className="flex items-center justify-center gap-2 w-full py-2 bg-[#1E293B] border border-dashed border-white/10 rounded-lg text-slate-300 hover:text-white hover:border-purple-500/50 cursor-pointer transition-all text-xs font-semibold">
+                                        <Plus size={14} />
+                                        Carregar Arquivo Imagem
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (uploadEvent) => {
+                                                        setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, image: uploadEvent.target.result } : n));
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        placeholder="Ou cole a URL da imagem..."
+                                        value={selectedNodeData.image || ''}
+                                        onChange={(e) => setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, image: e.target.value } : n))}
+                                        className="w-full bg-[#1E293B] border border-white/10 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Tag / Etiqueta */}
+                            <div className="space-y-3 pt-3 border-t border-white/5">
+                                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Etiqueta (Badge)</label>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-400 font-semibold block">Texto da Etiqueta</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: Urgente, Foco, Fase 1..."
+                                        value={selectedNodeData.tagText || ''}
+                                        onChange={(e) => setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, tagText: e.target.value } : n))}
+                                        className="w-full bg-[#1E293B] border border-white/10 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs text-slate-400 font-semibold block">Cor da Etiqueta</label>
+                                    <div className="grid grid-cols-5 gap-1.5">
+                                        {NODE_COLORS.map(c => (
+                                            <button
+                                                key={`tag-${c}`}
+                                                onClick={() => setNodes(prev => prev.map(n => n.id === selectedNode ? { ...n, tagColor: c } : n))}
+                                                className={`w-6 h-6 rounded-md border transition-all hover:scale-110 ${selectedNodeData.tagColor === c ? 'border-white scale-105' : 'border-transparent'}`}
+                                                style={{ backgroundColor: c }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Collapse control */}
+                            {edges.some(e => e.from === selectedNode) && (
+                                <div className="pt-3 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-350">Recolher Sub-elementos</span>
+                                    <button
+                                        onClick={() => toggleNodeCollapse(selectedNode)}
+                                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${selectedNodeData.collapsed ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-slate-800 text-slate-450 border border-white/5 hover:text-white'}`}
+                                    >
+                                        {selectedNodeData.collapsed ? "Recolhido" : "Expandido"}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Action shortcuts */}
+                            <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-2 text-xs">
+                                <button
+                                    onClick={() => duplicateNode(selectedNode)}
+                                    className="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-slate-300 hover:text-white transition-all font-semibold"
+                                >
+                                    <Copy size={12} />
+                                    Duplicar
+                                </button>
+                                <button
+                                    onClick={() => deleteNode(selectedNode)}
+                                    className="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/50 text-red-400 border border-red-900/20 transition-all font-semibold"
+                                >
+                                    <Trash2 size={12} />
+                                    Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideLeft { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        .animate-slideLeft { animation: slideLeft 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
         .edge-delete-btn { transition: opacity 0.2s; }
         g:hover .edge-delete-btn { opacity: 0.9 !important; }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
       `}</style>
         </div>
     );
