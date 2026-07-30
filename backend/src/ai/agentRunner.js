@@ -179,7 +179,9 @@ async function runAgentTask(taskId, userPrompt, context = {}, onStepUpdate = nul
     try {
         const isOpenRouter = provider === 'openrouter' || (apiKey && apiKey.startsWith('sk-or-'));
 
-        if (provider === 'anthropic' && !isOpenRouter) {
+        if (context.useOmniRouter || provider === 'omni' || provider === 'omniroute') {
+            return await runOmniLoop(taskState, systemPrompt, userPrompt, tools, aiConfig, context, onStepUpdate);
+        } else if (provider === 'anthropic' && !isOpenRouter) {
             return await runAnthropicLoop(taskState, systemPrompt, userPrompt, tools, aiConfig, context, onStepUpdate);
         } else {
             return await runOpenAILoop(taskState, systemPrompt, userPrompt, tools, aiConfig, context, onStepUpdate);
@@ -193,6 +195,107 @@ async function runAgentTask(taskId, userPrompt, context = {}, onStepUpdate = nul
         await persistTaskState(taskState, context);
         return taskState;
     }
+}
+
+/**
+ * Loop ReAct usando OmniRouter (Auto-Fallback entre 90+ Provedores)
+ */
+async function runOmniLoop(taskState, systemPrompt, userPrompt, tools, aiConfig, context, onStepUpdate) {
+    const { executeOmniRequest } = require('./omniRouter');
+    const { getPresetCombos } = require('./omniCatalog');
+
+    const omniConfig = context.omniConfig || {};
+    const comboSteps = omniConfig.activeSteps || getPresetCombos()[0].steps;
+    const tenantKeys = omniConfig.tenantKeys || {};
+
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+    ];
+
+    let step = 0;
+    while (step < MAX_STEPS) {
+        step++;
+        console.log(`\n🔄 [OmniAgent] ── Passo ${step}/${MAX_STEPS} ──`);
+
+        const stepLog = {
+            step,
+            type: 'thinking',
+            timestamp: new Date().toISOString(),
+            thought: null,
+            action: null,
+            observation: null,
+        };
+
+        const result = await executeOmniRequest({
+            comboSteps,
+            messages,
+            tools,
+            tenantKeys
+        });
+
+        const msg = result.response.choices[0].message;
+
+        if (msg.content) {
+            stepLog.thought = msg.content;
+            console.log(`💭 [OmniPensamento via ${result.usedProvider}] ${msg.content.substring(0, 150)}...`);
+        }
+
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+            messages.push(msg);
+
+            for (const toolCall of msg.tool_calls) {
+                const toolName = toolCall.function.name;
+                let toolArgs = {};
+                try {
+                    toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+                } catch { }
+
+                stepLog.action = { tool: toolName, args: toolArgs };
+                console.log(`⚡ [OmniAção] ${toolName}(${JSON.stringify(toolArgs).substring(0, 100)})`);
+
+                if (toolName === 'task_completed') {
+                    stepLog.observation = toolArgs.summary;
+                    taskState.status = 'completed';
+                    taskState.result = toolArgs.summary;
+                    taskState.completedAt = new Date().toISOString();
+                    taskState.steps.push(stepLog);
+                    await persistTaskState(taskState, context);
+                    return taskState;
+                }
+
+                const output = await executeTool(toolName, toolArgs, context);
+                stepLog.observation = output;
+
+                messages.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    name: toolName,
+                    content: output,
+                });
+            }
+        }
+
+        stepLog.type = (msg.tool_calls && msg.tool_calls.length > 0) ? 'action' : 'thinking';
+        taskState.steps.push(stepLog);
+        await persistTaskState(taskState, context);
+        if (onStepUpdate) onStepUpdate(stepLog);
+
+        if (!msg.tool_calls || msg.tool_calls.length === 0) {
+            console.log(`⏹️ [OmniAgent] Resposta sem ferramenta. Finalizando.`);
+            taskState.status = 'completed';
+            taskState.result = stepLog.thought || 'Tarefa processada com sucesso via OmniRouter.';
+            taskState.completedAt = new Date().toISOString();
+            await persistTaskState(taskState, context);
+            return taskState;
+        }
+    }
+
+    taskState.status = 'timeout';
+    taskState.result = 'O agente atingiu o limite de passos no OmniRouter.';
+    taskState.completedAt = new Date().toISOString();
+    await persistTaskState(taskState, context);
+    return taskState;
 }
 
 /**

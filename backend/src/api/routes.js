@@ -1191,6 +1191,10 @@ const { authMiddleware: agentAuth } = require('./auth');
 const agentRouter = require('./agentRoutes');
 router.use('/agent', agentAuth, agentRouter);
 
+// ── OMNI ROUTER (AI GATEWAY & COMBOS) ROUTES ──────────────────
+const omniRouter = require('./omniRoutes');
+router.use('/omni', omniRouter);
+
 module.exports = router;
 
 

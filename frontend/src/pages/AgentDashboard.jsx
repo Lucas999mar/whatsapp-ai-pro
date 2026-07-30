@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import OmniRouterTab from '../components/OmniRouterTab';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -305,6 +306,7 @@ export default function AgentDashboard() {
 
     const tabs = [
         { id: 'console', label: 'Console', icon: <Brain size={16} /> },
+        { id: 'omni', label: 'Omni Router', icon: <Zap size={16} /> },
         { id: 'memory', label: 'Memória', icon: <BookOpen size={16} /> },
         { id: 'channels', label: 'Canais', icon: <MessageCircle size={16} /> },
         { id: 'tools', label: 'Ferramentas', icon: <Wrench size={16} /> },
@@ -568,6 +570,9 @@ export default function AgentDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* ═══ TAB: OMNI ROUTER & COMBOS ═══ */}
+            {activeTab === 'omni' && <OmniRouterTab />}
 
             {/* ═══ TAB: MEMÓRIA / BASE DE CONHECIMENTO ═══ */}
             {activeTab === 'memory' && (
