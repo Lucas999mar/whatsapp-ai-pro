@@ -672,12 +672,14 @@ router.get('/learnings', authMiddleware, async (req, res) => {
 
 const { getAgentsStatus, restartWhatsAppBot, addAgent, removeAgent, updateAgentSettings } = require('../whatsapp/bot');
 
-// Status de todos os agentes do tenant
+// Status de todos os agentes do tenant (exclui Agente Autônomo Hermes)
 router.get('/whatsapp/status', authMiddleware, async (req, res) => {
-  res.json({ agents: await getAgentsStatus(req.user.id) });
+  const allAgents = await getAgentsStatus(req.user.id);
+  const normalAgents = (allAgents || []).filter(a => !a.id.startsWith('agent_hermes_') && a.id !== 'hermes');
+  res.json({ agents: normalAgents });
 });
 
-// QR Code de um agente específico (lê do Supabase)
+// QR Code de um agente específico (lê do Supabase e converte para Data URL)
 router.get('/whatsapp/qr/:agentId', authMiddleware, async (req, res) => {
   const { agentId } = req.params;
   const supabase = getSupabase();
@@ -687,7 +689,15 @@ router.get('/whatsapp/qr/:agentId', authMiddleware, async (req, res) => {
     return res.status(500).json({ error: 'Não foi possível buscar QR' });
   }
   if (!data?.qr_code) return res.json({ qr: null });
-  const qrDataUrl = `data:image/png;base64,${data.qr_code}`;
+  let qrDataUrl = data.qr_code;
+  if (!qrDataUrl.startsWith('data:image/')) {
+    try {
+      const QRCode = require('qrcode');
+      qrDataUrl = await QRCode.toDataURL(data.qr_code);
+    } catch (e) {
+      qrDataUrl = `data:image/png;base64,${data.qr_code}`;
+    }
+  }
   res.json({ qr: qrDataUrl });
 });
 

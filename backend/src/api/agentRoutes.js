@@ -48,7 +48,7 @@ const upload = multer({
  */
 router.post('/run', async (req, res) => {
     try {
-        const { prompt, agentId } = req.body;
+        const { prompt } = req.body;
 
         if (!prompt || !prompt.trim()) {
             return res.status(400).json({ error: 'O campo "prompt" é obrigatório.' });
@@ -57,28 +57,14 @@ router.post('/run', async (req, res) => {
         const tenantId = req.user?.tenant_id || req.user?.id || 'default';
         const taskId = `task_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-        // Busca settings do agente para pegar credenciais de IA e Google
+        // O Agente Autônomo tem um agent_id específico e único por tenant
+        const resolvedAgentId = `agent_hermes_${tenantId}`;
         let settings = {};
-        let resolvedAgentId = agentId || 'default';
 
         try {
             settings = await getBotSettings(resolvedAgentId, tenantId) || {};
         } catch (e) {
-            console.warn(`⚠️ [AgentRoute] Não foi possível buscar settings do agente: ${e.message}`);
-        }
-
-        // Se não informou agentId, tenta pegar o primeiro agente conectado
-        if (!agentId) {
-            try {
-                const agents = await listAgents(tenantId);
-                if (agents && agents.length > 0) {
-                    resolvedAgentId = agents[0].id;
-                    // Carrega settings do agente encontrado se ainda não tiver
-                    if (!settings || Object.keys(settings).length === 0) {
-                        settings = agents[0].settings || {};
-                    }
-                }
-            } catch (e) { /* ignora */ }
+            console.warn(`⚠️ [AgentRoute] Não foi possível buscar settings do agente Hermes: ${e.message}`);
         }
 
         // Monta contexto para as ferramentas
@@ -177,7 +163,7 @@ router.get('/tasks', async (req, res) => {
 router.get('/knowledge', async (req, res) => {
     try {
         const tenantId = req.user?.tenant_id || req.user?.id || 'default';
-        const items = await listKnowledgeItems(null, null, tenantId);
+        const items = await listKnowledgeItems(null, 'hermes', tenantId);
         res.json(items || []);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -236,7 +222,7 @@ router.post('/knowledge/upload', upload.single('file'), async (req, res) => {
             fileUrl,
             fileName,
             fileSize: req.file.size,
-            agentId: 'global',
+            agentId: 'hermes',
             tenantId,
         });
 
@@ -268,7 +254,7 @@ router.post('/knowledge/text', async (req, res) => {
             title,
             type: 'text',
             content,
-            agentId: 'global',
+            agentId: 'hermes',
             tenantId,
         });
 
@@ -303,53 +289,117 @@ router.delete('/knowledge/:id', async (req, res) => {
 router.get('/channels', async (req, res) => {
     try {
         const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const hermesAgentId = `agent_hermes_${tenantId}`;
 
-        // WhatsApp status
+        const { getSupabase } = require('../db/supabase');
+        const supabase = getSupabase();
+
+        // Garante que o agente Hermes existe no banco de dados para este tenant
+        let { data: hermesAgent, error: getErr } = await supabase
+            .from('agents')
+            .select('*')
+            .eq('id', hermesAgentId)
+            .maybeSingle();
+
+        const initialSettings = {
+            bot_name: 'Hermes (Autônomo)',
+            system_prompt: 'Você é Hermes, um agente de IA autônomo.',
+            response_mode: 'mirror',
+            tts_voice: 'nova',
+            prefix: '!ia',
+            respond_all: true,
+            ai_provider: 'anthropic',
+            openai_api_key: '',
+            openai_model: 'gpt-4o-mini',
+            anthropic_api_key: '',
+            anthropic_model: 'claude-3-haiku-20240307',
+            telegram_token: ''
+        };
+
+        if (!hermesAgent) {
+            // Cria o registro do agente Hermes se ele ainda não existir
+            const { data: inserted, error: insertErr } = await supabase
+                .from('agents')
+                .insert({
+                    id: hermesAgentId,
+                    tenant_id: tenantId,
+                    name: 'Hermes (Autônomo)',
+                    status: 'disconnected',
+                    settings: initialSettings
+                })
+                .select()
+                .single();
+
+            if (insertErr) {
+                console.error('Erro ao criar agente Hermes no banco:', insertErr.message);
+                return res.status(500).json({ error: 'Erro ao inicializar Agente Hermes no banco de dados.' });
+            } else {
+                hermesAgent = inserted;
+                console.log(`🤖 Agente autônomo Hermes criado para o tenant: ${tenantId}`);
+            }
+        }
+
+        // WhatsApp status para este agente Hermes específico
+        const { getAgentsStatus, startWhatsAppBot } = require('../whatsapp/bot');
+        const QRCode = require('qrcode');
+
         let whatsappAgents = [];
         try {
-            const { getAgentsStatus } = require('../whatsapp/bot');
             whatsappAgents = await getAgentsStatus(tenantId);
         } catch (e) { }
 
-        // Telegram status
-        let telegramConnected = false;
-        try {
-            const agents = await listAgents(tenantId);
-            for (const agent of agents) {
-                if (agent.settings?.telegram_token) {
-                    telegramConnected = true;
-                    break;
-                }
-            }
-        } catch (e) { }
+        let hermesWaSaved = whatsappAgents.find(a => a.id === hermesAgentId);
 
-        // WhatsApp QR codes
-        const whatsappWithQR = [];
-        try {
-            const { getSupabase } = require('../db/supabase');
-            const supabase = getSupabase();
-            for (const agent of whatsappAgents) {
-                let qrCode = null;
-                if (agent.status !== 'connected') {
-                    const { data } = await supabase.from('agents').select('qr_code').eq('id', agent.id).single();
-                    if (data?.qr_code) {
-                        qrCode = `data:image/png;base64,${data.qr_code}`;
-                    }
-                }
-                whatsappWithQR.push({
-                    ...agent,
-                    qrCode,
-                });
+        // Se o bot não estiver rodando no processo, inicia ele em background
+        if (!hermesWaSaved || hermesWaSaved.status === 'disconnected') {
+            try {
+                const currentSettings = hermesAgent.settings || initialSettings;
+                await startWhatsAppBot(hermesAgentId, hermesAgent.name || 'Hermes (Autônomo)', currentSettings, tenantId);
+                // Recarrega status
+                const updatedAgents = await getAgentsStatus(tenantId);
+                hermesWaSaved = updatedAgents.find(a => a.id === hermesAgentId);
+            } catch (e) {
+                console.warn('Erro ao disparar bot Hermes em background:', e.message);
             }
-        } catch (e) {
-            // Fallback sem QR
-            whatsappAgents.forEach(a => whatsappWithQR.push({ ...a, qrCode: null }));
         }
 
+        let qrCode = null;
+        if (hermesWaSaved && hermesWaSaved.status !== 'connected') {
+            // Tenta pegar o QR code bruto primeiro (em memória ou no banco)
+            let rawQr = hermesWaSaved.qr;
+            if (!rawQr) {
+                const { data } = await supabase.from('agents').select('qr_code').eq('id', hermesAgentId).maybeSingle();
+                rawQr = data?.qr_code || null;
+            }
+
+            if (rawQr) {
+                if (rawQr.startsWith('data:image/')) {
+                    qrCode = rawQr;
+                } else {
+                    try {
+                        qrCode = await QRCode.toDataURL(rawQr);
+                    } catch (errQr) {
+                        console.warn('⚠️ Erro ao converter QR string para DataURL:', errQr.message);
+                        qrCode = `data:image/png;base64,${rawQr}`;
+                    }
+                }
+            }
+        }
+
+        const telegramConnected = !!(hermesAgent.settings?.telegram_token);
+
         res.json({
-            whatsapp: whatsappWithQR,
+            whatsapp: [{
+                id: hermesAgentId,
+                name: 'Agente Autônomo (Hermes)',
+                status: hermesWaSaved ? hermesWaSaved.status : 'disconnected',
+                qrCode: qrCode,
+                settings: hermesWaSaved?.settings || hermesAgent.settings || initialSettings,
+                tenantId
+            }],
             telegram: {
                 connected: telegramConnected,
+                agentId: hermesAgentId
             },
         });
     } catch (err) {

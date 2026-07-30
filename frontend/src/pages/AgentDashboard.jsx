@@ -256,9 +256,13 @@ export default function AgentDashboard() {
     // Load data when switching tabs
     useEffect(() => {
         if (activeTab === 'memory') fetchKnowledge();
-        if (activeTab === 'channels') fetchChannels();
+        if (activeTab === 'channels') {
+            fetchChannels();
+            const interval = setInterval(fetchChannels, 4000);
+            return () => clearInterval(interval);
+        }
         if (activeTab === 'tools') fetchTools();
-    }, [activeTab]);
+    }, [activeTab, fetchChannels, fetchKnowledge, fetchTools]);
 
     // ════════════════════════════════════
     //  TOOL ICONS HELPER
@@ -354,10 +358,10 @@ export default function AgentDashboard() {
 
             {/* ═══ TAB: CONSOLE ═══ */}
             {activeTab === 'console' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-0">
                     {/* Left Panel */}
-                    <div className="lg:col-span-1 space-y-6 flex flex-col h-[calc(100vh-18rem)]">
-                        <div className="bg-[#1E293B] border border-white/5 p-6 rounded-[32px] shadow-xl">
+                    <div className="lg:col-span-1 space-y-6 flex flex-col min-h-0 lg:h-[calc(100vh-13rem)]">
+                        <div className="bg-[#1E293B] border border-white/5 p-6 rounded-[32px] shadow-xl shrink-0">
                             <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
                                 <Play size={18} className="text-[#25D366]" /> Nova Instrução
                             </h3>
@@ -386,11 +390,11 @@ export default function AgentDashboard() {
                             </form>
                         </div>
 
-                        <div className="bg-[#1E293B]/60 border border-white/5 rounded-[32px] p-6 flex flex-col flex-1 overflow-hidden">
-                            <h3 className="text-lg font-black tracking-tight text-white mb-4">
+                        <div className="bg-[#1E293B]/60 border border-white/5 rounded-[32px] p-6 flex flex-col flex-1 min-h-[300px] overflow-hidden">
+                            <h3 className="text-lg font-black tracking-tight text-white mb-4 shrink-0">
                                 Histórico de Execuções
                             </h3>
-                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 scroll-hide">
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-6 min-h-0">
                                 {loadingTasks && tasks.length === 0 ? (
                                     <div className="flex justify-center py-10">
                                         <div className="w-8 h-8 border-4 border-[#25D366] border-t-transparent rounded-full animate-spin" />
@@ -406,7 +410,7 @@ export default function AgentDashboard() {
                                         <div
                                             key={task.id}
                                             onClick={() => setSelectedTask(task)}
-                                            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${isSelected
+                                            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 shrink-0 ${isSelected
                                                 ? 'bg-[#25D366]/10 border-[#25D366]/35 text-white'
                                                 : 'bg-black/20 border-white/5 hover:border-white/10 hover:bg-black/30'
                                                 }`}
@@ -435,7 +439,7 @@ export default function AgentDashboard() {
                     </div>
 
                     {/* Right Panel - ReAct Console */}
-                    <div className="lg:col-span-2 bg-[#1E293B] border border-white/5 rounded-[40px] p-8 flex flex-col h-[calc(100vh-18rem)] shadow-2xl">
+                    <div className="lg:col-span-2 bg-[#1E293B] border border-white/5 rounded-[40px] p-8 flex flex-col min-h-[500px] lg:h-[calc(100vh-13rem)] shadow-2xl overflow-hidden">
                         {selectedTask ? (
                             <div className="flex flex-col h-full overflow-hidden">
                                 <div className="border-b border-white/5 pb-6 mb-6">
@@ -777,7 +781,7 @@ export default function AgentDashboard() {
                                         </div>
                                         <p className="text-xs text-slate-400">O bot está recebendo e respondendo mensagens via Telegram.</p>
                                         <button
-                                            onClick={() => handleDisconnectTelegram(channels.whatsapp[0]?.id || 'default')}
+                                            onClick={() => handleDisconnectTelegram(channels.telegram?.agentId || channels.whatsapp[0]?.id || 'default')}
                                             className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-black text-[11px] uppercase tracking-wider rounded-xl transition-all"
                                         >
                                             Desconectar
@@ -816,7 +820,7 @@ export default function AgentDashboard() {
                                                         Cancelar
                                                     </button>
                                                     <button
-                                                        onClick={() => handleConnectTelegram(channels.whatsapp[0]?.id || 'default')}
+                                                        onClick={() => handleConnectTelegram(channels.telegram?.agentId || channels.whatsapp[0]?.id || 'default')}
                                                         disabled={!telegramToken.trim()}
                                                         className="flex-1 py-2.5 bg-blue-500 text-white font-black text-sm rounded-xl disabled:opacity-30 transition-all hover:bg-blue-400"
                                                     >

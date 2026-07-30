@@ -18,7 +18,7 @@ async function generateEmbedding(text) {
 }
 
 /**
- * Lista itens da base de conhecimento (filtrando por tenantId)
+ * Lista itens da base de conhecimento (filtrando por tenantId e isolamento de agente)
  */
 async function listKnowledgeItems(type = null, agentId = null, tenantId = 'default') {
   const supabase = getSupabase();
@@ -29,19 +29,34 @@ async function listKnowledgeItems(type = null, agentId = null, tenantId = 'defau
 
   if (type) query = query.eq('type', type);
 
-  // Filtra usando JSONB metadata keys (tenantId e agentId) para compatibilidade com o banco de produção
+  // Filtra usando JSONB metadata keys (tenantId)
   if (tenantId !== 'admin') {
     query = query.eq('metadata->>tenantId', tenantId);
   }
 
-  if (agentId && agentId !== 'all' && agentId !== 'global') {
-    query = query.eq('metadata->>agentId', agentId);
+  const isHermes = agentId === 'hermes' || (agentId && agentId.startsWith('agent_hermes'));
+
+  if (isHermes) {
+    const hermesAgentId = tenantId !== 'default' ? `agent_hermes_${tenantId}` : 'hermes';
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).filter(item => {
+      const aId = item.metadata?.agentId;
+      return aId === 'hermes' || aId === hermesAgentId || (aId && aId.startsWith('agent_hermes'));
+    });
+  } else {
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).filter(item => {
+      const aId = item.metadata?.agentId;
+      const itemIsHermes = aId === 'hermes' || (aId && aId.startsWith('agent_hermes'));
+      if (itemIsHermes) return false;
+      if (agentId && agentId !== 'all' && agentId !== 'global') {
+        return aId === agentId || aId === 'global' || !aId;
+      }
+      return true;
+    });
   }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  return data || [];
 }
 
 /**
@@ -103,12 +118,26 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
 
     if (!items || items.length === 0) return [];
 
-    // Filtra por agentId se aplicável
+    // Isolamento estrito de memória entre Agente Autônomo (Hermes) e Agentes Normais
     let filteredItems = items;
-    if (agentId && agentId !== 'all' && agentId !== 'global') {
+    const isHermesSearch = agentId === 'hermes' || (agentId && agentId.startsWith('agent_hermes'));
+
+    if (isHermesSearch) {
+      const hermesAgentId = tenantId !== 'default' ? `agent_hermes_${tenantId}` : 'hermes';
+      filteredItems = items.filter(item => {
+        const itemAgentId = item.metadata?.agentId;
+        return itemAgentId === 'hermes' || itemAgentId === hermesAgentId || (itemAgentId && itemAgentId.startsWith('agent_hermes'));
+      });
+    } else {
       filteredItems = items.filter(item => {
         const itemAgentId = item.metadata?.agentId || 'global';
-        return itemAgentId === 'global' || itemAgentId === agentId;
+        const itemIsHermes = itemAgentId === 'hermes' || (itemAgentId && itemAgentId.startsWith('agent_hermes'));
+        if (itemIsHermes) return false;
+
+        if (agentId && agentId !== 'all' && agentId !== 'global') {
+          return itemAgentId === 'global' || itemAgentId === agentId;
+        }
+        return true;
       });
     }
 
