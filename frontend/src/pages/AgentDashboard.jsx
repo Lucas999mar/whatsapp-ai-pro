@@ -195,11 +195,14 @@ export default function AgentDashboard() {
     //  CHANNELS
     // ════════════════════════════════════
 
+    const channelsLoadedRef = useRef(false);
+
     const fetchChannels = useCallback(async () => {
-        setLoadingChannels(true);
+        if (!channelsLoadedRef.current) setLoadingChannels(true);
         try {
             const res = await api.get('/agent/channels');
             setChannels(res.data || { whatsapp: [], telegram: { connected: false } });
+            channelsLoadedRef.current = true;
         } catch (err) {
             console.error('Erro ao buscar canais:', err);
         } finally {
@@ -257,12 +260,13 @@ export default function AgentDashboard() {
     useEffect(() => {
         if (activeTab === 'memory') fetchKnowledge();
         if (activeTab === 'channels') {
+            channelsLoadedRef.current = false;
             fetchChannels();
-            const interval = setInterval(fetchChannels, 4000);
+            const interval = setInterval(fetchChannels, 8000);
             return () => clearInterval(interval);
         }
         if (activeTab === 'tools') fetchTools();
-    }, [activeTab, fetchChannels, fetchKnowledge, fetchTools]);
+    }, [activeTab]);
 
     // ════════════════════════════════════
     //  TOOL ICONS HELPER

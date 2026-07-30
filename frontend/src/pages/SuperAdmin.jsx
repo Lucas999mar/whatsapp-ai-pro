@@ -314,12 +314,16 @@ export default function SuperAdmin() {
                     { key: 'knowledge', label: 'Base Conhecimento' },
                     { key: 'agenda', label: 'Agenda de Reuniões' },
                     { key: 'contentPlanner', label: 'Planejador de Conteúdo' },
+                    { key: 'socialAnalytics', label: 'Analytics de Redes' },
+                    { key: 'mindmap', label: 'Mapas Mentais' },
                     { key: 'creativeCenter', label: 'Centro Criativo' },
                     { key: 'aiDesigner', label: 'AI Designer' },
+                    { key: 'agent', label: 'Agente Autônomo' },
                     { key: 'learning', label: 'Aprendizado IA' },
                     { key: 'broadcast', label: 'Disparo em Massa' },
                     { key: 'followUp', label: 'Follow-up' },
                     { key: 'os', label: 'Ordens de Serviço' },
+                    { key: 'contracts', label: 'Contratos & Assinaturas' },
                     { key: 'delivery', label: 'Monitor Delivery' },
                     { key: 'integrations', label: 'Integrações & API' }
                   ].map((feat) => {
