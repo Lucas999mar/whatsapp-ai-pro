@@ -45,6 +45,10 @@ import ContractSignaturePage from './pages/ContractSignaturePage';
 // Componente de Analytics de Redes Sociais
 import SocialAnalyticsPage from './pages/SocialAnalyticsPage';
 
+// Componente de Agente Autônomo
+import AgentDashboard from './pages/AgentDashboard';
+
+
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -62,7 +66,9 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
     { path: '/social-analytics', name: 'Analytics de Redes', icon: <BarChart2 size={20} /> },
     { path: '/mindmap', name: 'Mapas Mentais', icon: <Network size={20} /> },
+    { path: '/agent', name: 'Agente Autônomo', icon: <BrainCircuit size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
+
     { path: '/broadcast', name: 'Disparo em Massa', icon: <Megaphone size={20} /> },
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
@@ -344,7 +350,9 @@ function AppContent() {
             <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
             <Route path="/social-analytics" element={<AuthGuard><SocialAnalyticsPage /></AuthGuard>} />
             <Route path="/mindmap" element={<AuthGuard><MindMapPage /></AuthGuard>} />
+            <Route path="/agent" element={<AuthGuard><AgentDashboard /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
+
             <Route path="/broadcast" element={<AuthGuard><BroadcastPage /></AuthGuard>} />
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />

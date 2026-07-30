@@ -1176,6 +1176,11 @@ router.use('/contracts', contractRouter);
 const socialAnalyticsRouter = require('./socialAnalyticsRoutes');
 router.use('/social-analytics', socialAnalyticsRouter);
 
+// ── AUTONOMOUS AGENT (HERMES) ROUTES ──────────────────────────
+const { authMiddleware: agentAuth } = require('./auth');
+const agentRouter = require('./agentRoutes');
+router.use('/agent', agentAuth, agentRouter);
+
 module.exports = router;
 
 
