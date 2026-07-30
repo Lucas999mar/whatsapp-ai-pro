@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middleware/authMiddleware');
+const { authMiddleware } = require('./auth');
 const { getCatalog, getPresetCombos, getProviderById } = require('../ai/omniCatalog');
 const { getOmniMetrics, executeOmniRequest } = require('../ai/omniRouter');
 
