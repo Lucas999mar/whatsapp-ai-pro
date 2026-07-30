@@ -356,7 +356,99 @@ async function processMessage(whatsappId, userName, text, messageType = 'text', 
       }
     }
 
-    // 0. Verifica se é comando
+    // Verifica se é comando de execução autônoma do Hermes (/run [tarefa] ou /agent [tarefa])
+    const runRegex = /^\/?(run|agent|exec)\s+(.+)$/i;
+    const agentMatch = text.trim().match(runRegex);
+
+    if (agentMatch) {
+      const prompt = agentMatch[2].trim();
+      const crypto = require('crypto');
+      const resolvedTaskId = `task_chan_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+      const isTelegram = whatsappId.startsWith('TG_');
+      const channelName = isTelegram ? 'Telegram' : 'WhatsApp';
+
+      const context = {
+        taskId: resolvedTaskId,
+        agentId: agentId || 'default',
+        tenantId: tenantId || 'default',
+        googleCredentials: settings.google_calendar_key || null,
+        googleTokens: settings.google_calendar_token || null,
+        settings,
+      };
+
+      const { runAgentTask } = require('./agentRunner');
+
+      // Executa de forma assíncrona em background
+      setTimeout(() => {
+        runAgentTask(resolvedTaskId, prompt, context, (stepLog) => {
+          // Streaming de steps opcional, enviamos feedback final para economizar quota
+        }).then(async (finalState) => {
+          let feedbackMsg = '';
+          if (finalState.status === 'completed') {
+            feedbackMsg = `🤖 *[Agente Hermes]* Tarefa realizada com sucesso!\n\n💡 *Instrução:* "${prompt}"\n\n✅ *Resultado:* \n${finalState.result}`;
+          } else {
+            feedbackMsg = `🤖 *[Agente Hermes]* Não consegui concluir a tarefa.\n\n💡 *Instrução:* "${prompt}"\n\n❌ *Erro:* ${finalState.error || 'Erro desconhecido'}`;
+          }
+
+          // Envia resposta para o canal correspondente
+          try {
+            if (isTelegram) {
+              const chatId = whatsappId.replace('TG_', '');
+              const { sendTelegramMessage } = require('../telegram/bot');
+              await sendTelegramMessage(agentId, chatId, feedbackMsg);
+            } else {
+              const { sendDirectMessage } = require('../whatsapp/bot');
+              await sendDirectMessage(agentId, whatsappId, feedbackMsg);
+            }
+          } catch (errMsg) {
+            console.error(`❌ Erro ao enviar feedback do Hermes para ${channelName}:`, errMsg.message);
+          }
+
+          // Salva a mensagem no histórico de conversas do chat
+          try {
+            await saveConversationMessage({
+              whatsappId: threadId,
+              userName: `Hermes Agent`,
+              role: 'assistant',
+              content: feedbackMsg,
+              contentType: 'text',
+              tokensUsed: 0
+            });
+          } catch (errConv) {
+            console.error('Erro ao salvar na conversa do canal:', errConv.message);
+          }
+        }).catch(async (errRun) => {
+          const errorFeedback = `🤖 *[Agente Hermes]* Ocorreu um erro crítico executando a tarefa:\n"${prompt}"\n\n❌ *Erro:* ${errRun.message}`;
+          try {
+            if (isTelegram) {
+              const chatId = whatsappId.replace('TG_', '');
+              const { sendTelegramMessage } = require('../telegram/bot');
+              await sendTelegramMessage(agentId, chatId, errorFeedback);
+            } else {
+              const { sendDirectMessage } = require('../whatsapp/bot');
+              await sendDirectMessage(agentId, whatsappId, errorFeedback);
+            }
+          } catch (e) { }
+        });
+      }, 50);
+
+      // Salva a mensagem do usuário no histórico para manter o log
+      await saveConversationMessage({
+        whatsappId: threadId,
+        userName,
+        role: 'user',
+        content: text,
+        contentType: messageType,
+        mediaUrl,
+        userPhoto
+      });
+
+      return {
+        text: `🤖 *[Agente Hermes]* Sua solicitação foi recebida e está sendo processada em background:\n\n_"${prompt}"_\n\nEstou analisando o sistema e executando as ações necessárias. Te aviso assim que terminar! ⏳`
+      };
+    }
+
+    // 0. Verifica se é comando normal de atendimento (limpar, ajuda, status)
     const command = parseCommand(text, settings.prefix);
     if (command.type !== 'query') {
       if (command.type === 'clear') {

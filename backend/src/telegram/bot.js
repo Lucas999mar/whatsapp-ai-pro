@@ -19,22 +19,22 @@ async function startTelegramBot(agentId, telegramToken, tenantId, agentName = 'A
 
   try {
     const bot = new TelegramBot(telegramToken, { polling: true });
-    
+
     bot.on('message', async (msg) => {
       const chatId = msg.chat.id;
       const senderName = msg.from.first_name || 'Usuário Telegram';
-      
+
       let textToProcess = msg.text || msg.caption || '';
-      
+
       // Para áudios (voice notes)
       let mediaType = 'text';
       if (msg.voice) {
-         // Na Fase 4 completada vamos adicionar download do áudio no Telegram para transcrição.
-         // Por enquanto avisamos que não está mapeado no Telegram (apenas no WhatsApp).
-         bot.sendMessage(chatId, "Desculpe, ainda estou aprendendo a ouvir áudios por aqui! Mande texto por favor.");
-         return;
+        // Na Fase 4 completada vamos adicionar download do áudio no Telegram para transcrição.
+        // Por enquanto avisamos que não está mapeado no Telegram (apenas no WhatsApp).
+        bot.sendMessage(chatId, "Desculpe, ainda estou aprendendo a ouvir áudios por aqui! Mande texto por favor.");
+        return;
       }
-      
+
       if (!textToProcess) return;
 
       // Mostra o status "Digitando..." no Telegram
@@ -44,13 +44,13 @@ async function startTelegramBot(agentId, telegramToken, tenantId, agentName = 'A
         // Envia para o mesmo Cérebro Central que o WhatsApp usa
         const result = await processMessage(
           `TG_${chatId}`, // PrefixTG para isolar conversas do Telegram
-          senderName, 
-          textToProcess, 
-          mediaType, 
-          null, 
-          agentName, 
-          agentId, 
-          tenantId, 
+          senderName,
+          textToProcess,
+          mediaType,
+          null,
+          agentName,
+          agentId,
+          tenantId,
           null
         );
 
@@ -61,7 +61,7 @@ async function startTelegramBot(agentId, telegramToken, tenantId, agentName = 'A
           // Resposta normal em texto
           await bot.sendMessage(chatId, result.text);
         }
-        
+
       } catch (err) {
         console.error(`❌ Erro no Telegram [${agentId}]:`, err.message);
       }
@@ -73,7 +73,7 @@ async function startTelegramBot(agentId, telegramToken, tenantId, agentName = 'A
 
     activeTelegramBots.set(agentId, bot);
     console.log(`✅ [Telegram] Bot conectado com sucesso para o agente: ${agentName}`);
-    
+
   } catch (e) {
     console.error(`❌ [Telegram] Falha ao iniciar bot para ${agentName}:`, e.message);
   }
@@ -85,7 +85,7 @@ async function startTelegramBot(agentId, telegramToken, tenantId, agentName = 'A
 async function startTelegramFleet() {
   const { listAgents } = require('../db/repository');
   const agents = await listAgents();
-  
+
   for (const agent of agents) {
     // Na nossa modelagem, vamos assumir que o token será salvo nas settings do agente
     const tgToken = agent.settings?.telegram_token;
@@ -95,4 +95,15 @@ async function startTelegramFleet() {
   }
 }
 
-module.exports = { startTelegramBot, startTelegramFleet };
+/**
+ * Envia uma mensagem direta via Telegram usando a instância de bot associada a este agente.
+ */
+async function sendTelegramMessage(agentId, chatId, text) {
+  const bot = activeTelegramBots.get(agentId);
+  if (!bot) {
+    throw new Error(`Instância do Telegram para o agente ${agentId} não está iniciada.`);
+  }
+  await bot.sendMessage(chatId, text);
+}
+
+module.exports = { startTelegramBot, startTelegramFleet, sendTelegramMessage };
