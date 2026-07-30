@@ -120,6 +120,17 @@ router.post('/test', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: 'Provedor não encontrado' });
     }
 
+    // Verifica se o provedor precisa de chave e se ela foi fornecida ou existe em env
+    if (provider.requiresKey) {
+        const hasKey = apiKey || (provider.keyEnv && process.env[provider.keyEnv]);
+        if (!hasKey) {
+            return res.status(400).json({
+                success: false,
+                error: `O provedor "${provider.name}" requer uma API Key. Insira sua chave em "Gerenciar API Keys" ou crie uma gratuitamente em: ${provider.signupUrl}`
+            });
+        }
+    }
+
     try {
         const result = await executeOmniRequest({
             comboSteps: [{ providerId, modelId: modelId || provider.models[0].id }],

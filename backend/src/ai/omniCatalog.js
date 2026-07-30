@@ -42,10 +42,10 @@ const PROVIDER_CATALOG = [
     {
         id: 'openrouter_free',
         name: 'OpenRouter Free Hub',
-        type: 'free_keyless',
+        type: 'free_tier',
         badge: '90+ Free Models',
         baseUrl: 'https://openrouter.ai/api/v1',
-        requiresKey: false,
+        requiresKey: true,
         keyEnv: 'OPENROUTER_API_KEY',
         signupUrl: 'https://openrouter.ai/keys',
         models: [

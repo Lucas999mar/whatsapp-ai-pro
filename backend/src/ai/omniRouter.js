@@ -81,7 +81,7 @@ function isProviderTripped(providerId) {
  * Resolve a chave de API para o provedor (verificando contexto do tenant e variáveis de ambiente)
  */
 function resolveApiKey(provider, tenantKeys = {}) {
-    if (!provider.requiresKey) return 'keyless';
+    if (!provider.requiresKey) return '__keyless__';
 
     // 1. Chave configurada pelo usuário no painel
     if (tenantKeys[provider.id]) return tenantKeys[provider.id];
@@ -89,9 +89,9 @@ function resolveApiKey(provider, tenantKeys = {}) {
     // 2. Chave em variável de ambiente global
     if (provider.keyEnv && process.env[provider.keyEnv]) return process.env[provider.keyEnv];
 
-    // 3. Fallback para chaves padrão da aplicação
-    if (provider.id === 'openrouter_free' && (process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY)) {
-        return process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY;
+    // 3. Fallback para chaves padrão da aplicação (OpenRouter pode usar a key principal)
+    if ((provider.id === 'openrouter_free' || provider.id === 'openrouter') && process.env.OPENROUTER_API_KEY) {
+        return process.env.OPENROUTER_API_KEY;
     }
 
     return null;
@@ -100,17 +100,24 @@ function resolveApiKey(provider, tenantKeys = {}) {
 /**
  * Executa uma chamada de Chat Completion usando um candidato específico
  */
-async function callProviderCandidate(provider, modelId, messages, tools = null, apiKey = 'keyless') {
+async function callProviderCandidate(provider, modelId, messages, tools = null, apiKey = '__keyless__') {
     const startTime = Date.now();
+
+    const isKeyless = !provider.requiresKey || apiKey === '__keyless__';
 
     const clientOptions = {
         baseURL: provider.baseUrl,
-        apiKey: apiKey || 'dummy-key',
+        apiKey: isKeyless ? 'x' : apiKey,
         defaultHeaders: {
             'HTTP-Referer': 'https://whatsapp-ai-pro.local',
             'X-Title': 'WhatsApp AI Pro OmniRouter'
         }
     };
+
+    // Para provedores verdadeiramente keyless (Pollinations), removemos o header Authorization
+    if (isKeyless) {
+        clientOptions.defaultHeaders['Authorization'] = '';
+    }
 
     const client = new OpenAI(clientOptions);
 
@@ -161,13 +168,17 @@ async function executeOmniRequest({ comboSteps = [], messages, tools = null, ten
     }
 
     if (candidates.length === 0) {
-        // Se todos foram descartados por circuit breaker ou falta de chave, força tentativa no primeiro keyless
-        const fallbackKeyless = PROVIDER_CATALOG.find(p => !p.requiresKey) || PROVIDER_CATALOG[0];
-        candidates.push({
-            provider: fallbackKeyless,
-            modelId: fallbackKeyless.models[0].id,
-            apiKey: 'keyless'
-        });
+        // Se todos foram descartados, tenta apenas provedores verdadeiramente keyless (Pollinations)
+        const fallbackKeyless = PROVIDER_CATALOG.find(p => !p.requiresKey);
+        if (fallbackKeyless) {
+            candidates.push({
+                provider: fallbackKeyless,
+                modelId: fallbackKeyless.models[0].id,
+                apiKey: '__keyless__'
+            });
+        } else {
+            throw new Error('Nenhum provedor disponível. Configure pelo menos uma API key no painel Omni Router → Gerenciar API Keys.');
+        }
     }
 
     let lastError = null;
