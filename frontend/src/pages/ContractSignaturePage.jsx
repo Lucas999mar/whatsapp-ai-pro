@@ -164,6 +164,11 @@ export default function ContractSignaturePage() {
         }
     };
 
+    const renderFormattedContent = (content) => {
+        if (!content) return '';
+        return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    };
+
     const downloadPDF = () => {
         if (!contract) return;
         const logoUrl = contract.company_logo || null;
@@ -172,7 +177,7 @@ export default function ContractSignaturePage() {
         const printWindow = window.open('', '_blank');
         if (!printWindow) { alert('Permita pop-ups para baixar o PDF.'); return; }
 
-        const contractHTML = (contract.content || '').replace(/\n/g, '<br>');
+        const contractHTML = renderFormattedContent(contract.content || '').replace(/\n/g, '<br>');
 
         let auditSelo = '';
         if (signedSuccess || contract.status === 'signed') {
@@ -213,7 +218,6 @@ export default function ContractSignaturePage() {
   .header { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 3px solid #25D366; margin-bottom: 30px; }
   .header img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid #e0e0e0; }
   .header .company-name { font-size: 20px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.5px; }
-  .header .subtitle { font-size: 10px; color: #25D366; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; }
   .contract-body { white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 12px; line-height: 1.8; color: #1e293b; }
   .audit-seal { margin-top: 40px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; font-size: 11px; }
   .audit-title { font-weight: bold; font-size: 12px; color: #0f172a; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
@@ -228,7 +232,6 @@ export default function ContractSignaturePage() {
     ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : ''}
     <div>
       <div class="company-name">${companyName}</div>
-      <div class="subtitle">Contrato de Prestação de Serviços</div>
     </div>
   </div>
   <div class="contract-body">${contractHTML}</div>
@@ -419,9 +422,10 @@ export default function ContractSignaturePage() {
                                             </a>
                                         </div>
                                     ) : (
-                                        <div className="whitespace-pre-wrap">
-                                            {contract.content || 'Sem conteúdo inserido nos termos de contrato.'}
-                                        </div>
+                                        <div
+                                             className="whitespace-pre-wrap"
+                                             dangerouslySetInnerHTML={{ __html: renderFormattedContent(contract.content || 'Sem conteúdo inserido nos termos de contrato.') }}
+                                         />
                                     )}
                                 </div>
                             </div>

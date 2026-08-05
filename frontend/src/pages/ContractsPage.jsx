@@ -121,6 +121,11 @@ export default function ContractsPage() {
         }
     };
 
+    const renderFormattedContent = (content) => {
+        if (!content) return '';
+        return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    };
+
     // ── PDF GENERATION ─────────────────────────────────────────
     const downloadPDF = (contract) => {
         // Busca a logo da empresa 
@@ -130,7 +135,7 @@ export default function ContractsPage() {
         const printWindow = window.open('', '_blank');
         if (!printWindow) { alert('Permita pop-ups para baixar o PDF.'); return; }
 
-        const contractHTML = (contract.content || '').replace(/\n/g, '<br>');
+        const contractHTML = renderFormattedContent(contract.content || '').replace(/\n/g, '<br>');
 
         printWindow.document.write(`
 <!DOCTYPE html>
@@ -145,7 +150,6 @@ export default function ContractsPage() {
   .header { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 3px solid #25D366; margin-bottom: 30px; }
   .header img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid #e0e0e0; }
   .header .company-name { font-size: 22px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.5px; }
-  .header .subtitle { font-size: 10px; color: #25D366; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; }
   .contract-body { white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 12.5px; line-height: 1.8; color: #1e293b; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 2px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
   .footer strong { color: #25D366; }
@@ -157,11 +161,10 @@ export default function ContractsPage() {
     ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : ''}
     <div>
       <div class="company-name">${companyName}</div>
-      <div class="subtitle">Contrato de Prestação de Serviços</div>
     </div>
   </div>
   <div class="contract-body">${contractHTML}</div>
-  <div class="footer">Documento gerado pela <strong>Evoluir Mais</strong> — Sistema de Gestão Inteligente de Contratos</div>
+  <div class="footer">Documento gerado e gerenciado na plataforma <strong>Evoluir Mais</strong></div>
 </body>
 </html>`);
         printWindow.document.close();
@@ -732,9 +735,10 @@ export default function ContractsPage() {
                                                 </a>
                                             </div>
                                         ) : (
-                                            <div className="text-sm text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">
-                                                {selectedContract.content || 'Nenhum termo cadastrado.'}
-                                            </div>
+                                            <div
+                                                className="text-sm text-slate-300 font-mono whitespace-pre-wrap leading-relaxed"
+                                                dangerouslySetInnerHTML={{ __html: renderFormattedContent(selectedContract.content || 'Nenhum termo cadastrado.') }}
+                                            />
                                         )}
                                     </div>
                                 </div>

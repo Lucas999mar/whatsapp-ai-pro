@@ -609,19 +609,17 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
         // ── GERAÇÃO DO CONTRATO ──────────────────────────────
 
+        // ── GERAÇÃO DO CONTRATO ──────────────────────────────
+
         const contractContent = `
-═══════════════════════════════════════════════════
-           CONTRATO DE PRESTAÇÃO DE SERVIÇOS
-═══════════════════════════════════════════════════
+**CONTRATO DE PRESTAÇÃO DE SERVIÇOS**
 
-Contrato nº: [GERADO AUTOMATICAMENTE]
-Data: ${formattedDate}
+Data de Emissão: ${formattedDate}
 
-───────────────────────────────────────────────────
-                  PARTES CONTRATANTES
-───────────────────────────────────────────────────
 
-CONTRATADA (Prestador de Serviço):
+**PARTES CONTRATANTES**
+
+**CONTRATADA (Prestador de Serviço):**
 • Razão Social / Nome: ${provider.company_name}
 ${provider.cnpj_cpf ? `• CNPJ/CPF: ${provider.cnpj_cpf}` : ''}
 ${provider.address ? `• Endereço: ${provider.address}${provider.city ? `, ${provider.city}` : ''}${provider.state ? ` - ${provider.state}` : ''}${provider.zip_code ? `, CEP: ${provider.zip_code}` : ''}` : ''}
@@ -629,32 +627,26 @@ ${provider.phone ? `• Telefone: ${provider.phone}` : ''}
 ${provider.email ? `• E-mail: ${provider.email}` : ''}
 ${provider.representative_name ? `• Representante Legal: ${provider.representative_name}${provider.representative_cpf ? ` (CPF: ${provider.representative_cpf})` : ''}${provider.representative_role ? ` — ${provider.representative_role}` : ''}` : ''}
 
-CONTRATANTE (Cliente):
+**CONTRATANTE (Cliente):**
 • Nome / Razão Social: ${client_name}
 ${client_document ? `• CPF/CNPJ: ${client_document}` : ''}
 ${client_email ? `• E-mail: ${client_email}` : ''}
 ${client_address ? `• Endereço: ${client_address}${client_city ? `, ${client_city}` : ''}${client_state ? ` - ${client_state}` : ''}` : ''}
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 1ª — DO OBJETO
-───────────────────────────────────────────────────
+**CLÁUSULA 1ª — DO OBJETO**
 
 O presente contrato tem como objeto a prestação dos seguintes serviços pela CONTRATADA ao CONTRATANTE:
 
 ${servicesList}
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 2ª — DO PRAZO
-───────────────────────────────────────────────────
+**CLÁUSULA 2ª — DO PRAZO**
 
 O presente contrato terá vigência de ${durationMonths} (${durationMonths === 1 ? 'um' : durationMonths === 6 ? 'seis' : durationMonths === 12 ? 'doze' : durationMonths}) ${durationMonths === 1 ? 'mês' : 'meses'}, com início em ${formattedDate}, podendo ser renovado por igual período mediante acordo mútuo entre as partes, formalizado por escrito com antecedência mínima de 30 (trinta) dias do término.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 3ª — DO VALOR E PAGAMENTO
-───────────────────────────────────────────────────
+**CLÁUSULA 3ª — DO VALOR E PAGAMENTO**
 
 Pela prestação dos serviços descritos na Cláusula 1ª, o CONTRATANTE pagará à CONTRATADA o valor total de ${formattedTotal} (${totalValue > 0 ? 'valor acordado entre as partes' : 'a definir'}).
 
@@ -663,9 +655,7 @@ Forma de pagamento: ${paymentLabel}${installmentInfo}
 Parágrafo Único: O não pagamento na data estipulada acarretará multa de 2% (dois por cento) sobre o valor em atraso, acrescido de juros de mora de 1% (um por cento) ao mês, sem prejuízo da atualização monetária pelo índice IPCA/IBGE.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 4ª — DAS OBRIGAÇÕES DA CONTRATADA
-───────────────────────────────────────────────────
+**CLÁUSULA 4ª — DAS OBRIGAÇÕES DA CONTRATADA**
 
 A CONTRATADA se compromete a:
 a) Executar os serviços contratados com diligência, qualidade e dentro dos prazos acordados;
@@ -675,9 +665,7 @@ d) Fornecer relatórios de progresso quando solicitado;
 e) Garantir a qualidade técnica e profissional na entrega dos serviços.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 5ª — DAS OBRIGAÇÕES DO CONTRATANTE
-───────────────────────────────────────────────────
+**CLÁUSULA 5ª — DAS OBRIGAÇÕES DO CONTRATANTE**
 
 O CONTRATANTE se compromete a:
 a) Efetuar os pagamentos nas datas estipuladas;
@@ -687,23 +675,17 @@ d) Respeitar os prazos acordados para feedback e aprovação;
 e) Não compartilhar, copiar ou redistribuir materiais produzidos pela CONTRATADA sem autorização prévia.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 6ª — DA GARANTIA
-───────────────────────────────────────────────────
+**CLÁUSULA 6ª — DA GARANTIA**
 
 A CONTRATADA oferece garantia de ${warrantyDays} (${warrantyDays === 30 ? 'trinta' : warrantyDays === 60 ? 'sessenta' : warrantyDays === 90 ? 'noventa' : warrantyDays}) dias sobre os serviços executados, contados a partir da entrega final. A garantia cobre correções de falhas ou vícios decorrentes da execução, não abrangendo alterações de escopo ou mudanças solicitadas após a entrega.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 7ª — DA CONFIDENCIALIDADE
-───────────────────────────────────────────────────
+**CLÁUSULA 7ª — DA CONFIDENCIALIDADE**
 
 As partes se comprometem a manter em sigilo todas as informações confidenciais trocadas em razão deste contrato, sendo vedada sua divulgação a terceiros sem autorização expressa da outra parte, sob pena de responder por perdas e danos.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 8ª — DA RESCISÃO
-───────────────────────────────────────────────────
+**CLÁUSULA 8ª — DA RESCISÃO**
 
 O presente contrato poderá ser rescindido:
 a) Por mútuo acordo entre as partes, formalizado por escrito;
@@ -714,30 +696,22 @@ d) Por atraso no pagamento superior a 30 (trinta) dias.
 Parágrafo Único: Em caso de rescisão antecipada por parte do CONTRATANTE sem justa causa, será devido o pagamento proporcional pelos serviços já executados, acrescido de multa rescisória de 20% (vinte por cento) sobre o valor remanescente do contrato.
 
 
-───────────────────────────────────────────────────
-           CLÁUSULA 9ª — DA PROPRIEDADE INTELECTUAL
-───────────────────────────────────────────────────
+**CLÁUSULA 9ª — DA PROPRIEDADE INTELECTUAL**
 
 Todos os materiais, criações e propriedade intelectual produzidos em decorrência deste contrato serão de propriedade do CONTRATANTE, após a quitação integral dos valores devidos. Até o pagamento completo, a CONTRATADA retém todos os direitos sobre os materiais produzidos.
-
 ${additional_clauses ? `
-───────────────────────────────────────────────────
-           CLÁUSULA 10ª — DISPOSIÇÕES ADICIONAIS
-───────────────────────────────────────────────────
 
-${additional_clauses}
-` : ''}
+**CLÁUSULA 10ª — DISPOSIÇÕES ADICIONAIS**
 
-───────────────────────────────────────────────────
-           CLÁUSULA ${additional_clauses ? '11ª' : '10ª'} — DO FORO
-───────────────────────────────────────────────────
+${additional_clauses}` : ''}
+
+
+**CLÁUSULA ${additional_clauses ? '11ª' : '10ª'} — DO FORO**
 
 As partes elegem o foro da comarca de ${provider.city || '[Cidade da Contratada]'} — ${provider.state || '[UF]'}, para dirimir quaisquer dúvidas ou controvérsias oriundas deste contrato, renunciando a qualquer outro, por mais privilegiado que seja.
 
 
-───────────────────────────────────────────────────
-              ASSINATURAS
-───────────────────────────────────────────────────
+**ASSINATURAS**
 
 E, por estarem justas e contratadas, as partes assinam o presente instrumento em 2 (duas) vias de igual teor e forma, na presença de 2 (duas) testemunhas.
 
@@ -745,19 +719,13 @@ ${provider.city || '[Local]'}, ${formattedDate}.
 
 
 _____________________________________________
-CONTRATADA: ${provider.company_name}
+**CONTRATADA:** ${provider.company_name}
 ${provider.representative_name ? `Representante: ${provider.representative_name}` : ''}
 
 
 _____________________________________________
-CONTRATANTE: ${client_name}
+**CONTRATANTE:** ${client_name}
 ${client_document ? `Documento: ${client_document}` : ''}
-
-
-═══════════════════════════════════════════════════
-  Documento gerado automaticamente pela Evoluir Mais
-  Sistema de Gestão Inteligente de Contratos
-═══════════════════════════════════════════════════
 `.trim();
 
         // Gera o título do contrato
