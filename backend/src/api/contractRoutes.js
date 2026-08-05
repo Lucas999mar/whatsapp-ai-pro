@@ -189,7 +189,7 @@ router.get('/public/:id', async (req, res) => {
 
         const { data, error } = await supabase
             .from('contracts')
-            .select('id, title, content, file_url, status, client_name, client_email, client_document, signed_at, signature_url, signed_hash, tenant_id')
+            .select('id, title, content, file_url, status, client_name, client_email, client_document, signed_at, signature_url, signed_hash, tenant_id, provider_logo')
             .eq('id', id)
             .single();
 
@@ -198,17 +198,29 @@ router.get('/public/:id', async (req, res) => {
         }
 
         // Opcional: Busca nome/logo da empresa (tenant) para expor na página pública
-        let companyName = 'WhatsApp AI Pro';
-        let companyLogo = null;
-        try {
-            const { findTenantById } = require('../db/repository');
-            const tenant = await findTenantById(data.tenant_id);
-            if (tenant) {
-                companyName = tenant.name || companyName;
-                companyLogo = tenant.logo || companyLogo;
+        let companyName = 'Evoluir Mais';
+        let companyLogo = data.provider_logo || null;
+
+        if (!companyLogo) {
+            try {
+                const { findTenantById } = require('../db/repository');
+                const tenant = await findTenantById(data.tenant_id);
+                if (tenant) {
+                    companyName = tenant.name || companyName;
+                    companyLogo = tenant.logo || companyLogo;
+                }
+            } catch (e) {
+                // Ignora erro de fetch do tenant
             }
-        } catch (e) {
-            // Ignora erro de fetch do tenant
+        } else {
+            // Se já tem logo do provedor, tenta buscar o nome do tenant apenas para atualizar se necessário
+            try {
+                const { findTenantById } = require('../db/repository');
+                const tenant = await findTenantById(data.tenant_id);
+                if (tenant) {
+                    companyName = tenant.name || companyName;
+                }
+            } catch (e) { }
         }
 
         res.json({
@@ -352,7 +364,7 @@ router.post('/provider-profile', authMiddleware, async (req, res) => {
         const tenantId = req.user.tenant_id || req.user.id;
         const {
             company_name, cnpj_cpf, address, city, state, zip_code,
-            phone, email, website, representative_name, representative_cpf, representative_role
+            phone, email, website, representative_name, representative_cpf, representative_role, logo_url
         } = req.body;
 
         if (!company_name) {
@@ -381,6 +393,7 @@ router.post('/provider-profile', authMiddleware, async (req, res) => {
             representative_name: representative_name || null,
             representative_cpf: representative_cpf || null,
             representative_role: representative_role || null,
+            logo_url: logo_url || null,
             is_default: true,
             updated_at: new Date().toISOString()
         };
@@ -762,6 +775,7 @@ ${client_document ? `Documento: ${client_document}` : ''}
                 client_email: client_email || null,
                 client_document: client_document || null,
                 status: status || 'draft',
+                provider_logo: provider.logo_url || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })

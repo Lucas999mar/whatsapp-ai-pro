@@ -164,6 +164,82 @@ export default function ContractSignaturePage() {
         }
     };
 
+    const downloadPDF = () => {
+        if (!contract) return;
+        const logoUrl = contract.company_logo || null;
+        const companyName = contract.company_name || 'Evoluir Mais';
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) { alert('Permita pop-ups para baixar o PDF.'); return; }
+
+        const contractHTML = (contract.content || '').replace(/\n/g, '<br>');
+
+        let auditSelo = '';
+        if (signedSuccess || contract.status === 'signed') {
+            const formattedDate = format(new Date(contract.signed_at || new Date()), 'dd/MM/yyyy HH:mm:ss XXX', { locale: ptBR });
+            auditSelo = `
+            <div class="audit-seal">
+                <div class="audit-title">Comprovante de Integridade de Assinatura Eletrônica</div>
+                <div class="audit-grid">
+                    <div><strong>Signatário:</strong> ${contract.client_name}</div>
+                    <div><strong>Documento:</strong> ${contract.client_document}</div>
+                    <div><strong>E-mail:</strong> ${contract.client_email || '-'}</div>
+                    <div><strong>Data/Hora:</strong> ${formattedDate}</div>
+                    <div><strong>Endereço IP:</strong> ${contract.signed_ip || 'IP Registrado'}</div>
+                    <div><strong>Código Único:</strong> ${contract.id}</div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <strong>Hash SHA-256:</strong> <span style="font-family: monospace; font-size: 11px;">${contract.signed_hash || ''}</span>
+                </div>
+                ${contract.signature_url ? `
+                <div style="margin-top: 15px;">
+                    <strong>Assinatura Digitalizada:</strong><br>
+                    <img src="${contract.signature_url}" style="max-height: 60px; filter: grayscale(100%); margin-top: 5px;" />
+                </div>` : ''}
+            </div>
+            `;
+        }
+
+        printWindow.document.write(`
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${contract.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', Arial, sans-serif; color: #1a1a2e; padding: 40px 60px; line-height: 1.7; font-size: 13px; background: #fff; }
+  .header { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 3px solid #25D366; margin-bottom: 30px; }
+  .header img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid #e0e0e0; }
+  .header .company-name { font-size: 20px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.5px; }
+  .header .subtitle { font-size: 10px; color: #25D366; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; }
+  .contract-body { white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 12px; line-height: 1.8; color: #1e293b; }
+  .audit-seal { margin-top: 40px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; font-size: 11px; }
+  .audit-title { font-weight: bold; font-size: 12px; color: #0f172a; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+  .audit-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 8px; }
+  .footer { margin-top: 45px; padding-top: 16px; border-top: 2px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+  .footer strong { color: #25D366; }
+  @media print { body { padding: 20px 40px; } @page { margin: 15mm; size: A4; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : ''}
+    <div>
+      <div class="company-name">${companyName}</div>
+      <div class="subtitle">Contrato de Prestação de Serviços</div>
+    </div>
+  </div>
+  <div class="contract-body">${contractHTML}</div>
+  ${auditSelo}
+  <div class="footer">Documento gerado e assinado digitalmente na plataforma <strong>Evoluir Mais</strong></div>
+</body>
+</html>`);
+        printWindow.document.close();
+        setTimeout(() => { printWindow.print(); }, 600);
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -190,7 +266,7 @@ export default function ContractSignaturePage() {
                     <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase">Erro ao acessar</h3>
                     <p className="text-slate-400 text-sm leading-relaxed">{errorObj}</p>
                     <div className="border-t border-white/5 pt-4 text-xs text-slate-500">
-                        WhatsApp AI Pro Core Security Module
+                        Evoluir Mais Core Security Module
                     </div>
                 </div>
             </div>
@@ -229,7 +305,7 @@ export default function ContractSignaturePage() {
                         <div className="space-y-2">
                             <h2 className="text-3xl font-black text-white italic uppercase tracking-tight print:text-black">Contrato Assinado Digitalmente!</h2>
                             <p className="text-slate-400 text-sm max-w-md mx-auto print:text-slate-700">
-                                Esta assinatura eletrônica possui validade jurídica respaldada pelas diretrizes regulamentares de assinatura eletrônica do WhatsApp AI Pro.
+                                Esta assinatura eletrônica possui validade jurídica respaldada pelas diretrizes regulamentares de assinatura eletrônica do Evoluir Mais.
                             </p>
                         </div>
 
@@ -288,9 +364,15 @@ export default function ContractSignaturePage() {
                         <div className="flex gap-4 w-full justify-center pt-4 print:hidden">
                             <button
                                 onClick={handlePrint}
-                                className="bg-white/5 hover:bg-white/10 text-white font-black py-4 px-8 rounded-xl transition-all uppercase tracking-widest text-xs flex items-center gap-2"
+                                className="bg-white/5 hover:bg-white/10 text-white font-black py-4 px-6 rounded-xl transition-all uppercase tracking-widest text-xs flex items-center gap-2"
                             >
-                                <Printer size={16} /> Imprimir / PDF
+                                <Printer size={16} /> Imprimir Termos
+                            </button>
+                            <button
+                                onClick={downloadPDF}
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-black py-4 px-6 rounded-xl transition-all uppercase tracking-widest text-xs flex items-center gap-2 shadow-lg"
+                            >
+                                <Download size={16} /> Gerar PDF Branded
                             </button>
                         </div>
 
@@ -303,8 +385,21 @@ export default function ContractSignaturePage() {
                         <div className="lg:col-span-2 bg-[#0F172A] border border-white/10 rounded-[32px] p-6 md:p-8 space-y-6 shadow-2xl flex flex-col justify-between">
 
                             <div className="space-y-4">
-                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Documento Termos</span>
-                                <h2 className="text-2xl font-black text-white italic uppercase tracking-tight">{contract.title}</h2>
+                                <div className="flex justify-between items-start gap-4">
+                                    <div>
+                                        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Documento Termos</span>
+                                        <h2 className="text-2xl font-black text-white italic uppercase tracking-tight">{contract.title}</h2>
+                                    </div>
+                                    {!contract.file_url && contract.content && (
+                                        <button
+                                            type="button"
+                                            onClick={downloadPDF}
+                                            className="bg-white/5 hover:bg-white/10 text-white border border-white/10 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all mt-1"
+                                        >
+                                            <Download size={12} /> Cópia PDF
+                                        </button>
+                                    )}
+                                </div>
 
                                 <div className="border border-white/5 bg-black/30 rounded-2xl p-6 h-[400px] overflow-y-auto custom-scrollbar font-mono text-sm leading-relaxed text-slate-300">
                                     {contract.file_url ? (

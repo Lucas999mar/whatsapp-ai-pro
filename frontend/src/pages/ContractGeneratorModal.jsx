@@ -38,8 +38,9 @@ export default function ContractGeneratorModal({ onClose, onGenerated }) {
     // Provider profile
     const [provider, setProvider] = useState({
         company_name: '', cnpj_cpf: '', address: '', city: '', state: '', zip_code: '',
-        phone: '', email: '', website: '', representative_name: '', representative_cpf: '', representative_role: ''
+        phone: '', email: '', website: '', representative_name: '', representative_cpf: '', representative_role: '', logo_url: ''
     });
+    const [uploadingLogo, setUploadingLogo] = useState(false);
 
     // Client data
     const [client, setClient] = useState({
@@ -73,6 +74,35 @@ export default function ContractGeneratorModal({ onClose, onGenerated }) {
             setServices(servicesRes.data || []);
         } catch (err) { console.error(err); }
         setLoading(false);
+    };
+
+    const handleLogoUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione apenas arquivos de imagem.');
+            return;
+        }
+
+        setUploadingLogo(true);
+        const data = new FormData();
+        data.append('file', file);
+
+        try {
+            const res = await api.post('/upload', data, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setProvider(prev => ({
+                ...prev,
+                logo_url: res.data.url
+            }));
+        } catch (err) {
+            console.error('Erro ao subir imagem:', err);
+            alert('Falha ao subir a logo. Verifique se o bucket existe no Supabase.');
+        } finally {
+            setUploadingLogo(false);
+        }
     };
 
     const saveProvider = async () => {
@@ -211,6 +241,44 @@ export default function ContractGeneratorModal({ onClose, onGenerated }) {
                                 <div><label className={labelClass}>Cidade</label><input value={provider.city || ''} onChange={e => setProvider({ ...provider, city: e.target.value })} placeholder="São Paulo" className={inputClass} /></div>
                                 <div><label className={labelClass}>Estado (UF)</label><input value={provider.state || ''} onChange={e => setProvider({ ...provider, state: e.target.value })} placeholder="SP" className={inputClass} /></div>
                                 <div><label className={labelClass}>CEP</label><input value={provider.zip_code || ''} onChange={e => setProvider({ ...provider, zip_code: e.target.value })} placeholder="00000-000" className={inputClass} /></div>
+
+                                <div className="md:col-span-2 mt-2">
+                                    <label className={labelClass}>Logomarca do Prestador (Opcional)</label>
+                                    <div className="flex items-center gap-4 bg-black/30 border border-white/5 p-4 rounded-xl">
+                                        <div className="w-14 h-14 rounded-full overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center shrink-0">
+                                            {provider.logo_url ? (
+                                                <img src={provider.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <Building2 className="text-slate-650" size={20} />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={provider.logo_url || ''}
+                                                    onChange={e => setProvider({ ...provider, logo_url: e.target.value })}
+                                                    placeholder="URL da imagem ou selecione um arquivo..."
+                                                    className="flex-1 bg-black/40 border border-white/10 rounded-lg p-2.5 text-white font-semibold text-xs outline-none focus:border-[#25D366] transition-colors placeholder:text-slate-600"
+                                                />
+                                                <input
+                                                    type="file"
+                                                    id="provider-logo-file"
+                                                    accept="image/*"
+                                                    onChange={handleLogoUpload}
+                                                    className="hidden"
+                                                />
+                                                <label
+                                                    htmlFor="provider-logo-file"
+                                                    className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold px-3 py-2.5 rounded-lg text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                                >
+                                                    {uploadingLogo ? <Loader2 className="animate-spin" size={14} /> : 'Upload'}
+                                                </label>
+                                            </div>
+                                            <p className="text-[9px] text-slate-500 font-medium">Defina um logotipo para dar mais profissionalismo no envio de assinaturas e geração de PDFs.</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="bg-[#0b0f19] border border-white/5 rounded-2xl p-4 space-y-4">

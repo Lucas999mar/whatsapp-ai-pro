@@ -3,7 +3,7 @@ import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import {
     FileText, Plus, Search, Trash2, Edit3, X, Save, Copy, Check,
-    ExternalLink, FileSignature, UploadCloud, Eye, AlertCircle, Loader2, CheckCircle2, RefreshCw, Sparkles
+    ExternalLink, FileSignature, UploadCloud, Eye, AlertCircle, Loader2, CheckCircle2, RefreshCw, Sparkles, Download
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -119,6 +119,55 @@ export default function ContractsPage() {
         } finally {
             setSaving(false);
         }
+    };
+
+    // ── PDF GENERATION ─────────────────────────────────────────
+    const downloadPDF = (contract) => {
+        // Busca a logo da empresa 
+        const logoUrl = user?.logo || null;
+        const companyName = user?.company_name || user?.name || 'Empresa';
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) { alert('Permita pop-ups para baixar o PDF.'); return; }
+
+        const contractHTML = (contract.content || '').replace(/\n/g, '<br>');
+
+        printWindow.document.write(`
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${contract.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', Arial, sans-serif; color: #1a1a2e; padding: 40px 60px; line-height: 1.7; font-size: 13px; background: #fff; }
+  .header { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 3px solid #25D366; margin-bottom: 30px; }
+  .header img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid #e0e0e0; }
+  .header .company-name { font-size: 22px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.5px; }
+  .header .subtitle { font-size: 10px; color: #25D366; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; }
+  .contract-body { white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 12.5px; line-height: 1.8; color: #1e293b; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 2px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+  .footer strong { color: #25D366; }
+  @media print { body { padding: 20px 40px; } @page { margin: 15mm; size: A4; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : ''}
+    <div>
+      <div class="company-name">${companyName}</div>
+      <div class="subtitle">Contrato de Prestação de Serviços</div>
+    </div>
+  </div>
+  <div class="contract-body">${contractHTML}</div>
+  <div class="footer">Documento gerado pela <strong>Evoluir Mais</strong> — Sistema de Gestão Inteligente de Contratos</div>
+</body>
+</html>`);
+        printWindow.document.close();
+
+        // Espera carregar a logo antes de imprimir
+        setTimeout(() => { printWindow.print(); }, 600);
     };
 
     const resetForm = () => {
@@ -690,7 +739,7 @@ export default function ContractsPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex gap-4">
+                                <div className="flex gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setShowDetailModal(false)}
@@ -698,6 +747,16 @@ export default function ContractsPage() {
                                     >
                                         Fechar
                                     </button>
+
+                                    {selectedContract.content && (
+                                        <button
+                                            type="button"
+                                            onClick={() => downloadPDF(selectedContract)}
+                                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-black px-6 py-3.5 rounded-xl transition-all uppercase tracking-widest text-xs flex items-center gap-2 shadow-lg"
+                                        >
+                                            <Download size={16} /> Baixar PDF
+                                        </button>
+                                    )}
 
                                     {selectedContract.status !== 'signed' && (
                                         <button
