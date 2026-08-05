@@ -742,7 +742,7 @@ ${client_document ? `Documento: ${client_document}` : ''}
 
 
 ═══════════════════════════════════════════════════
-  Documento gerado automaticamente pelo WhatsApp AI Pro
+  Documento gerado automaticamente pela Evoluir Mais
   Sistema de Gestão Inteligente de Contratos
 ═══════════════════════════════════════════════════
 `.trim();
