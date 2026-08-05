@@ -50,4 +50,5 @@ CREATE INDEX IF NOT EXISTS idx_contract_services_tenant ON contract_services(ten
 -- 3. Adicionar colunas adicionais para logotipo do prestador
 ALTER TABLE contract_provider_profiles ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS provider_logo TEXT;
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS provider_name VARCHAR(255);
 

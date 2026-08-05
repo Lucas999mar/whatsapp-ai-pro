@@ -128,9 +128,9 @@ export default function ContractsPage() {
 
     // ── PDF GENERATION ─────────────────────────────────────────
     const downloadPDF = (contract) => {
-        // Busca a logo da empresa 
-        const logoUrl = user?.logo || null;
-        const companyName = user?.company_name || user?.name || 'Empresa';
+        // Busca a logo e o nome da empresa priorizando o contrato específico
+        const logoUrl = contract.provider_logo || user?.logo || null;
+        const companyName = contract.provider_name || user?.company_name || user?.name || 'Empresa';
 
         const printWindow = window.open('', '_blank');
         if (!printWindow) { alert('Permita pop-ups para baixar o PDF.'); return; }

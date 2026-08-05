@@ -198,29 +198,24 @@ router.get('/public/:id', async (req, res) => {
         }
 
         // Opcional: Busca nome/logo da empresa (tenant) para expor na página pública
-        let companyName = 'Evoluir Mais';
+        let companyName = data.provider_name || 'Evoluir Mais';
         let companyLogo = data.provider_logo || null;
 
-        if (!companyLogo) {
+        if (!companyLogo || !data.provider_name) {
             try {
                 const { findTenantById } = require('../db/repository');
                 const tenant = await findTenantById(data.tenant_id);
                 if (tenant) {
-                    companyName = tenant.name || companyName;
-                    companyLogo = tenant.logo || companyLogo;
+                    if (!data.provider_name) {
+                        companyName = tenant.name || companyName;
+                    }
+                    if (!companyLogo) {
+                        companyLogo = tenant.logo || companyLogo;
+                    }
                 }
             } catch (e) {
                 // Ignora erro de fetch do tenant
             }
-        } else {
-            // Se já tem logo do provedor, tenta buscar o nome do tenant apenas para atualizar se necessário
-            try {
-                const { findTenantById } = require('../db/repository');
-                const tenant = await findTenantById(data.tenant_id);
-                if (tenant) {
-                    companyName = tenant.name || companyName;
-                }
-            } catch (e) { }
         }
 
         res.json({
@@ -744,6 +739,7 @@ ${client_document ? `Documento: ${client_document}` : ''}
                 client_document: client_document || null,
                 status: status || 'draft',
                 provider_logo: provider.logo_url || null,
+                provider_name: provider.company_name || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
