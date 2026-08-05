@@ -3,10 +3,11 @@ import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import {
     FileText, Plus, Search, Trash2, Edit3, X, Save, Copy, Check,
-    ExternalLink, FileSignature, UploadCloud, Eye, AlertCircle, Loader2, CheckCircle2, RefreshCw
+    ExternalLink, FileSignature, UploadCloud, Eye, AlertCircle, Loader2, CheckCircle2, RefreshCw, Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ContractGeneratorModal from './ContractGeneratorModal';
 
 export default function ContractsPage() {
     const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function ContractsPage() {
     // Form States
     const [isUploading, setIsUploading] = useState(false);
     const [copiedId, setCopiedId] = useState(null);
+    const [showGeneratorModal, setShowGeneratorModal] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
         client_name: '',
@@ -212,12 +214,20 @@ export default function ContractsPage() {
                     <p className="text-slate-400 mt-2 text-lg">Crie, faça upload e envie contratos para assinatura eletrônica.</p>
                 </div>
 
-                <button
-                    onClick={() => { resetForm(); setShowModal(true); }}
-                    className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-2 transition-all transform hover:-translate-y-1"
-                >
-                    <Plus size={20} /> Novo Contrato
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowGeneratorModal(true)}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(147,51,234,0.3)] flex items-center gap-2 transition-all transform hover:-translate-y-1"
+                    >
+                        <Sparkles size={20} /> Gerar Contrato
+                    </button>
+                    <button
+                        onClick={() => { resetForm(); setShowModal(true); }}
+                        className="bg-[#25D366] hover:bg-[#1DA851] text-slate-900 px-6 py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center gap-2 transition-all transform hover:-translate-y-1"
+                    >
+                        <Plus size={20} /> Novo Contrato
+                    </button>
+                </div>
             </div>
 
             {/* FILTROS E BUSCA */}
@@ -245,8 +255,8 @@ export default function ContractsPage() {
                             key={tab.id}
                             onClick={() => setStatusFilter(tab.id)}
                             className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all border ${statusFilter === tab.id
-                                    ? 'bg-[#25D366]/10 text-[#25D366] border-[#25D366]/30'
-                                    : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
+                                ? 'bg-[#25D366]/10 text-[#25D366] border-[#25D366]/30'
+                                : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                                 }`}
                         >
                             {tab.name}
@@ -307,8 +317,8 @@ export default function ContractsPage() {
                                     <button
                                         onClick={() => copySignatureLink(c.id)}
                                         className={`flex-1 font-bold p-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all ${copiedId === c.id
-                                                ? 'bg-[#25D366] text-slate-900 shadow-[0_0_10px_rgba(37,211,102,0.3)]'
-                                                : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
+                                            ? 'bg-[#25D366] text-slate-900 shadow-[0_0_10px_rgba(37,211,102,0.3)]'
+                                            : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
                                             }`}
                                     >
                                         {copiedId === c.id ? (
@@ -412,8 +422,8 @@ export default function ContractsPage() {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, creation_type: 'editor' })}
                                         className={`flex-1 py-3 px-4 rounded-xl border text-xs font-black uppercase tracking-wider transition-all ${formData.creation_type === 'editor'
-                                                ? 'border-[#25D366] bg-[#25D366]/10 text-white'
-                                                : 'border-white/10 bg-black/20 text-slate-400 hover:bg-white/5'
+                                            ? 'border-[#25D366] bg-[#25D366]/10 text-white'
+                                            : 'border-white/10 bg-black/20 text-slate-400 hover:bg-white/5'
                                             }`}
                                     >
                                         📝 Digitar Contrato
@@ -422,8 +432,8 @@ export default function ContractsPage() {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, creation_type: 'upload' })}
                                         className={`flex-1 py-3 px-4 rounded-xl border text-xs font-black uppercase tracking-wider transition-all ${formData.creation_type === 'upload'
-                                                ? 'border-[#25D366] bg-[#25D366]/10 text-white'
-                                                : 'border-white/10 bg-black/20 text-slate-400 hover:bg-white/5'
+                                            ? 'border-[#25D366] bg-[#25D366]/10 text-white'
+                                            : 'border-white/10 bg-black/20 text-slate-400 hover:bg-white/5'
                                             }`}
                                     >
                                         📂 Subir Arquivo Pronto (PDF)
@@ -705,6 +715,14 @@ export default function ContractsPage() {
 
                     </div>
                 </div>
+            )}
+
+            {/* CONTRACT GENERATOR MODAL */}
+            {showGeneratorModal && (
+                <ContractGeneratorModal
+                    onClose={() => setShowGeneratorModal(false)}
+                    onGenerated={() => fetchContracts()}
+                />
             )}
 
         </div>
