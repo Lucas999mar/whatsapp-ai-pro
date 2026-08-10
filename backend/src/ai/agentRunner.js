@@ -16,7 +16,7 @@
  * ══════════════════════════════════════════════════════════════
  */
 
-const { getToolDefinitions, executeTool } = require('./tools');
+const { getToolDefinitions, getToolDefinitionsWithPlugins, executeTool } = require('./tools');
 const { resolveAIConfig } = require('./pipeline');
 const Anthropic = require('@anthropic-ai/sdk');
 const OpenAI = require('openai');
@@ -168,7 +168,17 @@ async function runAgentTask(taskId, userPrompt, context = {}, onStepUpdate = nul
     const agentName = settings.agent_name || settings.bot_name || 'Hermes';
 
     const systemPrompt = buildAgentSystemPrompt(agentName);
-    const tools = getToolDefinitions();
+
+    // Carrega tools estáticas + plugins conectados do tenant
+    const tenantId = context.tenantId || 'default';
+    let tools;
+    try {
+        tools = await getToolDefinitionsWithPlugins(tenantId);
+        console.log(`🔌 [Agente] ${tools.length} ferramentas carregadas (incluindo plugins)`);
+    } catch (err) {
+        console.warn('⚠️ Fallback para tools estáticas:', err.message);
+        tools = getToolDefinitions();
+    }
 
     console.log(`\n🤖 ══════════════════════════════════════════════════`);
     console.log(`🤖 AGENTE AUTÔNOMO INICIADO [${taskId}]`);

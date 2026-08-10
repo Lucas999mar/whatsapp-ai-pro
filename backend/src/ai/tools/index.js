@@ -3,7 +3,9 @@
  *  AGENT TOOLS REGISTRY
  *  Catálogo central de ferramentas disponíveis para o Agente Autônomo.
  *  Cada tool tem: name, description, parameters (JSON Schema), execute(args).
- *  IMPORTANTE: Este módulo é ISOLADO e não altera nenhum arquivo existente.
+ *  
+ *  ATUALIZADO: Agora integra com o sistema de Plugins/Conexões.
+ *  As tools de plugins conectados são adicionadas dinamicamente.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -13,6 +15,11 @@ const whatsappTool = require('./whatsappTool');
 const webSearchTool = require('./webSearchTool');
 const knowledgeTool = require('./knowledgeTool');
 const systemTools = require('./systemTools');
+
+// ── Plugin System Integration ──
+const { getToolDefinitionsForPlugins, findPluginByToolName } = require('../../plugins/registry');
+const { getActivePluginIds } = require('../../plugins/manager');
+const { executePluginTool } = require('../../plugins/executor');
 
 /**
  * Retorna a lista completa de ferramentas no formato OpenAI Function Calling
@@ -342,6 +349,12 @@ async function executeTool(toolName, args, context = {}) {
             case 'task_completed':
                 return `✅ Tarefa finalizada: ${args.summary}`;
             default:
+                // ── Tenta executar como plugin conectado ──
+                const pluginId = findPluginByToolName(toolName);
+                if (pluginId) {
+                    console.log(`🔌 [Tool:${toolName}] Executando via plugin "${pluginId}"`);
+                    return await executePluginTool(toolName, args, context);
+                }
                 return `❌ Ferramenta "${toolName}" não encontrada.`;
         }
     } catch (err) {
@@ -350,4 +363,31 @@ async function executeTool(toolName, args, context = {}) {
     }
 }
 
-module.exports = { getToolDefinitions, executeTool };
+/**
+ * Retorna as tool definitions estáticas + dinâmicas (plugins conectados)
+ * @param {string} tenantId - ID do tenant para buscar plugins ativos
+ * @returns {Promise<Array>} Lista combinada de tool definitions
+ */
+async function getToolDefinitionsWithPlugins(tenantId) {
+    const staticTools = getToolDefinitions();
+
+    try {
+        const activePlugins = await getActivePluginIds(tenantId);
+        if (activePlugins.length === 0) return staticTools;
+
+        const pluginTools = getToolDefinitionsForPlugins(activePlugins);
+
+        // Remove tools estáticas que foram substituídas por plugins
+        // (ex: gmail_read_emails agora vem do plugin Google)
+        const pluginToolNames = new Set(pluginTools.map(t => t.function.name));
+        const filteredStatic = staticTools.filter(t => !pluginToolNames.has(t.function.name));
+
+        console.log(`🔌 [Tools] ${filteredStatic.length} estáticas + ${pluginTools.length} de plugins (${activePlugins.join(', ')})`);
+        return [...filteredStatic, ...pluginTools];
+    } catch (err) {
+        console.warn('⚠️ Erro ao carregar plugin tools, usando apenas estáticas:', err.message);
+        return staticTools;
+    }
+}
+
+module.exports = { getToolDefinitions, getToolDefinitionsWithPlugins, executeTool };

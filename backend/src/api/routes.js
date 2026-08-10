@@ -1195,6 +1195,10 @@ router.use('/agent', agentAuth, agentRouter);
 const omniRouter = require('./omniRoutes');
 router.use('/omni', omniRouter);
 
+// ── PLUGINS / CONNECTIONS ROUTES ───────────────────────────────
+const pluginRoutes = require('./pluginRoutes');
+router.use('/', pluginRoutes);
+
 module.exports = router;
 
 

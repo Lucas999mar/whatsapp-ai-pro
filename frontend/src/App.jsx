@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
   Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network,
-  FileSignature, BarChart2
+  FileSignature, BarChart2, Plug
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -48,6 +48,9 @@ import SocialAnalyticsPage from './pages/SocialAnalyticsPage';
 // Componente de Agente Autônomo
 import AgentDashboard from './pages/AgentDashboard';
 
+// Componente de Conexões/Plugins
+import ConnectionsPage from './pages/ConnectionsPage';
+
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -74,6 +77,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
     { path: '/contracts', name: 'Contratos & Assinaturas', icon: <FileSignature size={20} /> },
     { path: '/delivery-dashboard', name: 'Monitor Delivery (Uber)', icon: <Bike size={20} /> },
+    { path: '/connections', name: 'Conexões & Plugins', icon: <Plug size={20} /> },
     { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
   ];
@@ -117,6 +121,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/contracts': 'contracts',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
+      '/connections': 'connections',
       '/integrations': 'integrations'
     };
 
@@ -246,6 +251,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/contracts': 'contracts',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
+      '/connections': 'connections',
       '/integrations': 'integrations'
     };
 
@@ -366,6 +372,7 @@ function AppContent() {
             <Route path="/tracking/:code" element={<TrackingPage />} />
             <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
             <Route path="/content/share/:token" element={<ContentPlannerPublicPage />} />
+            <Route path="/connections" element={<AuthGuard><ConnectionsPage /></AuthGuard>} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard adminOnly><SuperAdmin /></AuthGuard>} />
