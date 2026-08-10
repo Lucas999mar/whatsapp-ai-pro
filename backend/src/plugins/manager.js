@@ -31,6 +31,15 @@ function generateAuthUrl(pluginId, tenantId) {
         throw new Error(`Plugin "${pluginId}" não suporta OAuth`);
     }
 
+    // Valida credenciais no ambiente
+    const envPrefix = pluginId.toUpperCase();
+    const clientIdEnvKey = pluginId === 'trello' ? 'TRELLO_API_KEY' : `${envPrefix}_CLIENT_ID`;
+    const clientId = process.env[clientIdEnvKey];
+
+    if (!clientId) {
+        throw new Error(`As credenciais de conexão do ${plugin.name} não foram configuradas pelo administrador no backend (falta declarar a chave ${clientIdEnvKey} no arquivo .env).`);
+    }
+
     const backendUrl = process.env.BACKEND_URL || `http://localhost:${config.server.port}`;
     const redirectUri = `${backendUrl}/api/plugins/callback/${pluginId}`;
 
@@ -293,6 +302,35 @@ async function fetchAccountInfo(pluginId, accessToken) {
             });
             const data = await res.json();
             info = { name: data.data?.name, email: data.data?.email, avatar: data.data?.photo?.image_128x128 };
+        } else if (pluginId === 'instagram') {
+            const res = await fetch(`https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`);
+            const data = await res.json();
+            info = { name: data.username, username: data.username, instagram_id: data.id };
+        } else if (pluginId === 'facebook') {
+            const res = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
+            const data = await res.json();
+            info = { name: data.name, email: data.email, avatar: data.picture?.data?.url };
+        } else if (pluginId === 'linkedin') {
+            const res = await fetch('https://api.linkedin.com/v2/me', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const data = await res.json();
+            info = { name: `${data.localizedFirstName} ${data.localizedLastName}`, username: data.id };
+        } else if (pluginId === 'discord') {
+            const res = await fetch('https://discord.com/api/users/@me', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const data = await res.json();
+            info = { name: data.global_name || data.username, email: data.email, avatar: data.avatar ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png` : null };
+        } else if (pluginId === 'clickup') {
+            const res = await fetch('https://api.clickup.com/api/v2/user', {
+                headers: { Authorization: accessToken }
+            });
+            const data = await res.json();
+            info = { name: data.user?.username, email: data.user?.email };
+        } else {
+            // Fallback genérico para outros plugins conectáveis que não possuem busca detalhada aqui
+            info = { name: `Conexão ${pluginId.charAt(0).toUpperCase() + pluginId.slice(1)}`, status: 'Ativa' };
         }
     } catch (err) {
         console.warn(`⚠️ Erro ao buscar account info para ${pluginId}:`, err.message);

@@ -25,6 +25,14 @@ const PLUGIN_LOGOS = {
     shopify: 'https://cdn.worldvectorlogo.com/logos/shopify.svg',
     slack: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/120px-Slack_icon_2019.svg.png',
     webhook: null,
+    instagram: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/120px-Instagram_logo_2016.svg.png',
+    facebook: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/2021_Facebook_icon.svg/120px-2021_Facebook_icon.svg.png',
+    linkedin: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/120px-LinkedIn_logo_initials.png',
+    clickup: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/ClickUp_Logo.png/120px-ClickUp_Logo.png',
+    jira: 'https://cdn.worldvectorlogo.com/logos/jira-3.svg',
+    pipedrive: 'https://cdn.worldvectorlogo.com/logos/pipedrive.svg',
+    discord: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Discord_logo_2021.svg/120px-Discord_logo_2021.svg.png',
+    rdstation: 'https://cdn.worldvectorlogo.com/logos/rd-station.svg',
 };
 
 export default function ConnectionsPage() {
@@ -106,6 +114,8 @@ export default function ConnectionsPage() {
             }
         } catch (err) {
             console.error('Erro ao conectar plugin:', err);
+            const errorMessage = err.response?.data?.error || err.message || 'Erro desconhecido ao tentar conectar';
+            alert(`⚠️ Falha na Conexão:\n\n${errorMessage}`);
             setConnectingPlugin(null);
         }
     };
@@ -206,8 +216,8 @@ export default function ConnectionsPage() {
                                 key={cat}
                                 onClick={() => setActiveCategory(cat)}
                                 className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeCategory === cat
-                                        ? 'bg-[#25D366]/15 text-[#25D366] border border-[#25D366]/30'
-                                        : 'bg-[#0F172A] text-slate-400 border border-white/5 hover:border-white/15 hover:text-slate-300'
+                                    ? 'bg-[#25D366]/15 text-[#25D366] border border-[#25D366]/30'
+                                    : 'bg-[#0F172A] text-slate-400 border border-white/5 hover:border-white/15 hover:text-slate-300'
                                     }`}
                             >
                                 {cat === 'all' ? 'Todos' : catInfo?.label || cat}

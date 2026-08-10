@@ -51,6 +51,22 @@ async function executePluginTool(toolName, args, context = {}) {
                 return await executeShopifyTool(toolName, args, accessToken, context);
             case 'webhook':
                 return await executeWebhookTool(toolName, args, context);
+            case 'instagram':
+                return await executeInstagramTool(toolName, args, accessToken);
+            case 'facebook':
+                return await executeFacebookTool(toolName, args, accessToken);
+            case 'linkedin':
+                return await executeLinkedInTool(toolName, args, accessToken);
+            case 'clickup':
+                return await executeClickUpTool(toolName, args, accessToken);
+            case 'jira':
+                return await executeJiraTool(toolName, args, accessToken);
+            case 'pipedrive':
+                return await executePipedriveTool(toolName, args, accessToken);
+            case 'discord':
+                return await executeDiscordTool(toolName, args, accessToken);
+            case 'rdstation':
+                return await executeRDStationTool(toolName, args, accessToken);
             default:
                 return `❌ Executor não implementado para plugin "${pluginId}".`;
         }
@@ -449,4 +465,260 @@ async function executeWebhookTool(toolName, args, context) {
     return `❌ Tool "${toolName}" não encontrada no Webhook.`;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  INSTAGRAM BUSINESS
+// ══════════════════════════════════════════════════════════════
+async function executeInstagramTool(toolName, args, token) {
+    if (toolName === 'instagram_get_info') {
+        const res = await fetch(`https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${token}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'Erro API Instagram');
+        return `📸 Perfil do Instagram:\n\n👤 Usuário: ${data.username}\n🆔 ID: ${data.id}\n📁 Tipo de Conta: ${data.account_type}\n🖼️ Total de Mídias: ${data.media_count}`;
+    }
+
+    if (toolName === 'instagram_publish_photo') {
+        // Fluxo oficial do Meta Graph API: cria container e depois publica
+        const createContainerRes = await fetch(`https://graph.facebook.com/v18.0/me/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image_url: args.image_url,
+                caption: args.caption || '',
+                access_token: token
+            })
+        });
+        const container = await createContainerRes.json();
+        if (container.error) throw new Error(container.error.message || 'Erro ao criar container de mídia');
+
+        const publishRes = await fetch(`https://graph.facebook.com/v18.0/me/media_publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                creation_id: container.id,
+                access_token: token
+            })
+        });
+        const publish = await publishRes.json();
+        if (publish.error) throw new Error(publish.error.message || 'Erro ao publicar mídia');
+
+        return `✅ Foto publicada com sucesso no Instagram! ID da Publicação: ${publish.id}`;
+    }
+
+    return `❌ Tool "${toolName}" não encontrada no Instagram.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FACEBOOK
+// ══════════════════════════════════════════════════════════
+async function executeFacebookTool(toolName, args, token) {
+    if (toolName === 'facebook_publish_post') {
+        const res = await fetch(`https://graph.facebook.com/v18.0/me/feed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: args.message,
+                link: args.link || '',
+                access_token: token
+            })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'Erro API Facebook');
+        return `✅ Postagem criada com sucesso na Página do Facebook! ID: ${data.id}`;
+    }
+    return `❌ Tool "${toolName}" não encontrada no Facebook.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LINKEDIN
+// ══════════════════════════════════════════════════════════
+async function executeLinkedInTool(toolName, args, token) {
+    if (toolName === 'linkedin_create_post') {
+        // Obtém o URN do usuário primeiro
+        const meRes = await fetch('https://api.linkedin.com/v2/me', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const me = await meRes.json();
+        const authorUrn = `urn:li:person:${me.id}`;
+
+        const postBody = {
+            author: authorUrn,
+            lifecycleState: 'PUBLISHED',
+            specificContent: {
+                'com.linkedin.ugc.ShareContent': {
+                    shareCommentary: { text: args.text },
+                    shareMediaCategory: args.url ? 'ARTICLE' : 'NONE'
+                }
+            },
+            visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' }
+        };
+
+        if (args.url) {
+            postBody.specificContent['com.linkedin.ugc.ShareContent'].media = [{
+                status: 'READY',
+                description: { text: args.text },
+                originalUrl: args.url,
+                title: { text: args.title || 'Compartilhamento' }
+            }];
+        }
+
+        const res = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-Restli-Protocol-Version': '2.0.0'
+            },
+            body: JSON.stringify(postBody)
+        });
+
+        if (res.status !== 201) {
+            const errData = await res.json();
+            throw new Error(errData.message || 'O LinkedIn retornou um status inválido');
+        }
+
+        return `✅ Publicação compartilhada com sucesso no seu LinkedIn!`;
+    }
+    return `❌ Tool "${toolName}" não encontrada no LinkedIn.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CLICKUP
+// ══════════════════════════════════════════════════════════
+async function executeClickUpTool(toolName, args, token) {
+    const headers = { Authorization: token, 'Content-Type': 'application/json' };
+
+    if (toolName === 'clickup_list_tasks') {
+        const res = await fetch(`https://api.clickup.com/api/v2/list/${args.list_id}/task`, { headers });
+        const data = await res.json();
+        if (!data.tasks?.length) return 'Nenhuma tarefa encontrada nessa lista do ClickUp.';
+
+        const tasks = data.tasks.map(t => `⚡ [${t.status?.status?.toUpperCase()}] ${t.name} (Assigned: ${t.assignees?.[0]?.username || 'Ninguém'})`);
+        return `⚡ ${tasks.length} tarefa(s) encontrada(s):\n\n${tasks.join('\n')}`;
+    }
+
+    if (toolName === 'clickup_create_task') {
+        const res = await fetch(`https://api.clickup.com/api/v2/list/${args.list_id}/task`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                name: args.name,
+                description: args.description || ''
+            })
+        });
+        const data = await res.json();
+        return data.id ? `✅ Tarefa "${args.name}" criada com sucesso no ClickUp! ID: ${data.id}` : `❌ Falha ao criar tarefa no ClickUp.`;
+    }
+
+    return `❌ Tool "${toolName}" não encontrada no ClickUp.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  JIRA
+// ══════════════════════════════════════════════════════════
+async function executeJiraTool(toolName, args, token) {
+    if (toolName === 'jira_create_issue') {
+        // Busca os resources acessíveis via OAuth do Atlassian
+        const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const resources = await resourcesRes.json();
+        if (!resources.length) throw new Error('Nenhum site Jira associado à essa conta');
+
+        const cloudId = resources[0].id; // Usa o primeiro site mapeado
+        const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3`;
+
+        const res = await fetch(`${base}/issue`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fields: {
+                    project: { key: args.project_key },
+                    summary: args.summary,
+                    description: {
+                        type: 'doc',
+                        version: 1,
+                        content: [{
+                            type: 'paragraph',
+                            content: [{ type: 'text', text: args.description || 'Criado via IA Hermes' }]
+                        }]
+                    },
+                    issuetype: { name: args.issue_type || 'Task' }
+                }
+            })
+        });
+        const data = await res.json();
+        return data.key ? `✅ Issue ${data.key} criada no Jira!` : `❌ Erro Jira: ${JSON.stringify(data)}`;
+    }
+    return `❌ Tool "${toolName}" não encontrada no Jira.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PIPEDRIVE
+// ══════════════════════════════════════════════════════════
+async function executePipedriveTool(toolName, args, token) {
+    if (toolName === 'pipedrive_create_deal') {
+        const res = await fetch(`https://api.pipedrive.com/v1/deals?api_token=${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: args.title,
+                value: args.value || 0,
+                currency: args.currency || 'BRL'
+            })
+        });
+        const data = await res.json();
+        return data.success ? `✅ Negócio "${args.title}" adicionado no Pipedrive! ID: ${data.data.id}` : `❌ Erro Pipedrive API`;
+    }
+    return `❌ Tool "${toolName}" não encontrada no Pipedrive.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DISCORD
+// ══════════════════════════════════════════════════════════
+async function executeDiscordTool(toolName, args, token) {
+    if (toolName === 'discord_send_message') {
+        const res = await fetch(`https://discord.com/api/v10/channels/${args.channel_id}/messages`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content: args.content })
+        });
+        const data = await res.json();
+        return data.id ? `✅ Mensagem enviada para o canal do Discord com sucesso!` : `❌ Erro Discord API: ${JSON.stringify(data)}`;
+    }
+    return `❌ Tool "${toolName}" não encontrada no Discord.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  RD STATION
+// ══════════════════════════════════════════════════════════
+async function executeRDStationTool(toolName, args, token) {
+    if (toolName === 'rd_create_lead') {
+        const res = await fetch(`https://api.rd.services/platform/conversions?api_key=${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                event_type: 'CONVERSION',
+                event_family: 'CDP',
+                payload: {
+                    email: args.email,
+                    name: args.name || '',
+                    job_title: args.job_title || '',
+                    conversion_identifier: 'WhatsAppAIPro_Hermes_Agent'
+                }
+            })
+        });
+        return res.status === 200 || res.status === 201
+            ? `✅ Lead "${args.email}" enviado/atualizado com sucesso no funil da RD Station!`
+            : `❌ Erro ao enviar lead para RD Station CRM.`;
+    }
+    return `❌ Tool "${toolName}" não encontrada no RD Station.`;
+}
+
 module.exports = { executePluginTool };
+

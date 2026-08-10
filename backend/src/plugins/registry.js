@@ -474,6 +474,284 @@ const PLUGINS = {
             }
         ]
     },
+
+    // ══════════════════════════════════════════════════════════
+    //  INSTAGRAM
+    // ══════════════════════════════════════════════════════════
+    instagram: {
+        id: 'instagram',
+        name: 'Instagram Business',
+        description: 'Gerencie postagens, responda directs e obtenha insights de alcance do Instagram via IA.',
+        icon: '📸',
+        color: '#E1306C',
+        category: 'communication',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://api.instagram.com/oauth/authorize',
+            tokenUrl: 'https://api.instagram.com/oauth/access_token',
+            scopes: ['instagram_basic', 'instagram_content_publish', 'instagram_manage_comments', 'instagram_manage_messages'],
+        },
+        tools: [
+            {
+                name: 'instagram_get_info',
+                description: 'Obtém dados básicos do perfil do Instagram.',
+                parameters: { type: 'object', properties: {}, required: [] }
+            },
+            {
+                name: 'instagram_publish_photo',
+                description: 'Publica uma foto com legenda no feed do Instagram.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        image_url: { type: 'string', description: 'URL pública da imagem' },
+                        caption: { type: 'string', description: 'Legenda da foto' }
+                    },
+                    required: ['image_url']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  FACEBOOK
+    // ══════════════════════════════════════════════════════════
+    facebook: {
+        id: 'facebook',
+        name: 'Facebook Pages',
+        description: 'Publique posts e interaja com seguidores da sua página do Facebook.',
+        icon: '📘',
+        color: '#1877F2',
+        category: 'communication',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
+            tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token',
+            scopes: ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'publish_to_groups'],
+        },
+        tools: [
+            {
+                name: 'facebook_publish_post',
+                description: 'Cria uma postagem na página conectada do Facebook.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        message: { type: 'string', description: 'Texto da publicação' },
+                        link: { type: 'string', description: 'Link opcional para postar junto' }
+                    },
+                    required: ['message']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  LINKEDIN
+    // ══════════════════════════════════════════════════════════
+    linkedin: {
+        id: 'linkedin',
+        name: 'LinkedIn',
+        description: 'Compartilhe posts e artigos corporativos diretamente no LinkedIn.',
+        icon: '🔗',
+        color: '#0A66C2',
+        category: 'communication',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+            tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+            scopes: ['w_member_social', 'r_liteprofile'],
+        },
+        tools: [
+            {
+                name: 'linkedin_create_post',
+                description: 'Publica um compartilhamento de texto ou URL no LinkedIn do usuário.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        text: { type: 'string', description: 'Texto do post' },
+                        title: { type: 'string', description: 'Título compartilhado (se houver link)' },
+                        url: { type: 'string', description: 'URL a ser compartilhada no post' }
+                    },
+                    required: ['text']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  CLICKUP
+    // ══════════════════════════════════════════════════════════
+    clickup: {
+        id: 'clickup',
+        name: 'ClickUp',
+        description: 'Conecte espaços e listas no ClickUp para gerenciar tarefas e produtividade corporativa.',
+        icon: '⚡',
+        color: '#7B68EE',
+        category: 'project_management',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://app.clickup.com/api',
+            tokenUrl: 'https://app.clickup.com/api/v2/oauth/token',
+            scopes: [],
+        },
+        tools: [
+            {
+                name: 'clickup_list_tasks',
+                description: 'Retorna cards e tarefas sob uma lista específica.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        list_id: { type: 'string', description: 'ID da lista do ClickUp' }
+                    },
+                    required: ['list_id']
+                }
+            },
+            {
+                name: 'clickup_create_task',
+                description: 'Adiciona uma tarefa em uma lista do ClickUp.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        list_id: { type: 'string', description: 'ID da lista do ClickUp' },
+                        name: { type: 'string', description: 'Título da tarefa' },
+                        description: { type: 'string', description: 'Descrição da tarefa' }
+                    },
+                    required: ['list_id', 'name']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  JIRA
+    // ══════════════════════════════════════════════════════════
+    jira: {
+        id: 'jira',
+        name: 'Jira Software',
+        description: 'Gerencie issues, sprints e tarefas de desenvolvimento no Jira Cloud.',
+        icon: '💙',
+        color: '#0052CC',
+        category: 'project_management',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://auth.atlassian.com/authorize',
+            tokenUrl: 'https://auth.atlassian.com/oauth/token',
+            scopes: ['read:jira-work', 'write:jira-work', 'read:jira-user'],
+        },
+        tools: [
+            {
+                name: 'jira_create_issue',
+                description: 'Cria uma nova issue/tarefa no projeto do Jira.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        project_key: { type: 'string', description: 'Chave do projeto (ex: PROJ)' },
+                        summary: { type: 'string', description: 'Título/resumo do bug ou tarefa' },
+                        description: { type: 'string', description: 'Descrição detalhada' },
+                        issue_type: { type: 'string', description: 'Tipo do item (ex: Task, Bug, Story)' }
+                    },
+                    required: ['project_key', 'summary']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  PIPEDRIVE
+    // ══════════════════════════════════════════════════════════
+    pipedrive: {
+        id: 'pipedrive',
+        name: 'Pipedrive CRM',
+        description: 'Sincronize metas comerciais, funil de vendas, leads e negócios no Pipedrive.',
+        icon: '💚',
+        color: '#22A363',
+        category: 'crm',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://oauth.pipedrive.com/oauth/authorize',
+            tokenUrl: 'https://oauth.pipedrive.com/oauth/token',
+            scopes: ['deals:read', 'deals:write', 'contacts:read', 'contacts:write'],
+        },
+        tools: [
+            {
+                name: 'pipedrive_create_deal',
+                description: 'Cria um novo negócio no funil de vendas do Pipedrive.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        title: { type: 'string', description: 'Título do negócio' },
+                        value: { type: 'number', description: 'Valor estimado' },
+                        currency: { type: 'string', description: 'Moeda (ex: BRL, USD)' }
+                    },
+                    required: ['title']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  DISCORD
+    // ══════════════════════════════════════════════════════════
+    discord: {
+        id: 'discord',
+        name: 'Discord',
+        description: 'Envie atualizações, mensagens e alertas para canais do Discord via bots ou webhooks.',
+        icon: '👾',
+        color: '#5865F2',
+        category: 'communication',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://discord.com/api/oauth2/authorize',
+            tokenUrl: 'https://discord.com/api/oauth2/token',
+            scopes: ['identify', 'connections', 'guilds', 'webhook.incoming'],
+        },
+        tools: [
+            {
+                name: 'discord_send_message',
+                description: 'Envia mensagens para um canal do Discord usando a conexão ativa.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        channel_id: { type: 'string', description: 'ID do canal' },
+                        content: { type: 'string', description: 'Mensagem com formatação rich-text/markdown' }
+                    },
+                    required: ['channel_id', 'content']
+                }
+            }
+        ]
+    },
+
+    // ══════════════════════════════════════════════════════════
+    //  RD STATION
+    // ══════════════════════════════════════════════════════════
+    rdstation: {
+        id: 'rdstation',
+        name: 'RD Station',
+        description: 'Envie leads, crie conversões e gerencie eventos de marketing no funil do RD Station.',
+        icon: '🚀',
+        color: '#363E48',
+        category: 'crm',
+        authType: 'oauth2',
+        oauth: {
+            authUrl: 'https://api.rd.services/auth/dialog',
+            tokenUrl: 'https://api.rd.services/auth/token',
+            scopes: [],
+        },
+        tools: [
+            {
+                name: 'rd_create_lead',
+                description: 'Registra um lead e atualiza informações no funil do RD Station.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        email: { type: 'string', description: 'E-mail do lead' },
+                        name: { type: 'string', description: 'Nome completo' },
+                        job_title: { type: 'string', description: 'Cargo profissional' }
+                    },
+                    required: ['email']
+                }
+            }
+        ]
+    },
 };
 
 /**
