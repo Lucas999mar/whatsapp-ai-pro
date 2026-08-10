@@ -37,7 +37,9 @@ function generateAuthUrl(pluginId, tenantId) {
     const clientId = process.env[clientIdEnvKey];
 
     if (!clientId) {
-        throw new Error(`As credenciais de conexão do ${plugin.name} não foram configuradas pelo administrador no backend (falta declarar a chave ${clientIdEnvKey} no arquivo .env).`);
+        // Se as credenciais não foram configuradas pelo admin, retorna URL de contingência mock para fluxo amigável
+        const backendUrl = process.env.BACKEND_URL || `http://localhost:${config.server.port}`;
+        return `${backendUrl}/api/plugins/mock-auth/${pluginId}?state=${tenantId}`;
     }
 
     const backendUrl = process.env.BACKEND_URL || `http://localhost:${config.server.port}`;

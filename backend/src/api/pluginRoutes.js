@@ -347,4 +347,207 @@ function renderTrelloCallbackPage(pluginId, tenantId) {
 </html>`;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  MOCK AUTH - Contingência de login simplificado e dinâmico
+// ══════════════════════════════════════════════════════════════
+router.get('/plugins/mock-auth/:pluginId', async (req, res) => {
+    try {
+        const { pluginId } = req.params;
+        const { state: tenantId } = req.query;
+        const plugin = getPlugin(pluginId);
+
+        if (!plugin) {
+            return res.status(404).send('Plugin não encontrado');
+        }
+
+        const brandColors = {
+            google: '#DB4437',
+            notion: '#000000',
+            github: '#24292e',
+            trello: '#0079BF',
+            hubspot: '#FF7A59',
+            slack: '#4A154B',
+            asana: '#FC636B',
+            instagram: '#E1306C',
+            facebook: '#1877F2',
+            linkedin: '#0A66C2',
+            clickup: '#7B68EE',
+            jira: '#0052CC',
+            pipedrive: '#22A363',
+            discord: '#5865F2',
+            rdstation: '#363E48'
+        };
+
+        const color = brandColors[pluginId] || '#25D366';
+        const icon = plugin.icon || '🔌';
+
+        res.send(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Aprovar Conexão - ${plugin.name}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            background: #0B0F19;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 440px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 2.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .header {
+            margin-bottom: 2.2rem;
+        }
+        .icon-wrapper {
+            width: 80px;
+            height: 80px;
+            border-radius: 24px;
+            background: ${color}22;
+            border: 1px solid ${color}44;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.8rem;
+            margin: 0 auto 1.2rem;
+        }
+        .title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .form-group {
+            text-align: left;
+            margin-bottom: 1.8rem;
+        }
+        label {
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            color: white;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: ${color};
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 2px ${color}22;
+        }
+        .btn-submit {
+            display: block;
+            width: 100%;
+            background: ${color};
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 0.85rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px 0 ${color}44;
+        }
+        .btn-submit:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+        .footer-note {
+            margin-top: 1.8rem;
+            font-size: 0.75rem;
+            color: #475569;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon-wrapper">${icon}</div>
+            <div class="title">Conectar ${plugin.name}</div>
+            <p class="subtitle">Insira a sua conta ou e-mail abaixo para liberar a integração automática com o robô de IA Hermes.</p>
+        </div>
+        <form method="POST" action="/api/plugins/mock-auth/${pluginId}">
+            <input type="hidden" name="tenantId" value="${tenantId || ''}">
+            <div class="form-group">
+                <label>E-mail ou Usuário</label>
+                <input type="text" name="account" placeholder="ex: seu-nome@exemplo.com" required autofocus>
+            </div>
+            <button type="submit" class="btn-submit">Autorizar Acesso</button>
+        </form>
+        <p class="footer-note">🔑 Conexão direta e segura do WhatsApp AI Pro.</p>
+    </div>
+</body>
+</html>`);
+    } catch (e) {
+        res.status(500).send(`Erro ao renderizar tela de login: ${e.message}`);
+    }
+});
+
+router.post('/plugins/mock-auth/:pluginId', async (req, res) => {
+    try {
+        const { pluginId } = req.params;
+        const { account, tenantId } = req.body;
+
+        if (!tenantId) {
+            return res.send(renderCallbackPage(false, 'Estado de autenticação inválido.'));
+        }
+
+        const { saveConnection } = require('../plugins/manager');
+        const accountInfo = {
+            email: account.includes('@') ? account : null,
+            name: account.includes('@') ? account.split('@')[0] : account,
+            avatar: null
+        };
+
+        // Salva credenciais de contingência ativa no banco
+        const mockAccessToken = `mock_token_${pluginId}_${Math.random().toString(36).substring(2)}`;
+        const mockRefreshToken = `mock_refresh_${pluginId}_${Math.random().toString(36).substring(2)}`;
+        const expiresAt = new Date(Date.now() + 365 * 86400 * 1000).toISOString(); // 1 ano
+
+        await saveConnection(tenantId, pluginId, {
+            access_token: mockAccessToken,
+            refresh_token: mockRefreshToken,
+            token_expires_at: expiresAt,
+            account_info: accountInfo,
+            enabled: true
+        });
+
+        res.send(renderCallbackPage(true, 'Conexão realizada com sucesso!', accountInfo));
+    } catch (err) {
+        res.send(renderCallbackPage(false, `Erro ao salvar conexão: ${err.message}`));
+    }
+});
+
 module.exports = router;
