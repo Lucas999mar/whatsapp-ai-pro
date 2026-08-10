@@ -25,24 +25,13 @@ function getSupabase() {
 /**
  * Gera a URL de autorização OAuth para um plugin específico
  */
-function generateAuthUrl(pluginId, tenantId) {
+function generateAuthUrl(pluginId, tenantId, customBackendUrl = null) {
     const plugin = getPlugin(pluginId);
     if (!plugin || plugin.authType !== 'oauth2') {
         throw new Error(`Plugin "${pluginId}" não suporta OAuth`);
     }
 
-    // Valida credenciais no ambiente
-    const envPrefix = pluginId.toUpperCase();
-    const clientIdEnvKey = pluginId === 'trello' ? 'TRELLO_API_KEY' : `${envPrefix}_CLIENT_ID`;
-    const clientId = process.env[clientIdEnvKey];
-
-    if (!clientId) {
-        // Se as credenciais não foram configuradas pelo admin, retorna URL de contingência mock para fluxo amigável
-        const backendUrl = process.env.BACKEND_URL || `http://localhost:${config.server.port}`;
-        return `${backendUrl}/api/plugins/mock-auth/${pluginId}?state=${tenantId}`;
-    }
-
-    const backendUrl = process.env.BACKEND_URL || `http://localhost:${config.server.port}`;
+    const backendUrl = customBackendUrl || process.env.BACKEND_URL || `http://localhost:${config.server.port}`;
     const redirectUri = `${backendUrl}/api/plugins/callback/${pluginId}`;
 
     const params = new URLSearchParams();

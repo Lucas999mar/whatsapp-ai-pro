@@ -88,8 +88,13 @@ router.post('/plugins/connect/:pluginId', authMiddleware, async (req, res) => {
             return res.json({ authType: 'api_key', pluginId, configSchema: plugin.configSchema || [] });
         }
 
-        const authUrl = generateAuthUrl(pluginId, tenantId);
-        console.log(`🔗 [Plugin:${pluginId}] URL OAuth gerada para tenant ${tenantId}`);
+        // Obtém o host dinamicamente para garantir a URL correta em produção (onrender/evoluirmais)
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+        const dynamicBackendUrl = `${protocol}://${host}`;
+
+        const authUrl = generateAuthUrl(pluginId, tenantId, dynamicBackendUrl);
+        console.log(`🔗 [Plugin:${pluginId}] URL OAuth oficial gerada com host ${dynamicBackendUrl} para tenant ${tenantId}`);
         res.json({ authUrl, authType: 'oauth2' });
     } catch (err) {
         console.error(`❌ [Plugins] Erro ao gerar URL de conexão:`, err.message);
