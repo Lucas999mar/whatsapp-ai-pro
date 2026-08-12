@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/api';
 import {
     Database, Sparkles, Plus, Trash2, Edit3, Search, Play, HelpCircle,
-    ChevronRight, BrainCircuit, Network, BookOpen, Clock, Lightbulb, Save, Info
+    ChevronRight, BrainCircuit, Network, BookOpen, Clock, Lightbulb, Save, Info,
+    Upload, UploadCloud
 } from 'lucide-react';
 
 export default function BrainPage() {
@@ -37,6 +38,9 @@ export default function BrainPage() {
     const isPanningRef = useRef(false);
     const panStartRef = useRef({ x: 0, y: 0 });
 
+    // Upload state configuration
+    const [uploadingFile, setUploadingFile] = useState(false);
+
     // Physics Configuration
     const [draggedNode, setDraggedNode] = useState(null);
     const [hoveredNode, setHoveredNode] = useState(null);
@@ -47,15 +51,61 @@ export default function BrainPage() {
         fetchData();
     }, []);
 
+    const autoCenterGraph = (customNotes) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const targetNotes = customNotes || nodesRef.current;
+        if (targetNotes.length === 0) return;
+
+        const width = canvas.clientWidth || 800;
+        const height = canvas.clientHeight || 400;
+
+        let sumX = 0;
+        let sumY = 0;
+        targetNotes.forEach(node => {
+            sumX += node.x || (Math.random() * 300 + 100);
+            sumY += node.y || (Math.random() * 300 + 100);
+        });
+
+        const avgX = sumX / targetNotes.length;
+        const avgY = sumY / targetNotes.length;
+
+        const newPan = {
+            x: (width / 2) - avgX * zoomRef.current,
+            y: (height / 2) - avgY * zoomRef.current
+        };
+
+        panRef.current = newPan;
+        setPan(newPan);
+    };
+
     const fetchData = async () => {
         try {
             const res = await api.get('/brain');
-            setNotes(res.data.notes || []);
-            setLinks(res.data.links || []);
+            const fetchedNotes = res.data.notes || [];
+            const fetchedLinks = res.data.links || [];
 
-            if (res.data.notes?.length > 0 && !currentNote) {
-                handleSelectNote(res.data.notes[0]);
+            setNotes(fetchedNotes);
+            setLinks(fetchedLinks);
+
+            if (fetchedNotes.length > 0 && !currentNote) {
+                handleSelectNote(fetchedNotes[0]);
             }
+
+            // Centraliza o grafo após renderizar
+            setTimeout(() => {
+                const graphNodes = fetchedNotes.map((note) => {
+                    const existing = nodesRef.current.find(n => n.id === note.id);
+                    return {
+                        id: note.id,
+                        title: note.title,
+                        x: existing ? existing.x : Math.random() * 300 + 100,
+                        y: existing ? existing.y : Math.random() * 300 + 100,
+                    };
+                });
+                autoCenterGraph(graphNodes);
+            }, 300);
         } catch (err) {
             console.error('Error fetching brain data:', err);
         }
@@ -148,25 +198,76 @@ export default function BrainPage() {
         }
     };
 
+    const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 15 * 1024 * 1024) {
+            return alert('O arquivo enviado excede o limite de 15MB permitidos.');
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setUploadingFile(true);
+        try {
+            const { data } = await api.post('/brain/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (data.success) {
+                // Atualiza notas e links
+                setNotes(data.notes || []);
+                setLinks(data.links || []);
+
+                // Seleciona a nova nota
+                if (data.note) {
+                    handleSelectNote(data.note);
+                }
+
+                alert(`Sucesso! O documento "${file.name}" foi processado, transformado em nota e indexado no cérebro da IA.`);
+            }
+        } catch (err) {
+            console.error('Erro de upload:', err);
+            const errMsg = err.response?.data?.error || 'Erro na decodificação do arquivo enviado.';
+            alert(`Falha ao importar documento: ${errMsg}`);
+        } finally {
+            setUploadingFile(false);
+            e.target.value = ''; // Reseta input
+        }
+    };
+
     // ── GRAPH PHYSICS ENGINE (Pure HTML5 Canvas) ──
     useEffect(() => {
         // Transforma notas e conexões em nós físicos do Canvas
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        const width = canvas.clientWidth || 800;
+        const height = canvas.clientHeight || 450;
+
         // Adapta nodes
         const graphNodes = notes.map((note) => {
+            // Calcula quantas conexões (origem ou destino) esse nó possui
+            const connectionCount = links.filter(l => l.source_note_id === note.id || l.target_note_id === note.id).length;
+
             // Mantém coordenadas anteriores para não reiniciar a física ao digitar
             const existing = nodesRef.current.find(n => n.id === note.id);
             return {
                 id: note.id,
                 title: note.title,
-                x: existing ? existing.x : Math.random() * 300 + 100,
-                y: existing ? existing.y : Math.random() * 300 + 100,
+                x: existing ? existing.x : (width / 2) + (Math.random() * 100 - 50),
+                y: existing ? existing.y : (height / 2) + (Math.random() * 100 - 50),
                 vx: existing ? existing.vx : 0,
                 vy: existing ? existing.vy : 0,
-                radius: 12 + Math.min(note.content.length / 80, 20), // tamanho cresce com o conteúdo
-                color: note.id === currentNote?.id ? '#a855f7' : '#3b82f6',
+                // Raio do nó cresce levemente com o tamanho do texto e significativamente com as conexões ativas (Obsidian-like)
+                radius: 10 + Math.min((note.content || '').length / 100, 10) + (connectionCount * 3.5),
+                // Roxo neon para ativa, cinza escuro discreto para órfãs e azul clássico para conectadas
+                color: note.id === currentNote?.id
+                    ? '#a855f7'
+                    : (connectionCount === 0 ? '#475569' : '#3b82f6'),
             };
         });
 
@@ -420,10 +521,13 @@ export default function BrainPage() {
         const clickedNode = nodesRef.current.find(node => {
             const dx = node.x - x;
             const dy = node.y - y;
-            return dx * dx + dy * dy < node.radius * node.radius;
+            // Tolerância de clique aumentada para cobrir nós pequenos de forma confortável
+            const clickRadius = (node.radius * 0.7) + 15;
+            return dx * dx + dy * dy < clickRadius * clickRadius;
         });
 
         if (clickedNode) {
+            console.log('Nó selecionado via clique:', clickedNode.title, clickedNode.id);
             setDraggedNode(clickedNode);
             // Se clicou, seleciona a nota correspondente
             const found = notes.find(n => n.id === clickedNode.id);
@@ -558,9 +662,8 @@ export default function BrainPage() {
 
     const handleResetView = () => {
         zoomRef.current = 1;
-        panRef.current = { x: 0, y: 0 };
         setZoom(1);
-        setPan({ x: 0, y: 0 });
+        autoCenterGraph();
     };
 
     // Filtragem de Busca
@@ -620,7 +723,7 @@ export default function BrainPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
 
                 {/* COL 1: SIDEBAR NOTES (Visível no modo Split e Editor-Focus) */}
                 {layoutMode !== 'graph-focus' && (
@@ -636,7 +739,7 @@ export default function BrainPage() {
                             />
                         </div>
 
-                        <div className="glass-panel p-4 max-h-[500px] overflow-y-auto space-y-2 border-white/5">
+                        <div className="glass-panel p-4 max-h-[400px] overflow-y-auto space-y-2 border-white/5">
                             <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2 mb-3">Anotações ({filteredNotes.length})</h4>
                             {filteredNotes.length === 0 ? (
                                 <p className="text-xs text-slate-600 italic text-center py-6">Nenhuma nota encontrada.</p>
@@ -673,6 +776,32 @@ export default function BrainPage() {
                             )}
                         </div>
 
+                        {/* ÁREA DE UPLOAD DE ARQUIVOS (PDF, DOCX, TXT, MD) */}
+                        <div className="glass-panel p-4 border-white/5 space-y-3 text-left">
+                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2 flex items-center gap-1.5">
+                                <Upload size={13} className="text-purple-400" />
+                                Importar Documentos
+                            </h4>
+                            <label className="border border-dashed border-white/10 hover:border-purple-500/40 bg-white/5 hover:bg-white/10 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all gap-1.5 text-center group">
+                                <UploadCloud size={22} className="text-slate-500 group-hover:text-purple-400 group-hover:scale-110 transition-all font-bold" />
+                                <span className="text-[10px] font-bold text-slate-400 group-hover:text-slate-200">Arraste ou clique para enviar</span>
+                                <span className="text-[9px] text-slate-600 block leading-tight">PDF, DOCX (Word), TXT ou Markdown (Max 15MB)</span>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.docx,.txt,.md,.markdown"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    disabled={uploadingFile}
+                                />
+                            </label>
+                            {uploadingFile && (
+                                <div className="flex items-center justify-center gap-2 py-1 text-[10px] text-purple-400 font-bold">
+                                    <span className="animate-spin text-xs">🌀</span>
+                                    Extraindo e organizando notas...
+                                </div>
+                            )}
+                        </div>
+
                         <div className="p-4 bg-purple-500/5 border border-purple-500/10 rounded-xl space-y-2 text-xs text-purple-300/80 leading-snug">
                             <h5 className="font-bold flex items-center gap-1 text-white">
                                 <Info size={12} />
@@ -685,7 +814,7 @@ export default function BrainPage() {
 
                 {/* COL 2 & 3: EDITOR (Visível em Split e Editor-Focus) */}
                 {layoutMode !== 'graph-focus' && (
-                    <div className={`${layoutMode === 'editor-focus' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6 animate-fade-in`}>
+                    <div className={`${layoutMode === 'editor-focus' ? 'lg:col-span-4' : 'lg:col-span-2'} space-y-6 animate-fade-in`}>
                         <div className="glass-panel p-6 border-white/5 space-y-4 text-left">
 
                             {/* Título */}
@@ -751,13 +880,13 @@ export default function BrainPage() {
 
                 {/* COL 4: VIZ GRAPH / EFEITO TEIA (Visível no modo Split e Graph-Focus) */}
                 {layoutMode !== 'editor-focus' && (
-                    <div className={`${layoutMode === 'graph-focus' ? 'lg:col-span-4 min-h-[650px]' : 'lg:col-span-1 min-h-[450px]'} flex flex-col h-full animate-fade-in`}>
+                    <div className={`${layoutMode === 'graph-focus' ? 'lg:col-span-5 min-h-[650px]' : 'lg:col-span-2 min-h-[450px]'} flex flex-col h-full animate-fade-in`}>
                         <div className="glass-panel p-4 border-white/5 flex justify-between items-center">
                             <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <Network size={14} className="text-purple-400" />
                                 Teia de Conexões 🕸️
                             </h4>
-                            <span className="text-[10px] text-slate-500 italic">Mouse-drag para mover nós / Scroll para Zoom / Fundo-drag para Pan</span>
+                            <span className="text-[10px] text-slate-500 italic">Drag para mover / Scroll para Zoom / Fundo-drag para Pan</span>
                         </div>
 
                         <div className="glass-panel flex-1 bg-[#090D1A] border-white/5 relative overflow-hidden rounded-b-2xl" style={{ height: layoutMode === 'graph-focus' ? '600px' : '400px' }}>

@@ -282,4 +282,210 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// Multer & Parsers para Documentos Prontos (PDF, DOCX, TXT)
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 } // limite de 15MB
+});
+
+// ── POST: UPLOAD DE ARQUIVOS PRONTOS (PDF, DOCX, TXT, MD) PARA CRIAR NOTAS ──
+router.post('/upload', upload.single('file'), async (req, res) => {
+    try {
+        const tenantId = req.user.tenant_id || req.user.id;
+        const file = req.file;
+        if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+        const originalName = file.originalname;
+        const extension = originalName.split('.').pop().toLowerCase();
+
+        // Limpa o título da nota a partir do nome original do arquivo
+        let noteTitle = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+        noteTitle = noteTitle.replace(/[-_]/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase()); // Capitaliza palavras e remove underscores/hifens
+
+        let extractedText = '';
+
+        if (extension === 'pdf') {
+            const data = await pdfParse(file.buffer);
+            extractedText = data.text || '';
+        } else if (extension === 'docx') {
+            const data = await mammoth.extractRawText({ buffer: file.buffer });
+            extractedText = data.value || '';
+        } else if (['txt', 'md', 'markdown'].includes(extension)) {
+            extractedText = file.buffer.toString('utf8');
+        } else {
+            return res.status(400).json({ error: 'Formato de arquivo não suportado. Envie PDF, DOCX (Word), TXT ou Markdown.' });
+        }
+
+        if (!extractedText.trim()) {
+            return res.status(400).json({ error: 'Não foi possível extrair nenhum texto legível do arquivo enviado.' });
+        }
+
+        // Salva a nota no Cérebro (lógica equivalente a salvar nota)
+        const noteId = require('crypto').randomUUID();
+        const notePayload = {
+            id: noteId,
+            tenant_id: tenantId,
+            title: noteTitle,
+            content: `# ${noteTitle}\n\n${extractedText}`,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        let isDb = true;
+        let savedNote = null;
+
+        try {
+            const supabase = getSupabase();
+            const { data, error } = await supabase.from('brain_notes').insert(notePayload).select().single();
+            if (error) throw error;
+            savedNote = data;
+        } catch (e) {
+            isDb = false;
+            // Fallback em memória
+            memoryNotes.push(notePayload);
+            savedNote = notePayload;
+        }
+
+        // 🔗 PARSER DE LINKS BIDIRECIONAIS
+        const linkRegex = /\[\[(.*?)\]\]/g;
+        const linksFound = [];
+        let match;
+        while ((match = linkRegex.exec(notePayload.content)) !== null) {
+            const targetTitle = match[1].trim();
+            if (targetTitle && !linksFound.includes(targetTitle)) {
+                linksFound.push(targetTitle);
+            }
+        }
+
+        if (linksFound.length > 0) {
+            let allNotes = [];
+            if (isDb) {
+                const { data } = await getSupabase().from('brain_notes').select('id, title').eq('tenant_id', tenantId);
+                allNotes = data || [];
+            } else {
+                allNotes = memoryNotes.filter(n => n.tenant_id === tenantId);
+            }
+
+            const createdLinks = [];
+            for (const targetTitle of linksFound) {
+                let targetNote = allNotes.find(n => n.title.toLowerCase() === targetTitle.toLowerCase());
+                if (!targetNote) {
+                    // Cria uma nota vazia de referência
+                    const emptyId = require('crypto').randomUUID();
+                    const emptyPayload = {
+                        id: emptyId,
+                        tenant_id: tenantId,
+                        title: targetTitle,
+                        content: `# ${targetTitle}\n\nNota criada automaticamente por referência na nota [[${noteTitle}]].`,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    };
+
+                    if (isDb) {
+                        try {
+                            const { data } = await getSupabase().from('brain_notes').insert(emptyPayload).select().single();
+                            if (data) targetNote = data;
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    } else {
+                        memoryNotes.push(emptyPayload);
+                        targetNote = emptyPayload;
+                    }
+                }
+
+                if (targetNote) {
+                    const linkPayload = {
+                        id: require('crypto').randomUUID(),
+                        tenant_id: tenantId,
+                        source_note_id: noteId,
+                        target_note_id: targetNote.id
+                    };
+                    createdLinks.push(linkPayload);
+                }
+            }
+
+            if (createdLinks.length > 0) {
+                if (isDb) {
+                    try {
+                        await getSupabase().from('brain_links').insert(createdLinks);
+                    } catch (e) {
+                        console.error('Erro ao salvar links:', e);
+                    }
+                } else {
+                    memoryLinks.push(...createdLinks);
+                }
+            }
+        }
+
+        // 🧠 VECTOR SYNC & SYNC KNOWLEDGE BASE (para o RAG)
+        if (isDb) {
+            try {
+                // Vectoriza conteúdo para RAG
+                const apiKey = process.env.OPENAI_API_KEY || ''; // Chave global fallback
+                let embedding = null;
+
+                if (apiKey) {
+                    const { OpenAI } = require('openai');
+                    const openai = new OpenAI({ apiKey });
+                    const embRes = await openai.embeddings.create({
+                        model: 'text-embedding-3-small',
+                        input: notePayload.content
+                    });
+                    embedding = embRes.data[0].embedding;
+                }
+
+                const supabase = getSupabase();
+                // Upsert na tabela de itens de conhecimento do tenant
+                const kbPayload = {
+                    tenant_id: tenantId,
+                    type: 'obsidian',
+                    content: notePayload.content,
+                    title: `[Segundo Cérebro] ${noteTitle}`,
+                    file_name: `brain_note_${noteId}`,
+                    embedding: embedding
+                };
+
+                // Verifica se já existia na KB
+                const { data: existingKB } = await supabase.from('knowledge_items').select('id').eq('tenant_id', tenantId).eq('file_name', `brain_note_${noteId}`).maybeSingle();
+
+                if (existingKB) {
+                    await supabase.from('knowledge_items').update(kbPayload).eq('id', existingKB.id);
+                } else {
+                    kbPayload.created_at = new Date().toISOString();
+                    await supabase.from('knowledge_items').insert(kbPayload);
+                }
+            } catch (err) {
+                console.error('Erro ao vetorizar/indexar nota na KB:', err);
+            }
+        }
+
+        // Busca lista de notas e links atualizados do tenant
+        const { data: freshNotes } = await getNotesTable(tenantId);
+        let freshLinks = [];
+        if (isDb) {
+            const { data: dbLinks } = await getSupabase().from('brain_links').select('*').eq('tenant_id', tenantId);
+            freshLinks = dbLinks || [];
+        } else {
+            freshLinks = memoryLinks.filter(l => l.tenant_id === tenantId);
+        }
+
+        res.json({
+            success: true,
+            note: savedNote,
+            notes: freshNotes,
+            links: freshLinks
+        });
+
+    } catch (err) {
+        console.error('Erro no upload do cérebro:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
