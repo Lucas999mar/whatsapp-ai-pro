@@ -31,6 +31,7 @@ import AgendaPage from './pages/AgendaPage';
 import AgendaPublicPage from './pages/AgendaPublicPage';
 import ContentPlannerPublicPage from './pages/ContentPlannerPublicPage';
 import MindMapPage from './pages/MindMapPage';
+import BrainPage from './pages/BrainPage';
 
 // Novos componentes de Delivery
 import TrackingPage from './pages/TrackingPage';
@@ -69,6 +70,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
     { path: '/social-analytics', name: 'Analytics de Redes', icon: <BarChart2 size={20} /> },
     { path: '/mindmap', name: 'Mapas Mentais', icon: <Network size={20} /> },
+    { path: '/brain', name: 'Segundo Cérebro', icon: <BrainCircuit size={20} /> },
     { path: '/agent', name: 'Agente Autônomo', icon: <BrainCircuit size={20} /> },
     { path: '/learning', name: 'Aprendizado IA', icon: <BrainCircuit size={20} /> },
 
@@ -107,6 +109,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/contacts': 'contacts',
       '/groups': 'groups',
       '/knowledge': 'knowledge',
+      '/brain': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
       '/social-analytics': 'socialAnalytics',
@@ -237,6 +240,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/contacts': 'contacts',
       '/groups': 'groups',
       '/knowledge': 'knowledge',
+      '/brain': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
       '/social-analytics': 'socialAnalytics',
@@ -359,6 +363,7 @@ function AppContent() {
             <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
             <Route path="/social-analytics" element={<AuthGuard><SocialAnalyticsPage /></AuthGuard>} />
             <Route path="/mindmap" element={<AuthGuard><MindMapPage /></AuthGuard>} />
+            <Route path="/brain" element={<AuthGuard><BrainPage /></AuthGuard>} />
             <Route path="/agent" element={<AuthGuard><AgentDashboard /></AuthGuard>} />
             <Route path="/learning" element={<AuthGuard><LearningPage /></AuthGuard>} />
 

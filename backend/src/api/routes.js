@@ -1199,6 +1199,10 @@ router.use('/omni', omniRouter);
 const voiceRouter = require('./voiceCallRoutes');
 router.use('/voice', authMiddleware, voiceRouter);
 
+// ── SEGUNDO CÉREBRO (AI KNOWLEDGE GRAPH) ROUTES ──────────────
+const brainRouter = require('./brainRoutes');
+router.use('/brain', authMiddleware, brainRouter);
+
 // ── PLUGINS / CONNECTIONS ROUTES ───────────────────────────────
 const pluginRoutes = require('./pluginRoutes');
 router.use('/', pluginRoutes);

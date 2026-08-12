@@ -191,4 +191,32 @@ ALTER TABLE voice_calls ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all for voice_calls" ON voice_calls;
 CREATE POLICY "Allow all for voice_calls" ON voice_calls FOR ALL USING (true);
 
+-- ── SEGUNDO CÉREBRO (AI KNOWLEDGE GRAPH) ───────────────────────
+CREATE TABLE IF NOT EXISTS brain_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS brain_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  source_note_id UUID REFERENCES brain_notes(id) ON DELETE CASCADE,
+  target_note_id UUID REFERENCES brain_notes(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS e Policies para Segundo Cérebro
+ALTER TABLE brain_notes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for brain_notes" ON brain_notes;
+CREATE POLICY "Allow all for brain_notes" ON brain_notes FOR ALL USING (true);
+
+ALTER TABLE brain_links ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for brain_links" ON brain_links;
+CREATE POLICY "Allow all for brain_links" ON brain_links FOR ALL USING (true);
+
+
 
