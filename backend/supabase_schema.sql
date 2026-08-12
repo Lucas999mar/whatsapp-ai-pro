@@ -184,8 +184,11 @@ CREATE TABLE IF NOT EXISTS voice_calls (
 
 -- Habilitar RLS para novas tabelas de Voz
 ALTER TABLE voice_campaigns ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for voice_campaigns" ON voice_campaigns;
 CREATE POLICY "Allow all for voice_campaigns" ON voice_campaigns FOR ALL USING (true);
 
 ALTER TABLE voice_calls ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for voice_calls" ON voice_calls;
 CREATE POLICY "Allow all for voice_calls" ON voice_calls FOR ALL USING (true);
+
 
