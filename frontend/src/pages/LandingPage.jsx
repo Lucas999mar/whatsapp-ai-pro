@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2, 
-  ArrowRight, Brain, Search, Cpu, Calendar, Clock, ChevronDown, 
-  Play, Check, HelpCircle, Send, Smartphone, Network, Database, Menu, X
+import {
+  Bot, MessageSquare, Shield, Zap, Sparkles, CheckCircle2,
+  ArrowRight, Brain, Search, Cpu, Calendar, Clock, ChevronDown,
+  Play, Check, HelpCircle, Send, Smartphone, Network, Database, Menu, X,
+  BrainCircuit, Wand2, FileSignature, Bike, BarChart2, Plug, Blocks, Users
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import heroImage from '../assets/hero.png';
@@ -126,7 +127,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white selection:bg-[#25D366]/30 overflow-x-hidden">
-      
+
       {/* Dynamic Sticky Header */}
       <nav className="fixed top-0 w-full z-50 bg-[#020617]/85 backdrop-blur-lg border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
@@ -138,7 +139,7 @@ export default function LandingPage() {
               Evoluir <span className="gradient-text">Mais</span>
             </span>
           </div>
-          
+
           <div className="hidden xl:flex items-center justify-center flex-1 gap-4 lg:gap-6 text-sm font-semibold text-slate-300 whitespace-nowrap px-4">
             <a href="#como-funciona" className="hover:text-[#25D366] transition-colors">Como funciona</a>
             <a href="#recursos" className="hover:text-[#25D366] transition-colors">Recursos IA</a>
@@ -157,7 +158,7 @@ export default function LandingPage() {
             <Link to="/marketing" className="hidden md:inline-flex bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:brightness-110 text-slate-900 px-6 py-2.5 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(37,211,102,0.2)] whitespace-nowrap">
               Assessoria de Marketing
             </Link>
-            <button 
+            <button
               className="xl:hidden p-1.5 sm:p-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all flex-shrink-0 ml-1"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
@@ -174,7 +175,7 @@ export default function LandingPage() {
             <a href="#integracoes" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Integrações</a>
             <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg">Planos e Preços</a>
             <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-white hover:text-[#25D366] font-bold text-lg border-b border-white/10 pb-4">FAQ</a>
-            
+
             <Link to="/login" className="sm:hidden text-white hover:text-[#25D366] font-bold text-lg">
               Entrar no Painel
             </Link>
@@ -197,11 +198,11 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-black uppercase tracking-wider">
               <Sparkles size={14} className="animate-spin-slow" /> Inteligência Artificial Corporativa
             </div>
-            
+
             <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-[1.05] text-white">
               Dê <span className="gradient-text">superpoderes</span> ao seu time com Agentes de IA.
             </h1>
-            
+
             <p className="text-lg sm:text-xl text-slate-400 leading-relaxed font-medium">
               Tenha funcionários virtuais inteligentes operando 24 horas por dia qualificando leads, gerando vendas, agendando visitas técnicas e tirando dúvidas de clientes por WhatsApp do seu jeito e sem necessidade de código.
             </p>
@@ -232,7 +233,7 @@ export default function LandingPage() {
           {/* Right Column: Interactive Dashboard Simulation Mockup */}
           <div className="flex-1 w-full lg:w-auto relative animate-fade-in">
             <div className="glass-panel p-4 min-h-[420px] lg:aspect-[4/3] bg-gradient-to-br from-[#25D366]/5 via-[#0F172A]/80 to-blue-500/5 border border-white/10 relative overflow-hidden flex flex-col shadow-2xl">
-              
+
               {/* Header inside mock dashboard */}
               <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4 text-xs font-semibold text-slate-400">
                 <div className="flex items-center gap-2">
@@ -272,7 +273,7 @@ export default function LandingPage() {
                   </div>
                   <span className="text-[10px] text-slate-500 font-semibold shrink-0">5 Manuais Carregados</span>
                 </div>
-                
+
                 <div className="space-y-2 flex-1 overflow-y-auto py-2 text-xs pr-1">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white/5 p-2 rounded-lg border border-white/5 gap-1">
                     <span className="font-semibold text-slate-300 break-all w-full">📄 manual_pecas_lorenzetti.pdf</span>
@@ -303,7 +304,7 @@ export default function LandingPage() {
       {/* Three Pillars Section (Core Capabilities) */}
       <section id="como-funciona" className="py-24 px-6 bg-[#020617] relative">
         <div className="absolute top-1/2 left-[-10%] w-[300px] h-[300px] bg-[#128C7E]/5 rounded-full blur-[100px] -z-10"></div>
-        
+
         <div className="max-w-7xl mx-auto text-center space-y-4 mb-16">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#128C7E]/10 border border-[#128C7E]/20 text-[#25D366] text-xs font-black uppercase tracking-wider">
             COMO FUNCIONA
@@ -352,35 +353,168 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ECOSSISTEMA PREMIUM - NOVOS MÓDULOS DE ELITE */}
+      <section className="py-24 px-6 bg-[#030712] relative border-t border-white/5">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[450px] bg-purple-500/5 rounded-full blur-[160px] -z-10 opacity-70"></div>
+        <div className="absolute bottom-10 right-[-10%] w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[130px] -z-10"></div>
+
+        <div className="max-w-7xl mx-auto text-center space-y-4 mb-20">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-black uppercase tracking-wider">
+            ECOSSISTEMA INTEGRADO DE ELITE
+          </div>
+          <h2 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
+            Uma plataforma, <span className="gradient-text bg-gradient-to-r from-purple-400 via-[#25D366] to-blue-400">infinitas possibilidades</span> operacionais.
+          </h2>
+          <p className="text-slate-400 max-w-3xl mx-auto text-sm sm:text-base leading-relaxed">
+            Esqueça softwares desconectados. Sincronizamos IA, gestão de relacionamentos, contratos, finanças, análise de mídias e logística de entrega em um painel único unificado.
+          </p>
+        </div>
+
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+
+          {/* Card 1: Segundo Cérebro */}
+          <div className="glass-panel p-6 border-white/5 hover:border-purple-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                <BrainCircuit size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-purple-300 transition-colors">Segundo Cérebro (Obsidian Style)</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Mapeamento visual 2D/3D interativo do conhecimento da sua empresa com física fluida e zoom. Upload de PDFs, DOCX e textos gerando ingestão semântica (RAG) instantânea.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-purple-400 mt-4 block uppercase tracking-widest">Tecnologia Exclusiva 🧠</span>
+          </div>
+
+          {/* Card 2: Mapas Mentais */}
+          <div className="glass-panel p-6 border-white/5 hover:border-blue-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                <Network size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-blue-300 transition-colors">Mapeamento e Fluxos Visuais</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Crie fluxogramas conceituais para sua IA no-code. Editor inteligente com histórico de snapshots para Undo/Redo e duplicação em um clique para clonar estruturas.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-blue-400 mt-4 block uppercase tracking-widest">No-Code Dinâmico 🕸️</span>
+          </div>
+
+          {/* Card 3: Agente Autônomo */}
+          <div className="glass-panel p-6 border-white/5 hover:border-emerald-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                <Cpu size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-emerald-300 transition-colors">Agentes Autônomos (Hermes)</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                IA baseada no loop ReAct que formula pensamentos, ações e analisa respostas (Thought-Action-Observation) de forma independente com logs em tempo real via Socket.IO.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-400 mt-4 block uppercase tracking-widest">Raciocínio Autônomo ⚡</span>
+          </div>
+
+          {/* Card 4: Contratos */}
+          <div className="glass-panel p-6 border-white/5 hover:border-red-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400 group-hover:scale-110 transition-transform">
+                <FileSignature size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-red-300 transition-colors">Contratos & Assinaturas Digitais</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Elabore minutas contratuais por inteligência artificial, envie links seguros para assinaturas jurídicas digitais direto pelo WhatsApp da sua marca de forma simplificada e auditável.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-red-400 mt-4 block uppercase tracking-widest">Painel de Contratos 📝</span>
+          </div>
+
+          {/* Card 5: Logística de Delivery */}
+          <div className="glass-panel p-6 border-white/5 hover:border-amber-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <Bike size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-amber-300 transition-colors">Logística de Entrega (Vila Delivery)</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Monitor e roteador inteligente de entregas (Uber-style). Rastreio em tempo real para os clientes finais de Uber Direct e gerenciamento de motoboys próprios com aplicativo.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-amber-400 mt-4 block uppercase tracking-widest">Painel Logístico 🗺️</span>
+          </div>
+
+          {/* Card 6: Analytics de Redes */}
+          <div className="glass-panel p-6 border-white/5 hover:border-pink-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
+                <BarChart2 size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-pink-300 transition-colors">Analytics de Redes Sociais</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Colete dados importantes de engajamento das suas contas do Instagram, Facebook e sites. A IA cruza métricas de curtidas e alcance gerando relatórios de desempenho precisos.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-pink-400 mt-4 block uppercase tracking-widest">Painel Métricas 📊</span>
+          </div>
+
+          {/* Card 7: Planejador de Campanhas */}
+          <div className="glass-panel p-6 border-white/5 hover:border-cyan-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                <Wand2 size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-cyan-300 transition-colors">Marketing & AI Designer</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Agenda integrada de planejamento de marcas (Content Planner), redação de campanhas em poucos segundos por IA e editor gráfico de imagens no-code direto no portal.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-cyan-400 mt-4 block uppercase tracking-widest">Centro Criativo 🎨</span>
+          </div>
+
+          {/* Card 8: Conexões & Plugins */}
+          <div className="glass-panel p-6 border-white/5 hover:border-indigo-500/30 bg-[#0F172A]/30 transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                <Plug size={24} />
+              </div>
+              <h4 className="font-black text-lg text-white group-hover:text-indigo-300 transition-colors">Marketplace de Plugins & APIs</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Crie pontes e tráfego com seus CRMs favoritos, ERPs locais e aplicativos externos com OAuth e chaves de APIs para controle total de transações de entrada e saída.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-indigo-400 mt-4 block uppercase tracking-widest">Integrações Livres 🔌</span>
+          </div>
+
+        </div>
+      </section>
+
       {/* Dynamic Simulated Interactive Chat Showcase */}
       <section id="recursos" className="py-24 px-6 bg-[#030712] relative border-y border-white/5">
         <div className="absolute top-0 right-1/4 w-[350px] h-[350px] bg-[#25D366]/5 rounded-full blur-[140px] -z-10"></div>
-        
+
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
-          
+
           {/* Left Column: Selector pills for simulation */}
           <div className="flex-1 text-left space-y-8">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-black uppercase tracking-wider">
               SIMULADOR DE AGENTE EM TEMPO REAL
             </div>
-            
+
             <h2 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
               Veja o seu agente conversando <span className="gradient-text">ao vivo</span>.
             </h2>
-            
+
             <p className="text-slate-400 text-base">
               Selecione uma das especialidades abaixo para simular no painel do celular como o agente de IA da <strong>Evoluir Mais</strong> interage de forma natural, ágil e focada em resultados.
             </p>
 
             {/* Selector Buttons */}
             <div className="space-y-4 pt-4">
-              <button 
+              <button
                 onClick={() => setActiveTab('vendas')}
-                className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${
-                  activeTab === 'vendas' 
-                    ? 'bg-[#25D366]/10 border-[#25D366]/30 text-white shadow-[0_0_15px_rgba(37,211,102,0.1)]' 
-                    : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
-                }`}
+                className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${activeTab === 'vendas'
+                  ? 'bg-[#25D366]/10 border-[#25D366]/30 text-white shadow-[0_0_15px_rgba(37,211,102,0.1)]'
+                  : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                  }`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`p-3 rounded-xl ${activeTab === 'vendas' ? 'bg-[#25D366] text-slate-900' : 'bg-white/5'}`}>
@@ -394,13 +528,12 @@ export default function LandingPage() {
                 <ArrowRight size={18} className={activeTab === 'vendas' ? 'text-[#25D366]' : 'text-slate-600'} />
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab('agendamento')}
-                className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${
-                  activeTab === 'agendamento' 
-                    ? 'bg-[#25D366]/10 border-[#25D366]/30 text-white shadow-[0_0_15px_rgba(37,211,102,0.1)]' 
-                    : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
-                }`}
+                className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${activeTab === 'agendamento'
+                  ? 'bg-[#25D366]/10 border-[#25D366]/30 text-white shadow-[0_0_15px_rgba(37,211,102,0.1)]'
+                  : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                  }`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`p-3 rounded-xl ${activeTab === 'agendamento' ? 'bg-[#25D366] text-slate-900' : 'bg-white/5'}`}>
@@ -414,13 +547,12 @@ export default function LandingPage() {
                 <ArrowRight size={18} className={activeTab === 'agendamento' ? 'text-[#25D366]' : 'text-slate-600'} />
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab('suporte')}
-                className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${
-                  activeTab === 'suporte' 
-                    ? 'bg-[#25D366]/10 border-[#25D366]/30 text-white shadow-[0_0_15px_rgba(37,211,102,0.1)]' 
-                    : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
-                }`}
+                className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${activeTab === 'suporte'
+                  ? 'bg-[#25D366]/10 border-[#25D366]/30 text-white shadow-[0_0_15px_rgba(37,211,102,0.1)]'
+                  : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                  }`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`p-3 rounded-xl ${activeTab === 'suporte' ? 'bg-[#25D366] text-slate-900' : 'bg-white/5'}`}>
@@ -439,7 +571,7 @@ export default function LandingPage() {
           {/* Right Column: Realistic iPhone Chat Simulator */}
           <div className="flex-1 w-full flex justify-center">
             <div className="w-full max-w-[360px] aspect-[9/18] bg-[#090D1A] rounded-[48px] border-[8px] border-slate-800 shadow-2xl relative overflow-hidden flex flex-col">
-              
+
               {/* iPhone Notch/Island */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-800 rounded-full z-20 flex items-center justify-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-black mr-2"></div>
@@ -465,13 +597,12 @@ export default function LandingPage() {
                 {chatMessages.map((msg, idx) => {
                   if (!msg || !msg.sender) return null;
                   return (
-                    <div 
-                      key={idx} 
-                      className={`max-w-[80%] p-3 rounded-2xl text-xs leading-relaxed animate-fade-in ${
-                        msg.sender === 'user'
-                          ? 'bg-[#1E293B] text-slate-200 self-end rounded-tr-none'
-                          : 'bg-[#25D366]/10 border border-[#25D366]/15 text-[#25D366] self-start rounded-tl-none font-medium'
-                      }`}
+                    <div
+                      key={idx}
+                      className={`max-w-[80%] p-3 rounded-2xl text-xs leading-relaxed animate-fade-in ${msg.sender === 'user'
+                        ? 'bg-[#1E293B] text-slate-200 self-end rounded-tr-none'
+                        : 'bg-[#25D366]/10 border border-[#25D366]/15 text-[#25D366] self-start rounded-tl-none font-medium'
+                        }`}
                       style={{ whiteSpace: 'pre-line' }}
                     >
                       {msg.text}
@@ -528,7 +659,7 @@ export default function LandingPage() {
       {/* Omnichannel Integrations System (Interactive Map) */}
       <section id="integracoes" className="py-24 px-6 bg-[#030712] relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-br from-[#25D366]/5 to-[#128C7E]/5 rounded-full blur-[160px] -z-10"></div>
-        
+
         <div className="max-w-7xl mx-auto text-center space-y-4 mb-20">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-black uppercase tracking-wider">
             CONEXÕES INTEGRALIZADAS
@@ -579,49 +710,34 @@ export default function LandingPage() {
       {/* Premium Rebuilt Pricing & Plans (Interactive Toggle) */}
       <section id="planos" className="py-24 px-6 bg-[#020617] border-t border-white/5 relative">
         <div className="absolute bottom-[-10%] right-[-10%] w-[350px] h-[350px] bg-[#25D366]/5 rounded-full blur-[140px] -z-10 animate-pulse"></div>
-        
+
         <div className="max-w-7xl mx-auto text-center space-y-4 mb-16">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-black uppercase tracking-wider">
-            PLANOS EXCLUSIVOS
+            CONTRATAÇÃO PREMIUM
           </div>
           <h2 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
-            Planos sob medida para o seu <span className="gradient-text">crescimento</span>.
+            Nossos planos sob a ótica da <span className="gradient-text">sua demanda</span>.
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base">
-            Comece grátis por 7 dias em qualquer modalidade. Sem burocracia e sem cartão de crédito exigido.
+            Não cobramos taxas de setup abusivas. Marque uma reunião com nossa equipe para desenhar o plano de inteligência ideal para acelerar sua marca.
           </p>
-
-          {/* Monthly / Annual Billing Cycle Switch */}
-          <div className="flex items-center justify-center gap-4 pt-6">
-            <span className={`text-sm font-extrabold ${!isAnnual ? 'text-[#25D366]' : 'text-slate-500'}`}>Mensal</span>
-            <button 
-              onClick={() => setIsAnnual(!isAnnual)}
-              className="w-14 h-7 rounded-full bg-[#1E293B] border border-white/10 p-1 flex items-center transition-all focus:outline-none"
-            >
-              <div className={`w-5 h-5 rounded-full bg-gradient-to-r from-[#25D366] to-[#128C7E] transition-all transform ${isAnnual ? 'translate-x-7' : 'translate-x-0'}`}></div>
-            </button>
-            <div className="flex items-center gap-2">
-              <span className={`text-sm font-extrabold ${isAnnual ? 'text-[#25D366]' : 'text-slate-500'}`}>Faturamento Anual</span>
-              <span className="bg-[#25D366]/10 text-[#25D366] text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-[#25D366]/20">-20% OFF</span>
-            </div>
-          </div>
         </div>
 
         {/* Pricing Cards Grid */}
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-          
+
           {/* Card 1: Start */}
           <div className="glass-panel p-8 bg-[#0F172A]/40 border border-white/5 rounded-3xl flex flex-col justify-between hover:border-slate-800 transition-all relative">
             <div>
               <span className="text-xs text-[#25D366] font-black uppercase tracking-widest block mb-1">Para Iniciar</span>
               <h3 className="text-3xl font-black text-white">Plano Start</h3>
               <p className="text-xs text-slate-500 mt-2">Perfeito para profissionais autônomos ou lojas locais iniciais.</p>
-              
+
               <div className="my-8">
-                <span className="text-5xl font-black text-white">
-                  R$ {isAnnual ? '71' : '89'}
+                <span className="text-3xl font-black text-white">
+                  Sob Demanda
                 </span>
-                <span className="text-slate-500 text-xs font-semibold"> / mês</span>
+                <span className="text-slate-500 text-xs block mt-1">Consulte condições de entrada</span>
               </div>
 
               <div className="space-y-4 border-t border-white/5 pt-6 text-sm text-slate-300">
@@ -647,9 +763,9 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            
-            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Plano%20Start" target="_blank" rel="noopener noreferrer" className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all">
-              Começar Teste Grátis
+
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20conversar%20com%20um%20especialista%20sobre%20o%20Plano%20Start%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366]/10 border border-[#25D366]/20 hover:bg-[#25D366]/20 text-[#25D366] font-bold h-12 rounded-xl flex items-center justify-center mt-8 transition-all">
+              Falar com um Especialista
             </a>
           </div>
 
@@ -663,12 +779,12 @@ export default function LandingPage() {
               <span className="text-xs text-[#25D366] font-black uppercase tracking-widest block mb-1">Mais Popular</span>
               <h3 className="text-3xl font-black text-white">Plano Pro</h3>
               <p className="text-xs text-slate-400 mt-2">Perfeito para empresas em aceleração de vendas e suporte robusto.</p>
-              
+
               <div className="my-8">
-                <span className="text-5xl font-black text-white">
-                  R$ {isAnnual ? '311' : '389'}
+                <span className="text-3xl font-black text-white">
+                  Demonstração Rápida
                 </span>
-                <span className="text-slate-400 text-xs font-semibold"> / mês</span>
+                <span className="text-slate-400 text-xs block mt-1">Agende um bate-papo exclusivo</span>
               </div>
 
               <div className="space-y-4 border-t border-[#25D366]/10 pt-6 text-sm text-slate-200">
@@ -694,9 +810,9 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            
-            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20fazer%20um%20teste%20grátis%20do%20Plano%20Pro" target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366] hover:bg-[#1DA851] text-slate-900 font-black h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all shadow-[0_0_20px_rgba(37,211,102,0.3)]">
-              Começar Teste Grátis
+
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20marcar%20uma%20reunião%20de%20demonstracao%20para%20conhecer%20o%20Plano%20Pro%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366] hover:bg-[#1DA851] text-slate-900 font-black h-12 rounded-xl flex items-center justify-center mt-8 transition-all shadow-[0_0_20px_rgba(37,211,102,0.3)]">
+              Marcar Reunião Especialista
             </a>
           </div>
 
@@ -706,12 +822,12 @@ export default function LandingPage() {
               <span className="text-xs text-[#25D366] font-black uppercase tracking-widest block mb-1">Alta Escala</span>
               <h3 className="text-3xl font-black text-white">Plano Corporate</h3>
               <p className="text-xs text-slate-500 mt-2">Para centrais de atendimento de alta demanda e equipes integradas.</p>
-              
+
               <div className="my-8">
-                <span className="text-5xl font-black text-white">
-                  R$ {isAnnual ? '791' : '989'}
+                <span className="text-3xl font-black text-white">
+                  Sob Medida
                 </span>
-                <span className="text-slate-500 text-xs font-semibold"> / mês</span>
+                <span className="text-slate-500 text-xs block mt-1">Infraestrutura corporativa</span>
               </div>
 
               <div className="space-y-4 border-t border-white/5 pt-6 text-sm text-slate-300">
@@ -737,10 +853,10 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            
-            <Link to="/login" className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold h-12.5 rounded-xl flex items-center justify-center mt-8 transition-all">
+
+            <a href="https://wa.me/5522999093710?text=Olá,%20gostaria%20de%20marcar%20uma%20reunião%20com%20o%20departamento%20comercial%20para%20conhecer%20o%20Plano%20Corporate%20do%20Evoluir%20Mais" target="_blank" rel="noopener noreferrer" className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold h-12 rounded-xl flex items-center justify-center mt-8 transition-all">
               Falar com Comercial
-            </Link>
+            </a>
           </div>
 
         </div>
@@ -749,7 +865,7 @@ export default function LandingPage() {
       {/* FAQ Accordion Section */}
       <section id="faq" className="py-24 px-6 bg-[#030712] border-t border-white/5 relative">
         <div className="absolute top-1/2 left-1/4 w-[350px] h-[350px] bg-blue-500/5 rounded-full blur-[140px] -z-10"></div>
-        
+
         <div className="max-w-4xl mx-auto">
           <div className="text-center space-y-4 mb-16">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#128C7E]/10 border border-[#128C7E]/20 text-[#25D366] text-xs font-black uppercase tracking-wider">
@@ -765,11 +881,11 @@ export default function LandingPage() {
 
           <div className="space-y-4">
             {faqs.map((faq, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="glass-panel border border-white/5 hover:border-slate-800 transition-all overflow-hidden"
               >
-                <button 
+                <button
                   onClick={() => toggleFaq(index)}
                   className="w-full px-6 py-5.5 text-left flex items-center justify-between text-base font-extrabold text-white focus:outline-none"
                 >
@@ -777,12 +893,12 @@ export default function LandingPage() {
                     <HelpCircle size={18} className="text-[#25D366]" />
                     {faq.q}
                   </span>
-                  <ChevronDown 
-                    size={18} 
-                    className={`text-slate-500 transition-transform duration-300 ${openFaq === index ? 'transform rotate-180 text-[#25D366]' : ''}`} 
+                  <ChevronDown
+                    size={18}
+                    className={`text-slate-500 transition-transform duration-300 ${openFaq === index ? 'transform rotate-180 text-[#25D366]' : ''}`}
                   />
                 </button>
-                
+
                 {openFaq === index && (
                   <div className="px-6 pb-6 pt-1 text-slate-400 text-sm leading-relaxed border-t border-white/5 font-medium animate-fade-in">
                     {faq.a}
@@ -797,7 +913,7 @@ export default function LandingPage() {
       {/* Footer Section */}
       <footer className="py-20 px-6 border-t border-white/5 bg-[#020617] text-center relative overflow-hidden">
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-[150px] bg-[#25D366]/5 rounded-full blur-[80px] -z-10"></div>
-        
+
         <div className="max-w-7xl mx-auto space-y-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-10 border-b border-white/5">
             <div className="flex items-center gap-3">
@@ -808,7 +924,7 @@ export default function LandingPage() {
                 Evoluir <span className="gradient-text">Mais</span>
               </span>
             </div>
-            
+
             <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 text-xs font-bold text-slate-500 uppercase tracking-wider">
               <a href="#como-funciona" className="hover:text-[#25D366] transition-colors">Como funciona</a>
               <a href="#recursos" className="hover:text-[#25D366] transition-colors">Recursos</a>
