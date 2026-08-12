@@ -184,30 +184,32 @@ export default function BrainPage() {
         const updatePhysics = () => {
             const nodes = nodesRef.current;
             const linksData = linksRef.current;
-            const width = canvas.width;
-            const height = canvas.height;
+
+            // Mede o tamanho lógico atual do contêiner para os limites da física
+            const width = canvas.clientWidth || 800;
+            const height = canvas.clientHeight || 450;
 
             // 1. Força de Gravidade/Centro de atração
             const centerX = width / 2;
             const centerY = height / 2;
 
             nodes.forEach(node => {
-                // Atração magnética simples para o meio
+                // Atração sutil ao centro para espalhar melhor o grafo (Estilo Obsidian)
                 const dx = centerX - node.x;
                 const dy = centerY - node.y;
-                node.vx += dx * 0.0003;
-                node.vy += dy * 0.0003;
+                node.vx += dx * 0.00015;
+                node.vy += dy * 0.00015;
 
-                // 2. Colisão/Repulsão entre nós (para que bolinhas não fiquem coladas)
+                // 2. Colisão/Repulsão entre nós (Obsidian: nós têm boa repulsa entre si)
                 nodes.forEach(other => {
                     if (node.id === other.id) return;
                     const kx = node.x - other.x;
                     const ky = node.y - other.y;
                     const dist = Math.sqrt(kx * kx + ky * ky) || 1;
-                    const minDist = node.radius + other.radius + 40; // distância ideal
+                    const minDist = node.radius + other.radius + 65; // Mais espaço para respirar
 
                     if (dist < minDist) {
-                        const force = (minDist - dist) * 0.03;
+                        const force = (minDist - dist) * 0.02;
                         const forceX = (kx / dist) * force;
                         const forceY = (ky / dist) * force;
                         node.vx += forceX;
@@ -217,7 +219,7 @@ export default function BrainPage() {
                     }
                 });
 
-                // 3. Força de tração de links (mola elástica entre notas conexas)
+                // 3. Força de tração de links (mola elástica elástica e fluida)
                 linksData.forEach(link => {
                     const source = nodes.find(n => n.id === link.source_note_id);
                     const target = nodes.find(n => n.id === link.target_note_id);
@@ -226,9 +228,9 @@ export default function BrainPage() {
                         const lx = target.x - source.x;
                         const ly = target.y - source.y;
                         const lDist = Math.sqrt(lx * lx + ly * ly) || 1;
-                        const targetDist = 100; // tamanho ideal da corda
+                        const targetDist = 130; // Distância do link estendida
 
-                        const force = (lDist - targetDist) * 0.002;
+                        const force = (lDist - targetDist) * 0.012;
                         const fx = (lx / lDist) * force;
                         const fy = (ly / lDist) * force;
 
@@ -242,14 +244,15 @@ export default function BrainPage() {
                 // Atualiza posição + fricção
                 node.x += node.vx;
                 node.y += node.vy;
-                node.vx *= 0.85; // fricção
+                node.vx *= 0.85; // Estabilidade sem vibração
                 node.vy *= 0.85;
 
-                // Limites da tela
-                if (node.x < 30) node.x = 30;
-                if (node.x > width - 30) node.x = width - 30;
-                if (node.y < 30) node.y = 30;
-                if (node.y > height - 30) node.y = height - 30;
+                // Limita posições dentro da área de desenho visível
+                const padding = node.radius + 15;
+                if (node.x < padding) node.x = padding;
+                if (node.x > width - padding) node.x = width - padding;
+                if (node.y < padding) node.y = padding;
+                if (node.y > height - padding) node.y = height - padding;
             });
 
             // Detecção de Hover
@@ -268,28 +271,35 @@ export default function BrainPage() {
 
         const drawGraph = () => {
             if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const dpr = window.devicePixelRatio || 1;
+
+            // Limpa o buffer de pixels físico real
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // 1. Aplica o scale base do DPR (para altíssima definição física)
+            ctx.scale(dpr, dpr);
+
+            // 2. Aplica as transformações matriciais do usuário (Pan & Zoom)
+            ctx.translate(panRef.current.x, panRef.current.y);
+            ctx.scale(zoomRef.current, zoomRef.current);
 
             const nodes = nodesRef.current;
             const linksData = linksRef.current;
 
-            ctx.save();
-            ctx.translate(panRef.current.x, panRef.current.y);
-            ctx.scale(zoomRef.current, zoomRef.current);
-
             // 1. Desenha as conexões (Teias)
-            ctx.lineWidth = 1.5;
+            // Obsidian-style: Linhas finas, elegantes e discretas
+            ctx.lineWidth = 1.0 / zoomRef.current;
+            ctx.strokeStyle = 'rgba(74, 85, 104, 0.25)'; // Cinza azulado bem sutil para as teias
+
             linksData.forEach(link => {
                 const source = nodes.find(n => n.id === link.source_note_id);
                 const target = nodes.find(n => n.id === link.target_note_id);
 
                 if (source && target) {
-                    // Gradiente linear translúcido entre pontos
-                    const grad = ctx.createLinearGradient(source.x, source.y, target.x, target.y);
-                    grad.addColorStop(0, 'rgba(168, 85, 247, 0.4)'); // Púrpura
-                    grad.addColorStop(1, 'rgba(59, 130, 246, 0.4)');  // Azul
-
-                    ctx.strokeStyle = grad;
                     ctx.beginPath();
                     ctx.moveTo(source.x, source.y);
                     ctx.lineTo(target.x, target.y);
@@ -302,32 +312,36 @@ export default function BrainPage() {
                 const isCurrent = node.id === currentNote?.id;
                 const isHovered = hoveredNode && hoveredNode.id === node.id;
 
-                // Sombra brilhante de neon nos pontos ativos ou sob o cursor
-                ctx.shadowBlur = (isCurrent || isHovered) ? 15 : 4;
-                ctx.shadowColor = isCurrent ? '#a855f7' : '#3b82f6';
+                // Estilo clássico Obsidian premium:
+                // Nós têm raios menores de ponto físico. Selecionados ou sob hover brilham em neon!
+                const radius = node.radius * 0.7;
 
-                // Estilo de preenchimento
-                ctx.fillStyle = isCurrent
-                    ? 'rgba(168, 85, 247, 0.9)' // roxo neon
-                    : isHovered
-                        ? 'rgba(59, 130, 246, 0.9)' // azul forte
-                        : 'rgba(30, 41, 59, 0.8)';   // cinza escuro translúcido
+                if (isCurrent || isHovered) {
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = isCurrent ? '#a855f7' : '#3b82f6';
+                    ctx.fillStyle = isCurrent ? '#a855f7' : '#3b82f6';
+                    ctx.strokeStyle = isCurrent ? '#d8b4fe' : '#60a5fa';
+                    ctx.lineWidth = 2.5;
+                } else {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(74, 85, 104, 0.75)'; // discretos
+                    ctx.strokeStyle = 'rgba(45, 55, 72, 0.9)';
+                    ctx.lineWidth = 1.5;
+                }
 
-                ctx.strokeStyle = isCurrent ? '#d8b4fe' : '#60a5fa';
-                ctx.lineWidth = (isCurrent || isHovered) ? 3 : 1.5;
-
-                // Círculo
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
                 // 3. Texto da Nota
-                ctx.shadowBlur = 0; // Desativa sombra para desenhar texto limpo
-                ctx.fillStyle = (isCurrent || isHovered) ? '#ffffff' : '#94a3b8';
-                ctx.font = (isCurrent || isHovered) ? 'bold 11px Inter' : '10px Inter';
+                ctx.shadowBlur = 0; // Texto puramente nítido sem blur
+                ctx.fillStyle = isCurrent ? '#ffffff' : isHovered ? '#60a5fa' : '#718096';
+                ctx.font = isCurrent ? 'bold 11px Inter, sans-serif' : '10px Inter, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(node.title, node.x, node.y - node.radius - 6);
+
+                // Texto do Obsidian fica flutuando discretamente acima do nó
+                ctx.fillText(node.title, node.x, node.y - radius - 6);
             });
 
             ctx.restore();
@@ -357,21 +371,41 @@ export default function BrainPage() {
         };
     }, [currentNote, draggedNode, hoveredNode]);
 
-    // Redimensionamento do canvas dinâmico
+    // Redimensionamento do canvas dinâmico com suporte a High-DPI (Retina)
     useEffect(() => {
         const handleResize = () => {
             const canvas = canvasRef.current;
             if (canvas && canvas.parentElement) {
-                canvas.width = canvas.parentElement.clientWidth;
-                canvas.height = canvas.parentElement.clientHeight || 450;
+                const rect = canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+
+                // Define o tamanho lógico multiplicado pelo dpr no canvas físico
+                canvas.width = rect.width * dpr;
+                canvas.height = (layoutMode === 'graph-focus' ? 600 : 400) * dpr;
+
+                // Previne distorções CSS fixando o rendering na dimensão lógica container
+                canvas.style.width = `${rect.width}px`;
+                canvas.style.height = `${layoutMode === 'graph-focus' ? 600 : 400}px`;
+
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    ctx.scale(dpr, dpr);
+                }
             }
         };
 
         window.addEventListener('resize', handleResize);
         handleResize(); // trigger inicial
 
-        return () => window.removeEventListener('resize', handleResize);
-    }, [searchQuery]);
+        // Força novo trigger após um brevíssimo delay de montagem para alinhar grids CSS
+        const timer = setTimeout(handleResize, 100);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            clearTimeout(timer);
+        };
+    }, [searchQuery, layoutMode]);
 
     // Click Canvas & Pan & Zoom
     const handleCanvasMouseDown = (e) => {
@@ -438,30 +472,88 @@ export default function BrainPage() {
 
     const handleCanvasWheel = (e) => {
         e.preventDefault();
-        const zoomFactor = 1.08;
+
+        const rect = canvasRef.current.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+
+        // Ponto sob o mouse no espaço lógico do grafo antes da alteração do zoom
+        const mouseLogicalX = (clientX - panRef.current.x) / zoomRef.current;
+        const mouseLogicalY = (clientY - panRef.current.y) / zoomRef.current;
+
+        const zoomFactor = 1.08; // Fator de escala ideal
         let newZoom = zoomRef.current;
         if (e.deltaY < 0) {
             newZoom *= zoomFactor;
         } else {
             newZoom /= zoomFactor;
         }
-        // Limita o zoom entre 0.15x e 4.0x
+
+        // Limita o zoom
         newZoom = Math.max(0.15, Math.min(newZoom, 4.0));
+
+        // Ajusta a translação (pan) para manter o ponto do cursor focado!
+        const newPan = {
+            x: clientX - mouseLogicalX * newZoom,
+            y: clientY - mouseLogicalY * newZoom
+        };
+
         zoomRef.current = newZoom;
+        panRef.current = newPan;
+
         setZoom(newZoom);
+        setPan(newPan);
     };
 
-    // Zoom Buttons
+    // Zoom Buttons focados no centro geométrico lógico do canvas
     const handleZoomIn = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const widthLogical = canvas.clientWidth || 800;
+        const heightLogical = canvas.clientHeight || 450;
+        const centerX = widthLogical / 2;
+        const centerY = heightLogical / 2;
+
+        const mouseLogicalX = (centerX - panRef.current.x) / zoomRef.current;
+        const mouseLogicalY = (centerY - panRef.current.y) / zoomRef.current;
+
         const newZoom = Math.min(zoomRef.current * 1.25, 4.0);
+
+        const newPan = {
+            x: centerX - mouseLogicalX * newZoom,
+            y: centerY - mouseLogicalY * newZoom
+        };
+
         zoomRef.current = newZoom;
+        panRef.current = newPan;
         setZoom(newZoom);
+        setPan(newPan);
     };
 
     const handleZoomOut = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const widthLogical = canvas.clientWidth || 800;
+        const heightLogical = canvas.clientHeight || 450;
+        const centerX = widthLogical / 2;
+        const centerY = heightLogical / 2;
+
+        const mouseLogicalX = (centerX - panRef.current.x) / zoomRef.current;
+        const mouseLogicalY = (centerY - panRef.current.y) / zoomRef.current;
+
         const newZoom = Math.max(zoomRef.current / 1.25, 0.15);
+
+        const newPan = {
+            x: centerX - mouseLogicalX * newZoom,
+            y: centerY - mouseLogicalY * newZoom
+        };
+
         zoomRef.current = newZoom;
+        panRef.current = newPan;
         setZoom(newZoom);
+        setPan(newPan);
     };
 
     const handleResetView = () => {
