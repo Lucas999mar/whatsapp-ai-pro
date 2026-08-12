@@ -443,8 +443,8 @@ export default function SettingsPage() {
                       key={p.id}
                       onClick={() => handleChange('ai_provider', p.id)}
                       className={`flex-1 flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all cursor-pointer ${settings.ai_provider === p.id
-                          ? 'bg-[#25D366]/10 border-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.15)]'
-                          : 'bg-white/[0.02] border-white/10 hover:border-white/20'
+                        ? 'bg-[#25D366]/10 border-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.15)]'
+                        : 'bg-white/[0.02] border-white/10 hover:border-white/20'
                         }`}
                     >
                       <span className="text-2xl">{p.icon}</span>
@@ -551,12 +551,25 @@ export default function SettingsPage() {
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                   <Shield className="text-[#25D366]" /> Operação
                 </h3>
-                <div className="flex items-center justify-between p-4 bg-[#0F172A] border border-white/5 rounded-xl">
-                  <div><h4 className="font-bold text-white">Responder TODAS</h4><p className="text-sm text-slate-400 mt-1">O bot ignora o prefixo.</p></div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={settings.respond_all} onChange={(e) => handleChange('respond_all', e.target.checked)} className="sr-only peer" />
-                    <div className="w-14 h-7 bg-slate-700 rounded-full peer peer-checked:bg-[#25D366] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:after:translate-x-full"></div>
-                  </label>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-[#0F172A] border border-white/5 rounded-xl">
+                    <div><h4 className="font-bold text-white">Responder TODAS</h4><p className="text-sm text-slate-400 mt-1">O bot ignora o prefixo.</p></div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={settings.respond_all} onChange={(e) => handleChange('respond_all', e.target.checked)} className="sr-only peer" />
+                      <div className="w-14 h-7 bg-slate-700 rounded-full peer peer-checked:bg-[#25D366] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-[#0F172A] border border-white/5 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-white">Utilizar Segundo Cérebro (Obsidian)</h4>
+                      <p className="text-sm text-slate-400 mt-1">Permite a este bot consultar a rede de notas interconectadas para responder.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={settings.use_second_brain || false} onChange={(e) => handleChange('use_second_brain', e.target.checked)} className="sr-only peer" />
+                      <div className="w-14 h-7 bg-slate-700 rounded-full peer peer-checked:bg-[#25D366] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -625,8 +638,8 @@ export default function SettingsPage() {
                             <span
                               key={f.id}
                               className={`text-[9px] font-bold px-2 py-0.5 rounded-md border ${isAllowed
-                                  ? 'bg-[#25D366]/10 text-[#25D366] border-[#25D366]/20'
-                                  : 'bg-red-500/5 text-red-400 border-red-500/10 line-through opacity-40'
+                                ? 'bg-[#25D366]/10 text-[#25D366] border-[#25D366]/20'
+                                : 'bg-red-500/5 text-red-400 border-red-500/10 line-through opacity-40'
                                 }`}
                             >
                               {f.label}

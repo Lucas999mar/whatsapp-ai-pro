@@ -63,6 +63,7 @@ export default function AgentDashboard() {
 
     useEffect(() => {
         fetchTasks();
+        fetchChannels();
         const interval = setInterval(fetchTasks, 15000);
 
         const socket = io(API_BASE);
@@ -189,6 +190,25 @@ export default function AgentDashboard() {
             setKnowledgeItems(prev => prev.filter(k => k.id !== id));
         } catch (err) {
             alert('Erro ao remover: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const hermesAgent = channels.whatsapp?.[0];
+    const hermesSettings = hermesAgent?.settings || {};
+    const useSecondBrain = hermesSettings.use_second_brain === true;
+
+    const handleToggleSecondBrain = async (checked) => {
+        const agentId = hermesAgent?.id || `agent_hermes_${user?.tenant_id || user?.id || 'default'}`;
+        try {
+            await api.post(`/whatsapp/agents/${agentId}/settings`, {
+                settings: {
+                    ...hermesSettings,
+                    use_second_brain: checked
+                }
+            });
+            await fetchChannels();
+        } catch (err) {
+            alert('Erro ao atualizar configurações do agente Hermes: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -577,6 +597,31 @@ export default function AgentDashboard() {
             {/* ═══ TAB: MEMÓRIA / BASE DE CONHECIMENTO ═══ */}
             {activeTab === 'memory' && (
                 <div className="flex-1 space-y-6">
+                    {/* Botão de Toggle do Segundo Cérebro (Obsidian) */}
+                    <div className="bg-[#1E293B] border border-white/5 p-6 rounded-[24px] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl shrink-0">
+                        <div>
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                <Brain className="text-[#25D366]" size={18} />
+                                Conexão com o Segundo Cérebro (Obsidian)
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-1">
+                                Permite que o Agente Autônomo acesse sua rede de notas interconectadas para responder às tarefas e análises.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs font-bold text-slate-400">{useSecondBrain ? 'Conectado' : 'Desconectado'}</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={useSecondBrain}
+                                    onChange={(e) => handleToggleSecondBrain(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:bg-[#25D366] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                        </div>
+                    </div>
+
                     <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                         <div>
                             <h2 className="text-xl font-bold flex items-center gap-2">

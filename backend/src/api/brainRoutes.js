@@ -224,8 +224,11 @@ router.post('/copilot', async (req, res) => {
         const { title, content } = req.body;
         if (!title) return res.status(400).json({ error: 'Título é necessário para acionar o co-piloto.' });
 
-        // Instancia configuração do resolvedor de IA
-        const aiConfig = resolveAIConfig({});
+        // Instancia configuração do resolvedor de IA carregando as chaves configuradas pelo tenant/empresa
+        const { getBotSettings } = require('../db/repository');
+        const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const settings = await getBotSettings('default', tenantId);
+        const aiConfig = resolveAIConfig(settings || {});
 
         const userPrompt = `Você é o Co-piloto de Notas do Segundo Cérebro. 
 Estou escrevendo uma nota com o título: "${title}".

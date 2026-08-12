@@ -122,6 +122,17 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
     let filteredItems = items;
     const isHermesSearch = agentId === 'hermes' || (agentId && agentId.startsWith('agent_hermes'));
 
+    // Verifica se este agente específico tem permissão para usar as notas do Segundo Cérebro (Obsidian)
+    let useSecondBrain = false;
+    if (agentId && agentId !== 'global' && agentId !== 'all') {
+      try {
+        const settings = await getBotSettings(agentId, tenantId);
+        useSecondBrain = settings && settings.use_second_brain === true;
+      } catch (e) {
+        console.warn(`[searchKnowledge] Erro ao carregar configs do bot ${agentId}:`, e.message);
+      }
+    }
+
     if (isHermesSearch) {
       const hermesAgentId = tenantId !== 'default' ? `agent_hermes_${tenantId}` : 'hermes';
       filteredItems = items.filter(item => {
@@ -140,6 +151,20 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
         return true;
       });
     }
+
+    // Filtra itens do Segundo Cérebro se useSecondBrain estiver desativado para o agente
+    filteredItems = filteredItems.filter(item => {
+      const isSecondBrain =
+        item.type === 'obsidian' ||
+        (item.file_name && item.file_name.startsWith('brain_note_')) ||
+        (item.title && item.title.includes('[Segundo Cérebro]')) ||
+        (item.metadata && item.metadata.isSecondBrain);
+
+      if (isSecondBrain && !useSecondBrain) {
+        return false;
+      }
+      return true;
+    });
 
     // Calcula a similaridade de cosseno (produto escalar de vetores normalizados) em JavaScript
     const scored = filteredItems.map(item => {
