@@ -3,7 +3,8 @@ import {
     BrainCircuit, Plus, Trash2, Save, Download, ArrowLeft,
     ZoomIn, ZoomOut, Maximize2, Palette, Type, Link2, Unlink,
     Copy, RotateCcw, ChevronDown, Sparkles, Search, X, Edit3,
-    FileText, GitBranch, Target, Users, BarChart3, Map, Workflow
+    FileText, GitBranch, Target, Users, BarChart3, Map, Workflow,
+    Undo2, Redo2
 } from 'lucide-react';
 import api from '../api/api';
 
@@ -103,6 +104,12 @@ export default function MindMapPage() {
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
+    // Undo/Redo History
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const isUndoRedoRef = useRef(false);
+    const MAX_HISTORY = 50;
+
     // Refs
     const canvasRef = useRef(null);
     const svgRef = useRef(null);
@@ -149,6 +156,10 @@ export default function MindMapPage() {
             setZoom(1);
             setPanOffset({ x: 0, y: 0 });
             loadMaps(); // Refresh list in background
+            // Reset undo/redo history when creating a map
+            setHistory([{ nodes: parsedNodes, edges: parsedEdges }]);
+            setHistoryIndex(0);
+            isUndoRedoRef.current = false;
         } catch (err) {
             alert('Erro ao criar mapa: ' + err.message);
         }
@@ -168,6 +179,10 @@ export default function MindMapPage() {
             setView('editor');
             setZoom(1);
             setPanOffset({ x: 0, y: 0 });
+            // Reset undo/redo history when opening a map
+            setHistory([{ nodes: parsedNodes, edges: parsedEdges }]);
+            setHistoryIndex(0);
+            isUndoRedoRef.current = false;
         } catch (err) {
             alert('Erro ao abrir mapa: ' + err.message);
         } finally {
@@ -184,6 +199,19 @@ export default function MindMapPage() {
             setMaps(prev => prev.filter(m => m.id !== mapId));
         } catch (err) {
             alert('Erro ao excluir: ' + err.message);
+        }
+    };
+
+    // ── DUPLICATE MAP ──
+    const duplicateMap = async (mapId, e) => {
+        e?.stopPropagation();
+        try {
+            const { data } = await api.post(`/mindmaps/${mapId}/duplicate`);
+            if (data) {
+                setMaps(prev => [data, ...prev]);
+            }
+        } catch (err) {
+            alert('Erro ao duplicar mapa: ' + err.message);
         }
     };
 
@@ -212,6 +240,72 @@ export default function MindMapPage() {
             triggerAutoSave();
         }
     }, [nodes, edges, mapTitle]);
+
+    // ── UNDO/REDO: Push state on changes ──
+    useEffect(() => {
+        if (view !== 'editor' || !currentMap) return;
+        if (isUndoRedoRef.current) {
+            isUndoRedoRef.current = false;
+            return;
+        }
+        // Only push if different from current history state
+        const currentSnapshot = JSON.stringify({ nodes, edges });
+        if (history.length > 0 && historyIndex >= 0) {
+            const lastSnapshot = JSON.stringify(history[historyIndex]);
+            if (currentSnapshot === lastSnapshot) return;
+        }
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyIndex + 1);
+            newHistory.push({ nodes: JSON.parse(JSON.stringify(nodes)), edges: JSON.parse(JSON.stringify(edges)) });
+            if (newHistory.length > MAX_HISTORY) newHistory.shift();
+            return newHistory;
+        });
+        setHistoryIndex(prev => {
+            const newIdx = Math.min(prev + 1, MAX_HISTORY - 1);
+            return newIdx;
+        });
+    }, [nodes, edges]);
+
+    // ── UNDO ──
+    const undo = useCallback(() => {
+        if (historyIndex <= 0) return;
+        const newIndex = historyIndex - 1;
+        const snapshot = history[newIndex];
+        if (!snapshot) return;
+        isUndoRedoRef.current = true;
+        setHistoryIndex(newIndex);
+        setNodes(JSON.parse(JSON.stringify(snapshot.nodes)));
+        setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
+    }, [history, historyIndex]);
+
+    // ── REDO ──
+    const redo = useCallback(() => {
+        if (historyIndex >= history.length - 1) return;
+        const newIndex = historyIndex + 1;
+        const snapshot = history[newIndex];
+        if (!snapshot) return;
+        isUndoRedoRef.current = true;
+        setHistoryIndex(newIndex);
+        setNodes(JSON.parse(JSON.stringify(snapshot.nodes)));
+        setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
+    }, [history, historyIndex]);
+
+    // ── KEYBOARD SHORTCUTS: Ctrl+Z / Ctrl+Y ──
+    useEffect(() => {
+        if (view !== 'editor') return;
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [view, undo, redo]);
 
     // ── MANUAL SAVE ──
     const saveMap = async () => {
@@ -589,6 +683,9 @@ export default function MindMapPage() {
         setEditingNode(null);
         setConnectingFrom(null);
         loadMaps();
+        // Reset undo/redo
+        setHistory([]);
+        setHistoryIndex(-1);
     };
 
     // ── RENDER: EDGE SVG ──
@@ -1064,14 +1161,23 @@ export default function MindMapPage() {
                                     </p>
                                 </div>
 
-                                {/* Delete */}
-                                <button
-                                    onClick={(e) => deleteMap(map.id, e)}
-                                    className="absolute top-5 right-3 p-2 rounded-lg bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                                    title="Excluir mapa"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+                                {/* Duplicate & Delete */}
+                                <div className="absolute top-5 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                                    <button
+                                        onClick={(e) => duplicateMap(map.id, e)}
+                                        className="p-2 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all"
+                                        title="Duplicar mapa"
+                                    >
+                                        <Copy size={16} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => deleteMap(map.id, e)}
+                                        className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                                        title="Excluir mapa"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -1253,6 +1359,26 @@ export default function MindMapPage() {
                     >
                         <Plus size={16} />
                         <span className="hidden sm:inline">Quadro</span>
+                    </button>
+
+                    <div className="h-6 w-px bg-white/5 mx-1" />
+
+                    {/* Undo / Redo */}
+                    <button
+                        onClick={undo}
+                        disabled={historyIndex <= 0}
+                        className={`p-2 rounded-lg transition-all ${historyIndex <= 0 ? 'text-slate-600 cursor-not-allowed' : 'hover:bg-white/10 text-slate-400 hover:text-white'}`}
+                        title="Desfazer (Ctrl+Z)"
+                    >
+                        <Undo2 size={16} />
+                    </button>
+                    <button
+                        onClick={redo}
+                        disabled={historyIndex >= history.length - 1}
+                        className={`p-2 rounded-lg transition-all ${historyIndex >= history.length - 1 ? 'text-slate-600 cursor-not-allowed' : 'hover:bg-white/10 text-slate-400 hover:text-white'}`}
+                        title="Refazer (Ctrl+Y)"
+                    >
+                        <Redo2 size={16} />
                     </button>
 
                     <div className="h-6 w-px bg-white/5 mx-1" />

@@ -307,6 +307,57 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// ── DUPLICAR MAPA ───────────────────────────────────────────
+router.post('/:id/duplicate', authMiddleware, async (req, res) => {
+    try {
+        const supabase = getSupabase();
+        const tenantId = req.user.tenant_id || req.user.id;
+
+        // Busca o mapa original
+        const { data: original, error: fetchError } = await supabase
+            .from('mindmaps')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (fetchError) throw fetchError;
+        if (!original) return res.status(404).json({ error: 'Mapa não encontrado' });
+
+        const colors = ['#25D366', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        const duplicatedMap = {
+            tenant_id: tenantId,
+            title: (original.title || 'Mapa') + ' (Cópia)',
+            description: original.description,
+            template: original.template || 'blank',
+            nodes: original.nodes, // já está em string JSON no banco
+            edges: original.edges,
+            thumbnail_color: randomColor,
+            created_by: req.user.id,
+            updated_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
+            .from('mindmaps')
+            .insert(duplicatedMap)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Parse nodes/edges de volta
+        if (typeof data.nodes === 'string') data.nodes = JSON.parse(data.nodes);
+        if (typeof data.edges === 'string') data.edges = JSON.parse(data.edges);
+
+        res.json(data);
+    } catch (err) {
+        console.error('❌ Erro ao duplicar mindmap:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── DELETAR MAPA ────────────────────────────────────────────
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
