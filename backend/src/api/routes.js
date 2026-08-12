@@ -1195,6 +1195,10 @@ router.use('/agent', agentAuth, agentRouter);
 const omniRouter = require('./omniRoutes');
 router.use('/omni', omniRouter);
 
+// ── CAMPANHAS DE VOZ POR IA (AI CALLS) ROUTES ────────────────
+const voiceRouter = require('./voiceCallRoutes');
+router.use('/voice', authMiddleware, voiceRouter);
+
 // ── PLUGINS / CONNECTIONS ROUTES ───────────────────────────────
 const pluginRoutes = require('./pluginRoutes');
 router.use('/', pluginRoutes);

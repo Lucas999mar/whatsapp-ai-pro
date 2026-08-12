@@ -153,3 +153,39 @@ CREATE TABLE IF NOT EXISTS whatsapp_auth (
 -- Habilitar RLS
 ALTER TABLE whatsapp_auth ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all for whatsapp_auth" ON whatsapp_auth FOR ALL USING (true);
+
+-- ── CAMPANHAS DE VOZ POR IA (AI CALLS) ───────────────────────
+CREATE TABLE IF NOT EXISTS voice_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  script TEXT NOT NULL,
+  voice TEXT DEFAULT 'female-pt-br',
+  numbers JSONB NOT NULL DEFAULT '[]', -- lista de números originais
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'paused', 'finished')),
+  stats JSONB DEFAULT '{"total":0, "completed":0, "interested":0, "no_answer":0, "errors":0}',
+  telnyx_config JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS voice_calls (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID REFERENCES voice_campaigns(id) ON DELETE CASCADE,
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  phone_number TEXT NOT NULL,
+  duration_seconds INTEGER DEFAULT 0,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'calling', 'completed', 'no_answer', 'failed', 'busy')),
+  transcription TEXT DEFAULT '',
+  outcome TEXT DEFAULT 'pending' CHECK (outcome IN ('pending', 'interested', 'not_interested', 'no_answer', 'failed')),
+  whatsapp_followup_sent BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS para novas tabelas de Voz
+ALTER TABLE voice_campaigns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for voice_campaigns" ON voice_campaigns FOR ALL USING (true);
+
+ALTER TABLE voice_calls ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for voice_calls" ON voice_calls FOR ALL USING (true);
+
