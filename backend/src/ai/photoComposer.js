@@ -205,17 +205,20 @@ async function composePhoto({
         throw new Error('Falha ao decodificar os arquivos de imagem.');
     }
 
-    const canvas = createCanvas(1024, 1024);
+    const W = templateImg.width;
+    const H = templateImg.height;
+
+    const canvas = createCanvas(W, H);
     const ctx = canvas.getContext('2d');
 
     // Desenhar template do candidato (Layer 1)
-    ctx.drawImage(templateImg, 0, 0, 1024, 1024);
+    ctx.drawImage(templateImg, 0, 0, W, H);
 
-    // Ajustar proporção e limites do eleitor
-    const vw = 450;
-    const vh = 650;
-    const vy = 150;
-    const vx = isVoterOnLeft ? 50 : 524;
+    // Ajustar proporção e limites do eleitor proporcionalmente ao template
+    const vw = Math.round(W * 0.48);  // Ocupa 48% da largura do template
+    const vh = Math.round(H * 0.82);  // Ocupa 82% da altura do template (bem maior e imersivo)
+    const vy = Math.round(H * 0.08);  // Começa perto do topo (8% da altura)
+    const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48); // 4% de margem ou no meio
 
     const voterAspect = voterImg.width / voterImg.height;
     let dw = vw;
@@ -236,30 +239,31 @@ async function composePhoto({
     if (isFallback) {
         // Se a remoção de fundo falhou totalmente, desenhamos com borda clássica de Polaroid para parecer intencional e limpo
         ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-        ctx.shadowBlur = 10;
-        ctx.shadowOffsetX = 3;
-        ctx.shadowOffsetY = 3;
+        ctx.shadowBlur = Math.round(W * 0.01);
+        ctx.shadowOffsetX = Math.round(W * 0.003);
+        ctx.shadowOffsetY = Math.round(W * 0.003);
 
+        const pad = Math.round(W * 0.01);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(dx - 10, dy - 10, dw + 20, dh + 20);
+        ctx.fillRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
         ctx.strokeStyle = '#dddddd';
         ctx.lineWidth = 1;
-        ctx.strokeRect(dx - 10, dy - 10, dw + 20, dh + 20);
+        ctx.strokeRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
     } else {
         // Se removeu o fundo, colocamos um drop-shadow realista na silhueta
         ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 6;
-        ctx.shadowOffsetY = 6;
+        ctx.shadowBlur = Math.round(W * 0.015);
+        ctx.shadowOffsetX = Math.round(W * 0.006);
+        ctx.shadowOffsetY = Math.round(W * 0.006);
     }
 
     ctx.drawImage(voterImg, dx, dy, dw, dh);
     ctx.restore();
 
     // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3)
-    // O padrão é 220px do rodapé
-    const bannerHeight = 224;
-    ctx.drawImage(templateImg, 0, 1024 - bannerHeight, 1024, bannerHeight, 0, 1024 - bannerHeight, 1024, bannerHeight);
+    // O padrão é cerca de 22% do rodapé em relação ao total da tela para manter proporção e evitar distorções
+    const bannerHeight = Math.round(H * (224 / 1024));
+    ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
 
     const finalBuffer = canvas.toBuffer('image/png');
     const base64Str = finalBuffer.toString('base64');
