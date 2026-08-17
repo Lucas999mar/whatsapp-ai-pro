@@ -199,6 +199,11 @@ CRITICAL COMPOSITION RULES:
 - Match the photo style: ${style}
 - The overall mood should be: ${mood}
 
+SAFEGUARD OVERLAID GRAPHICS AND TEXTS:
+- Absolute Rule: PRESERVE ALL overlaid graphics, text badges, campaign numbers, logos, and banners EXACTLY as they are.
+- DO NOT recreate, distort, alter, blur, or write over any text (like names, numbers, or slogans) or solid colored bands (like orange or blue banners).
+- The voter must be composited ONLY within the portrait/photographic area, blending naturally behind or with the candidate, leaving the campaign text and borders perfectly untouched.
+
 REALISM REQUIREMENTS (MOST IMPORTANT):
 - This must look like an AUTHENTIC photograph taken by a professional photographer
 - NO artificial compositing artifacts whatsoever
