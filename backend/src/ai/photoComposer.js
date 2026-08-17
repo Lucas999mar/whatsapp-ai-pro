@@ -265,137 +265,65 @@ async function composePhoto({
     const W = templateImg.width;
     const H = templateImg.height;
 
-    // Determina se o template é formato retrato (card vertical de uma única coluna)
-    const isPortraitCard = (W / H) < 0.8;
-    console.log(`   🎨 [PhotoComposer] Dimensões do template: ${W}x${H} (isPortraitCard: ${isPortraitCard})`);
-
     // Recorta as bordas transparentes para obter escala realista da silhueta do eleitor
     const voterImg = isFallback ? voterImgRaw : trimTransparentBorders(voterImgRaw);
 
-    const canvasWidth = isPortraitCard ? W * 2 : W;
-    const canvas = createCanvas(canvasWidth, H);
+    const canvas = createCanvas(W, H);
     const ctx = canvas.getContext('2d');
 
-    const bannerHeight = Math.round(H * (224 / 1024));
+    // Desenhar template do candidato (Layer 1)
+    ctx.drawImage(templateImg, 0, 0, W, H);
 
-    if (isPortraitCard) {
-        console.log('   👥 [PhotoComposer] Executando layout LADO A LADO (2 Colunas)');
-        // 1. Desenhar candidato na metade esquerda (Layer 1)
-        ctx.drawImage(templateImg, 0, 0, W, H);
+    // Ajustar proporção e limites do eleitor proporcionalmente ao template
+    const vw = Math.round(W * 0.48);  // Ocupa 48% da largura do template
+    const vh = Math.round(H * 0.82);  // Ocupa 82% da altura do template (bem maior e imersivo)
+    const vy = Math.round(H * 0.08);  // Começa perto do topo (8% da altura) para alinhar as cabeças
+    const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48); // 4% de margem ou no meio
 
-        // 2. Preencher a coluna da direita com o fundo do template (Layer 2)
-        const pixelData = ctx.getImageData(W - 5, 5, 1, 1).data;
-        ctx.fillStyle = `rgba(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]}, ${pixelData[3] / 255})`;
-        ctx.fillRect(W, 0, W, H);
-
-        // 3. Desenhar o eleitor centralizado na coluna da direita (Layer 3)
-        const vw = Math.round(W * 0.8);
-        const vh = Math.round(H * 0.82);
-        const vy = Math.round(H * 0.08); // Alinhado ao topo
-        const vx = W + Math.round(W * 0.1);
-
-        const voterAspect = voterImg.width / voterImg.height;
-        let dw = vw;
-        let dh = vh;
-        if (voterAspect > vw / vh) {
-            dw = vw;
-            dh = vw / voterAspect;
-        } else {
-            dh = vh;
-            dw = vh * voterAspect;
-        }
-
-        const dx = vx + (vw - dw) / 2;
-        const dy = vy + (vh - dh);
-
-        ctx.save();
-        if (isFallback) {
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-            ctx.shadowBlur = Math.round(W * 0.01);
-            ctx.shadowOffsetX = Math.round(W * 0.003);
-            ctx.shadowOffsetY = Math.round(W * 0.003);
-
-            const pad = Math.round(W * 0.01);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
-            ctx.strokeStyle = '#dddddd';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
-        } else {
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-            ctx.shadowBlur = Math.round(W * 0.015);
-            ctx.shadowOffsetX = Math.round(W * 0.006);
-            ctx.shadowOffsetY = Math.round(W * 0.006);
-        }
-        ctx.drawImage(voterImg, dx, dy, dw, dh);
-        ctx.restore();
-
-        // 4. Copiar a faixa do rodapé por cima na coluna da direita para preservar banners, logos e números (Layer 4)
-        ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, W, H - bannerHeight, W, bannerHeight);
-
-        // 5. Linha vertical discreta separando as duas orange boxes no rodapé (Layer 5)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = Math.max(2, Math.round(W * 0.002));
-        ctx.beginPath();
-        ctx.moveTo(W, H - bannerHeight);
-        ctx.lineTo(W, H);
-        ctx.stroke();
-
+    const voterAspect = voterImg.width / voterImg.height;
+    let dw = vw;
+    let dh = vh;
+    if (voterAspect > vw / vh) {
+        dw = vw;
+        dh = vw / voterAspect;
     } else {
-        console.log('   👤 [PhotoComposer] Executando layout NO MESMO TEMPLATE (Single Canvas)');
-        // Desenhar template do candidato (Layer 1)
-        ctx.drawImage(templateImg, 0, 0, W, H);
-
-        // Ajustar proporção e limites do eleitor proporcionalmente ao template
-        const vw = Math.round(W * 0.48);  // Ocupa 48% da largura do template
-        const vh = Math.round(H * 0.82);  // Ocupa 82% da altura do template (bem maior e imersivo)
-        const vy = Math.round(H * 0.08);  // Começa perto do topo (8% da altura) para alinhar as cabeças
-        const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48); // 4% de margem ou no meio
-
-        const voterAspect = voterImg.width / voterImg.height;
-        let dw = vw;
-        let dh = vh;
-        if (voterAspect > vw / vh) {
-            dw = vw;
-            dh = vw / voterAspect;
-        } else {
-            dh = vh;
-            dw = vh * voterAspect;
-        }
-
-        const dx = vx + (vw - dw) / 2;
-        const dy = vy + (vh - dh);
-
-        // Desenhar o eleitor (Layer 2)
-        ctx.save();
-        if (isFallback) {
-            // Se a remoção de fundo falhou totalmente, desenhamos com borda clássica de Polaroid para parecer intencional e limpo
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-            ctx.shadowBlur = Math.round(W * 0.01);
-            ctx.shadowOffsetX = Math.round(W * 0.003);
-            ctx.shadowOffsetY = Math.round(W * 0.003);
-
-            const pad = Math.round(W * 0.01);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
-            ctx.strokeStyle = '#dddddd';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
-        } else {
-            // Se removeu o fundo, colocamos um drop-shadow realista na silhueta
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-            ctx.shadowBlur = Math.round(W * 0.015);
-            ctx.shadowOffsetX = Math.round(W * 0.006);
-            ctx.shadowOffsetY = Math.round(W * 0.006);
-        }
-
-        ctx.drawImage(voterImg, dx, dy, dw, dh);
-        ctx.restore();
-
-        // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3)
-        // O padrão é cerca de 22% do rodapé em relação ao total della tela para manter proporção e evitar distorções
-        ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
+        dh = vh;
+        dw = vh * voterAspect;
     }
+
+    const dx = vx + (vw - dw) / 2;
+    const dy = vy + (vh - dh);
+
+    // Desenhar o eleitor (Layer 2)
+    ctx.save();
+    if (isFallback) {
+        // Se a remoção de fundo falhou totalmente, desenhamos com borda clássica de Polaroid para parecer intencional e limpo
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = Math.round(W * 0.01);
+        ctx.shadowOffsetX = Math.round(W * 0.003);
+        ctx.shadowOffsetY = Math.round(W * 0.003);
+
+        const pad = Math.round(W * 0.01);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
+        ctx.strokeStyle = '#dddddd';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
+    } else {
+        // Se removeu o fundo, colocamos um drop-shadow realista na silhueta
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = Math.round(W * 0.015);
+        ctx.shadowOffsetX = Math.round(W * 0.006);
+        ctx.shadowOffsetY = Math.round(W * 0.006);
+    }
+
+    ctx.drawImage(voterImg, dx, dy, dw, dh);
+    ctx.restore();
+
+    // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3)
+    // O padrão é cerca de 22% do rodapé em relação ao total da tela para manter proporção e evitar distorções
+    const bannerHeight = Math.round(H * (224 / 1024));
+    ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
 
     const finalBuffer = canvas.toBuffer('image/png');
     const base64Str = finalBuffer.toString('base64');
