@@ -190,6 +190,60 @@ function trimTransparentBorders(img) {
     }
 }
 
+/**
+ * Isola o candidato no template tornando transparentes todos os pixels
+ * cuja cor esteja muito próxima da cor de fundo (Chroma Key dinâmico).
+ */
+function isolateCandidate(templateImg, bgR, bgG, bgB) {
+    try {
+        const W = templateImg.width;
+        const H = templateImg.height;
+        const canvas = createCanvas(W, H);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(templateImg, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, W, H);
+        const data = imgData.data;
+
+        // O rodapé (os 22% inferiores) deve permanecer intacto para não perder qualidade
+        const bannerStart = H - Math.round(H * (224 / 1024));
+
+        for (let y = 0; y < bannerStart; y++) {
+            for (let x = 0; x < W; x++) {
+                const idx = (y * W + x) * 4;
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+                const a = data[idx + 3];
+
+                if (a === 0) continue;
+
+                const dR = r - bgR;
+                const dG = g - bgG;
+                const dB = b - bgB;
+                const dist = Math.sqrt(dR * dR + dG * dG + dB * dB);
+
+                // Sensibilidade do Chroma Key
+                const threshLow = 30;
+                const threshHigh = 65;
+
+                if (dist < threshLow) {
+                    data[idx + 3] = 0;
+                } else if (dist < threshHigh) {
+                    const ratio = (dist - threshLow) / (threshHigh - threshLow);
+                    data[idx + 3] = Math.round(ratio * a);
+                }
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+        return canvas;
+    } catch (err) {
+        console.warn('   ⚠️ Erro ao isolar candidato do template:', err.message);
+        return templateImg;
+    }
+}
+
 // ── COMPOSIÇÃO DE FOTO ───────────────────────────────────────
 /**
  * Compõe a foto do eleitor com a foto template do candidato
@@ -272,8 +326,18 @@ async function composePhoto({
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext('2d');
 
-    // Desenhar template do candidato (Layer 1)
-    ctx.drawImage(templateImg, 0, 0, W, H);
+    // 1. Amostrar a cor de fundo original do template (canto superior direito)
+    const sampleCanvas = createCanvas(1, 1);
+    const sampleCtx = sampleCanvas.getContext('2d');
+    sampleCtx.drawImage(templateImg, W - 5, 5, 1, 1, 0, 0, 1, 1);
+    const px = sampleCtx.getImageData(0, 0, 1, 1).data;
+    const bgR = px[0];
+    const bgG = px[1];
+    const bgB = px[2];
+
+    // 2. Preencher o fundo do new canvas com a cor original do template
+    ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
+    ctx.fillRect(0, 0, W, H);
 
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
     let dx, dy, dw, dh;
@@ -323,7 +387,7 @@ async function composePhoto({
         }
     }
 
-    // Desenhar o eleitor (Layer 2)
+    // Desenhar o eleitor (Layer 2) - Ele é desenhado NO FUNDO para o candidato ficar NA FRENTE
     ctx.save();
     if (isFallback) {
         // Se a remoção de fundo falhou totalmente, desenhamos com borda clássica de Polaroid para parecer intencional e limpo
@@ -349,7 +413,17 @@ async function composePhoto({
     ctx.drawImage(voterImg, dx, dy, dw, dh);
     ctx.restore();
 
-    // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3)
+    // Desenhar template do candidato por cima (Layer 3)
+    if (isFallback) {
+        // Fallback: desenha o template original (o eleitor ficará coberto por trás pela polaroid branca)
+        ctx.drawImage(templateImg, 0, 0, W, H);
+    } else {
+        // Sucesso: Isola o candidato do fundo e desenha por CIMA do eleitor (fazendo o eleitor ficar ATRÁS dele!)
+        const isolatedTemplate = isolateCandidate(templateImg, bgR, bgG, bgB);
+        ctx.drawImage(isolatedTemplate, 0, 0);
+    }
+
+    // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3.5)
     // O padrão é cerca de 22% do rodapé em relação ao total da tela para manter proporção e evitar distorções
     const bannerHeight = Math.round(H * (224 / 1024));
     ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
@@ -357,20 +431,20 @@ async function composePhoto({
     // Desenhar o texto "[NOME DO ELEITOR] APOIA" no topo (Layer 4)
     if (voterName && String(voterName).trim().toLowerCase() !== 'anônimo') {
         ctx.save();
-        const fontSize = Math.round(H * 0.03); // ~30px em template de 1000px de altura
+        const fontSize = Math.round(H * 0.022); // Redimensionado para ser clássico, pequeno e elegante (evita ficar em cima de cabeças)
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetY = 1;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
 
         const cleanName = String(voterName).trim().toUpperCase();
         const text = `${cleanName}  APOIA`;
-        // Desenha centralizado horizontalmente no topo da imagem
-        ctx.fillText(text, W / 2, Math.round(H * 0.04));
+        // Desenha bem no topo (1.5% de margem Y de segurança)
+        ctx.fillText(text, W / 2, Math.round(H * 0.015));
         ctx.restore();
     }
 
