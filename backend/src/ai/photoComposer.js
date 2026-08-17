@@ -133,6 +133,63 @@ Respond ONLY with valid JSON. Be extremely precise about lighting and positionin
     }
 }
 
+/**
+ * Recorta as bordas transparentes ao redor de uma imagem (silhueta)
+ * para obter a caixa delimitadora exata do eleitor e evitar miniaturização.
+ */
+function trimTransparentBorders(img) {
+    try {
+        const tempCanvas = createCanvas(img.width, img.height);
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0);
+
+        const imgData = tempCtx.getImageData(0, 0, img.width, img.height);
+        const data = imgData.data;
+        const width = img.width;
+        const height = img.height;
+
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const alpha = data[(y * width + x) * 4 + 3];
+                // Considerar pixels com opacidade > 15 (evita ruídos)
+                if (alpha > 15) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        // Se for uma imagem vazia ou erro
+        if (maxX === -1 || maxY === -1) {
+            return img;
+        }
+
+        const cropWidth = maxX - minX + 1;
+        const cropHeight = maxY - minY + 1;
+
+        // Evitar recortes microscópicos por erro
+        if (cropWidth < 10 || cropHeight < 10) {
+            return img;
+        }
+
+        const croppedCanvas = createCanvas(cropWidth, cropHeight);
+        const croppedCtx = croppedCanvas.getContext('2d');
+        croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+        return croppedCanvas;
+    } catch (err) {
+        console.warn('   ⚠️ Erro ao recortar bordas transparentes da foto do eleitor:', err.message);
+        return img;
+    }
+}
+
 // ── COMPOSIÇÃO DE FOTO ───────────────────────────────────────
 /**
  * Compõe a foto do eleitor com a foto template do candidato
@@ -196,10 +253,10 @@ async function composePhoto({
     }
 
     // 3. Carregar imagens no Canvas
-    let templateImg, voterImg;
+    let templateImg, voterImgRaw;
     try {
         templateImg = await loadImage(templateBuffer);
-        voterImg = await loadImage(processedVoterBuffer);
+        voterImgRaw = await loadImage(processedVoterBuffer);
     } catch (loadErr) {
         console.error('   ❌ Erro ao decodificar imagens com canvas:', loadErr.message);
         throw new Error('Falha ao decodificar os arquivos de imagem.');
@@ -207,6 +264,9 @@ async function composePhoto({
 
     const W = templateImg.width;
     const H = templateImg.height;
+
+    // Recorta as bordas transparentes para obter escala realista da silhueta do eleitor
+    const voterImg = isFallback ? voterImgRaw : trimTransparentBorders(voterImgRaw);
 
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext('2d');
@@ -217,7 +277,7 @@ async function composePhoto({
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
     const vw = Math.round(W * 0.48);  // Ocupa 48% da largura do template
     const vh = Math.round(H * 0.82);  // Ocupa 82% da altura do template (bem maior e imersivo)
-    const vy = Math.round(H * 0.08);  // Começa perto do topo (8% da altura)
+    const vy = Math.round(H * 0.08);  // Começa perto do topo (8% da altura) para alinhar as cabeças
     const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48); // 4% de margem ou no meio
 
     const voterAspect = voterImg.width / voterImg.height;
