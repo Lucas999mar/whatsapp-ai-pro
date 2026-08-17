@@ -3,6 +3,7 @@ const config = require('../config/config');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { createCanvas, loadImage } = require('canvas');
 
 /**
  * Photo Composer — Motor de composição de fotos com candidato
@@ -10,8 +11,9 @@ const { v4: uuidv4 } = require('uuid');
  * 
  * Fluxo:
  * 1. Analisa a imagem base (candidato) via Vision para entender iluminação, ângulo, cenário
- * 2. Usa images.edit() com gpt-image-1 para compor a foto do eleitor na cena
- * 3. Retorna imagem final em alta qualidade
+ * 2. Com a biblioteca Canvas, gera uma colagem e máscara transparentes
+ * 3. Usa images.edit() com gpt-image-1 para compor de forma perfeita
+ * 4. Retorna a imagem finalizada
  */
 
 // ── ANÁLISE DE CENA ──────────────────────────────────────────
@@ -59,7 +61,15 @@ Respond ONLY with valid JSON. Be extremely precise about lighting and positionin
 
     const content = response.choices[0].message.content;
     try {
-        return JSON.parse(content);
+        let cleanContent = content.trim();
+        if (cleanContent.startsWith('```json')) {
+            cleanContent = cleanContent.substring(7);
+        }
+        if (cleanContent.endsWith('```')) {
+            cleanContent = cleanContent.substring(0, cleanContent.length - 3);
+        }
+        cleanContent = cleanContent.trim();
+        return JSON.parse(cleanContent);
     } catch {
         return { scene_description: content, lighting: 'unknown', available_space: 'right side' };
     }
@@ -94,74 +104,95 @@ async function composePhoto({
             console.log('   ✅ Análise da cena concluída');
         } catch (err) {
             console.log('   ⚠️ Análise falhou, usando defaults:', err.message);
-            analysis = { lighting: 'natural light', available_space: 'beside the person', style: 'campaign photo' };
+            analysis = { lighting: 'natural light', available_space: 'left side', style: 'campaign photo' };
         }
     }
 
-    // 2. Salvar arquivos temporários para a API
-    const uploadsDir = config.uploadsDir || './uploads';
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    // Certificar de que temos dados de posicionamento válidos
+    const spaceText = String(analysis?.available_space || 'left side').toLowerCase();
+    const isVoterOnLeft = spaceText.includes('left') || spaceText.includes('esquerda');
 
-    const tempCompositeId = uuidv4();
-    const templatePath = path.join(uploadsDir, `compose_template_${tempCompositeId}.png`);
-    const voterPath = path.join(uploadsDir, `compose_voter_${tempCompositeId}.png`);
+    console.log(`   👉 Posicionando eleitor à: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'}`);
 
-    fs.writeFileSync(templatePath, templateBuffer);
-    fs.writeFileSync(voterPath, voterBuffer);
+    // 2. Carregar imagens no Canvas
+    let templateImg, voterImg;
+    try {
+        templateImg = await loadImage(templateBuffer);
+        voterImg = await loadImage(voterBuffer);
+    } catch (loadErr) {
+        console.error('   ❌ Erro ao decodificar imagens com canvas:', loadErr.message);
+        throw new Error('Falha ao decodificar os arquivos de imagem.');
+    }
 
-    // 3. Construir prompt de composição ultra-detalhado
+    // 3. Criar colagem (Base Image para o Edit)
+    const collageCanvas = createCanvas(1024, 1024);
+    const ctx = collageCanvas.getContext('2d');
+
+    // Desenhar template do candidato esticado/ajustado para 1024x1024
+    ctx.drawImage(templateImg, 0, 0, 1024, 1024);
+
+    // Definir área do eleitor (deixando margens e preservando o rodapé para banners)
+    const vw = 450;
+    const vh = 650;
+    const vy = 150; // Centralizado verticalmente, sem tocar a base
+    const vx = isVoterOnLeft ? 50 : 524; // Posição X dependendo do espaço livre
+
+    // Desenhar a foto do eleitor
+    ctx.drawImage(voterImg, vx, vy, vw, vh);
+
+    const collageBuffer = collageCanvas.toBuffer('image/png');
+
+    // 4. Criar Máscara transparente (indica pra IA qual área reescrever)
+    const maskCanvas = createCanvas(1024, 1024);
+    const maskCtx = maskCanvas.getContext('2d');
+
+    // Fundo preto (opaco = preservar área original do candidato/banners)
+    maskCtx.fillStyle = 'black';
+    maskCtx.fillRect(0, 0, 1024, 1024);
+
+    // Área transparente (alpha 0 = IA vai redefinir e harmonizar esta área)
+    maskCtx.clearRect(vx, vy, vw, vh);
+
+    const maskBuffer = maskCanvas.toBuffer('image/png');
+
+    // 5. Construir prompt de composição
     const compositionPrompt = buildCompositionPrompt(analysis);
 
     console.log('   🎨 Gerando composição com gpt-image-1...');
 
     let response;
     try {
-        // Tenta gpt-image-1 (melhor qualidade)
+        // Criar arquivos do File API nativo requeridos pela API da OpenAI
+        const imageFile = new File([collageBuffer], 'collage.png', { type: 'image/png' });
+        const maskFile = new File([maskBuffer], 'mask.png', { type: 'image/png' });
+
         response = await client.images.edit({
             model: 'gpt-image-1',
-            image: [
-                fs.createReadStream(templatePath),
-                fs.createReadStream(voterPath),
-            ],
+            image: imageFile,
+            mask: maskFile,
             prompt: compositionPrompt,
             n: 1,
             size: size,
-            quality: 'high',
         });
-    } catch (editErr) {
-        console.log('   ⚠️ Multi-image edit falhou, tentando abordagem alternativa...', editErr.message);
 
-        // Fallback: usa apenas o template com prompt descritivo
-        try {
-            response = await client.images.edit({
-                model: 'gpt-image-1',
-                image: fs.createReadStream(templatePath),
-                prompt: compositionPrompt,
-                n: 1,
-                size: size,
-            });
-        } catch (fallbackErr) {
-            console.log('   ⚠️ Fallback para dall-e-2 edit...');
-            response = await client.images.edit({
-                model: 'dall-e-2',
-                image: fs.createReadStream(templatePath),
-                prompt: compositionPrompt,
-                n: 1,
-                size: '1024x1024',
-            });
-        }
+        console.log('   ✅ Composição finalizada com gpt-image-1');
+    } catch (editErr) {
+        console.warn('   ⚠️ Edição com gpt-image-1 falhou. Detalhes:', editErr.message);
+
+        // Se a chamada de IA falhar, usamos a colagem do Canvas como último fallback para não travar a aplicação!
+        console.log('   ♻️ Usando colagem do Canvas como fallback seguro');
+        return {
+            url: `data:image/png;base64,${collageBuffer.toString('base64')}`,
+            base64: collageBuffer.toString('base64'),
+            revisedPrompt: 'Canvas Collage Fallback',
+        };
     }
 
-    // 4. Cleanup arquivos temporários
-    try { fs.unlinkSync(templatePath); } catch { }
-    try { fs.unlinkSync(voterPath); } catch { }
-
-    // 5. Processar resultado
+    // 6. Processar resultado da IA
     const imageData = response.data[0];
 
     if (imageData.b64_json) {
         const dataUrl = `data:image/png;base64,${imageData.b64_json}`;
-        console.log('   ✅ Composição finalizada com sucesso (base64)');
         return {
             url: dataUrl,
             base64: imageData.b64_json,
@@ -169,7 +200,6 @@ async function composePhoto({
         };
     }
 
-    console.log('   ✅ Composição finalizada com sucesso (URL)');
     return {
         url: imageData.url,
         revisedPrompt: imageData.revised_prompt || '',
