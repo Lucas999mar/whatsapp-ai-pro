@@ -24,32 +24,8 @@ const upload = multer({
 });
 
 // Auth middleware (usa o mesmo do sistema principal)
-function optionalAuth(req, res, next) {
-    // Rotas públicas não precisam de auth
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (token) {
-        try {
-            const jwt = require('jsonwebtoken');
-            const secret = process.env.JWT_SECRET || 'whatsapp-ai-pro-secret';
-            req.user = jwt.verify(token, secret);
-        } catch { }
-    }
-    next();
-}
-
-function requireAuth(req, res, next) {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-
-    try {
-        const jwt = require('jsonwebtoken');
-        const secret = process.env.JWT_SECRET || 'whatsapp-ai-pro-secret';
-        req.user = jwt.verify(token, secret);
-        next();
-    } catch {
-        return res.status(401).json({ error: 'Token inválido' });
-    }
-}
+const { authMiddleware } = require('./auth');
+const requireAuth = authMiddleware;
 
 // ═══════════════════════════════════════════════════════════════
 // ROTAS ADMIN (autenticadas) — Gerenciamento de Campanhas
