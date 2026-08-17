@@ -202,7 +202,7 @@ router.post('/photo-campaigns/:id/templates', requireAuth, upload.single('templa
         const fileName = `photo_campaigns/${campaignId}/templates/${uuidv4()}${ext}`;
 
         const { error: uploadErr } = await supabase.storage
-            .from('uploads')
+            .from('knowledge-files')
             .upload(fileName, fileBuffer, {
                 contentType: req.file.mimetype,
                 upsert: true,
@@ -213,7 +213,7 @@ router.post('/photo-campaigns/:id/templates', requireAuth, upload.single('templa
 
         if (uploadErr) throw uploadErr;
 
-        const { data: urlData } = supabase.storage.from('uploads').getPublicUrl(fileName);
+        const { data: urlData } = supabase.storage.from('knowledge-files').getPublicUrl(fileName);
         const templateUrl = urlData.publicUrl;
 
         // Analisar cena do template via Vision (assíncrono)
@@ -283,7 +283,7 @@ router.delete('/photo-campaigns/:id/templates/:templateId', requireAuth, async (
         // Remove do storage
         const toRemove = (campaign.templates || []).find(t => t.id === templateId);
         if (toRemove?.storage_path) {
-            await supabase.storage.from('uploads').remove([toRemove.storage_path]);
+            await supabase.storage.from('knowledge-files').remove([toRemove.storage_path]);
         }
 
         await supabase
@@ -380,10 +380,10 @@ router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo')
         const ext = path.extname(req.file.originalname) || '.png';
         const voterFileName = `photo_campaigns/${campaign.id}/voters/${submissionId}${ext}`;
 
-        await supabase.storage.from('uploads').upload(voterFileName, voterBuffer, {
+        await supabase.storage.from('knowledge-files').upload(voterFileName, voterBuffer, {
             contentType: req.file.mimetype, upsert: true,
         });
-        const { data: voterUrlData } = supabase.storage.from('uploads').getPublicUrl(voterFileName);
+        const { data: voterUrlData } = supabase.storage.from('knowledge-files').getPublicUrl(voterFileName);
         try { fs.unlinkSync(req.file.path); } catch { }
 
         // Criar registro de submission (status: processing)

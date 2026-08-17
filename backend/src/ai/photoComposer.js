@@ -248,7 +248,7 @@ async function saveComposedImage(imageData, campaignId, submissionId) {
     const fileName = `photo_campaigns/${campaignId}/results/${submissionId}_${Date.now()}.png`;
 
     const { data, error } = await supabase.storage
-        .from('uploads')
+        .from('knowledge-files')
         .upload(fileName, buffer, {
             contentType: 'image/png',
             upsert: true,
@@ -259,7 +259,7 @@ async function saveComposedImage(imageData, campaignId, submissionId) {
         throw error;
     }
 
-    const { data: urlData } = supabase.storage.from('uploads').getPublicUrl(fileName);
+    const { data: urlData } = supabase.storage.from('knowledge-files').getPublicUrl(fileName);
     return urlData.publicUrl;
 }
 
