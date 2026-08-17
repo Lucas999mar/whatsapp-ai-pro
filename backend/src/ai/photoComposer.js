@@ -201,6 +201,7 @@ async function composePhoto({
     templateBase64,    // Base64 do template para análise
     size = '1024x1024',
     apiKey = null,
+    voterName = null,  // Nome/título do apoiador
 }) {
     console.log('📸 [PhotoComposer] Iniciando composição de foto baseada em remoção de fundo...');
 
@@ -275,24 +276,52 @@ async function composePhoto({
     ctx.drawImage(templateImg, 0, 0, W, H);
 
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
-    const vw = Math.round(W * 0.48);  // Ocupa 48% da largura do template
-    const vh = Math.round(H * 0.82);  // Ocupa 82% da altura do template (bem maior e imersivo)
-    const vy = Math.round(H * 0.08);  // Começa perto do topo (8% da altura) para alinhar as cabeças
-    const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48); // 4% de margem ou no meio
+    let dx, dy, dw, dh;
 
-    const voterAspect = voterImg.width / voterImg.height;
-    let dw = vw;
-    let dh = vh;
-    if (voterAspect > vw / vh) {
+    if (isFallback) {
+        // Se for o fallback, manter o enquadramento do Polaroid retangular
+        const vw = Math.round(W * 0.48);
+        const vh = Math.round(H * 0.82);
+        const vy = Math.round(H * 0.08);
+        const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48);
+
+        const voterAspect = voterImg.width / voterImg.height;
         dw = vw;
-        dh = vw / voterAspect;
-    } else {
         dh = vh;
-        dw = vh * voterAspect;
-    }
+        if (voterAspect > vw / vh) {
+            dw = vw;
+            dh = vw / voterAspect;
+        } else {
+            dh = vh;
+            dw = vh * voterAspect;
+        }
+        dx = vx + (vw - dw) / 2;
+        dy = vy + (vh - dh);
+    } else {
+        // Caso de sucesso (silhueta sem fundo):
+        // Altura fixa grande e imersiva para o eleitor (82% da altura total)
+        dh = Math.round(H * 0.82);
+        // Multiplica a altura pela proporção da silhueta para definir a largura proporcional
+        dw = Math.round(dh * (voterImg.width / voterImg.height));
 
-    const dx = vx + (vw - dw) / 2;
-    const dy = vy + (vh - dh);
+        // Alinhamento vertical da cabeça (8% a partir do topo)
+        dy = Math.round(H * 0.08);
+
+        // Alinhamento horizontal (Borda esquerda ou Borda direita)
+        if (isVoterOnLeft) {
+            // Se o eleitor fica na esquerda, alinha à esquerda com margem de 4%
+            dx = Math.round(W * 0.04);
+            // Evitar que vá muito para a esquerda/centro
+            const maxX = Math.round(W * 0.1);
+            if (dx > maxX) dx = maxX;
+        } else {
+            // Se o eleitor fica na direita, alinha à direita com margem de 4%
+            dx = W - dw - Math.round(W * 0.04);
+            // Evitar que sobreponha muito o candidato (limitando a posição mínima x a 42% da imagem)
+            const minX = Math.round(W * 0.42);
+            if (dx < minX) dx = minX;
+        }
+    }
 
     // Desenhar o eleitor (Layer 2)
     ctx.save();
@@ -324,6 +353,26 @@ async function composePhoto({
     // O padrão é cerca de 22% do rodapé em relação ao total da tela para manter proporção e evitar distorções
     const bannerHeight = Math.round(H * (224 / 1024));
     ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
+
+    // Desenhar o texto "[NOME DO ELEITOR] APOIA" no topo (Layer 4)
+    if (voterName && String(voterName).trim().toLowerCase() !== 'anônimo') {
+        ctx.save();
+        const fontSize = Math.round(H * 0.03); // ~30px em template de 1000px de altura
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 2;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        const cleanName = String(voterName).trim().toUpperCase();
+        const text = `${cleanName}  APOIA`;
+        // Desenha centralizado horizontalmente no topo da imagem
+        ctx.fillText(text, W / 2, Math.round(H * 0.04));
+        ctx.restore();
+    }
 
     const finalBuffer = canvas.toBuffer('image/png');
     const base64Str = finalBuffer.toString('base64');

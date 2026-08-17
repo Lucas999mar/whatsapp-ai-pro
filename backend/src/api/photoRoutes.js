@@ -409,7 +409,7 @@ router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo')
         });
 
         // ── PROCESSAMENTO EM BACKGROUND ──────────────────────
-        processComposition(campaign, template, voterBuffer, submissionId).catch(err => {
+        processComposition(campaign, template, voterBuffer, submissionId, voter_name).catch(err => {
             console.error('❌ [PhotoComposer] Erro no processamento:', err.message);
         });
 
@@ -478,7 +478,7 @@ router.get('/photo-campaigns/:id/submissions', requireAuth, async (req, res) => 
 // PROCESSAMENTO DE COMPOSIÇÃO (Background)
 // ═══════════════════════════════════════════════════════════════
 
-async function processComposition(campaign, template, voterBuffer, submissionId) {
+async function processComposition(campaign, template, voterBuffer, submissionId, voterName) {
     const supabase = getSupabase();
 
     try {
@@ -498,6 +498,7 @@ async function processComposition(campaign, template, voterBuffer, submissionId)
         const result = await composePhoto({
             templateBuffer,
             voterBuffer,
+            voterName,
             sceneAnalysis: template.scene_analysis,
             templateBase64: `data:image/png;base64,${templateBuffer.toString('base64')}`,
         });
