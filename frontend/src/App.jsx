@@ -4,7 +4,7 @@ import logoImage from './assets/logo.png';
 import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
-  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network,
+  Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network, Camera,
   FileSignature, BarChart2, Plug
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -52,6 +52,10 @@ import AgentDashboard from './pages/AgentDashboard';
 // Componente de Conexões/Plugins
 import ConnectionsPage from './pages/ConnectionsPage';
 
+// Componente de Foto com Candidato
+import PhotoCampaignAdmin from './pages/PhotoCampaignAdmin';
+import PhotoCampaignPublic from './pages/PhotoCampaignPublic';
+
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -79,6 +83,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
     { path: '/contracts', name: 'Contratos & Assinaturas', icon: <FileSignature size={20} /> },
     { path: '/delivery-dashboard', name: 'Monitor Delivery (Uber)', icon: <Bike size={20} /> },
+    { path: '/photo-campaign', name: 'Foto com Candidato', icon: <Camera size={20} /> },
     { path: '/connections', name: 'Conexões & Plugins', icon: <Plug size={20} /> },
     { path: '/integrations', name: 'Integrações & API', icon: <Blocks size={20} /> },
     { path: '/settings', name: 'Configurações', icon: <Settings size={20} /> },
@@ -124,6 +129,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/contracts': 'contracts',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
+      '/photo-campaign': 'photoCampaign',
       '/connections': 'connections',
       '/integrations': 'integrations'
     };
@@ -255,6 +261,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/contracts': 'contracts',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
+      '/photo-campaign': 'photoCampaign',
       '/connections': 'connections',
       '/integrations': 'integrations'
     };
@@ -299,6 +306,7 @@ function AppContent() {
         <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
         <Route path="/content/share/:token" element={<ContentPlannerPublicPage />} />
         <Route path="/contracts/sign/:id" element={<ContractSignaturePage />} />
+        <Route path="/foto-candidato/:shareToken" element={<PhotoCampaignPublic />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
@@ -371,12 +379,14 @@ function AppContent() {
             <Route path="/follow-up" element={<AuthGuard><FollowUpPage /></AuthGuard>} />
             <Route path="/os" element={<AuthGuard><OSPage /></AuthGuard>} />
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
+            <Route path="/photo-campaign" element={<AuthGuard><PhotoCampaignAdmin /></AuthGuard>} />
             <Route path="/contracts" element={<AuthGuard><ContractsPage /></AuthGuard>} />
             <Route path="/contracts/sign/:id" element={<ContractSignaturePage />} />
             <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/tracking/:code" element={<TrackingPage />} />
             <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
             <Route path="/content/share/:token" element={<ContentPlannerPublicPage />} />
+            <Route path="/foto-candidato/:shareToken" element={<PhotoCampaignPublic />} />
             <Route path="/connections" element={<AuthGuard><ConnectionsPage /></AuthGuard>} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />

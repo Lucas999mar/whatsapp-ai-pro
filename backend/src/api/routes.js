@@ -1207,6 +1207,10 @@ router.use('/brain', authMiddleware, brainRouter);
 const pluginRoutes = require('./pluginRoutes');
 router.use('/', pluginRoutes);
 
+// ── FOTO COM CANDIDATO (Photo Campaign) ROUTES ────────────────
+const photoRoutes = require('./photoRoutes');
+router.use('/', photoRoutes);
+
 module.exports = router;
 
 
