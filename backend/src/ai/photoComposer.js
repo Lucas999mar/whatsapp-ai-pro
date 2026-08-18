@@ -205,8 +205,8 @@ function isolateCandidate(templateImg, bgR, bgG, bgB) {
         const imgData = ctx.getImageData(0, 0, W, H);
         const data = imgData.data;
 
-        // O rodapé (os 22% inferiores) deve permanecer intacto para não perder qualidade
-        const bannerStart = H - Math.round(H * (224 / 1024));
+        // O rodapé e o banner de nome (os 45% inferiores) devem permanecer intactos para não perder qualidade nem aparecer cortes
+        const bannerStart = H - Math.round(H * 0.45);
 
         for (let y = 0; y < bannerStart; y++) {
             for (let x = 0; x < W; x++) {
@@ -419,8 +419,8 @@ async function composePhoto({
     }
 
     // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3.5)
-    // O padrão é cerca de 22% do rodapé em relação ao total da tela para manter proporção e evitar distorções
-    const bannerHeight = Math.round(H * (224 / 1024));
+    // Para ocultar cortes de cintura e o corte horizontal do candidato, desenhamos o rodapé e o banner (45% inferiores)
+    const bannerHeight = Math.round(H * 0.45);
     ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
 
     // Desenhar o texto "[NOME DO ELEITOR] APOIA" no topo (Layer 4)

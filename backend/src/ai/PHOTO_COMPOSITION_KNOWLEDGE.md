@@ -16,8 +16,8 @@ Para manter a originalidade e o padrão visual da marca da campanha:
     *   A largura é proporcional, utilizando a proporção real da silhueta (`dw = dh * voterAspect`).
     *   Isso evita que o eleitor fique parecendo pequeno ou flutuando no rodapé.
 *   **Rodapé Protetor (Layer de Banner Superior):**
-    *   A faixa de rodapé original do template do candidato (correspondendo aos **22% inferiores da altura**) deve ser recortada do template e carimbada/desenhada por cima do eleitor.
-    *   Isso esconde qualquer corte na cintura do eleitor e protege os logos, números e textos do candidato de sobreposição.
+    *   A faixa de rodapé e banner de nome original do template do candidato (correspondendo aos **45% inferiores da altura**) deve ser recortada do template e carimbada/desenhada por cima do eleitor.
+    *   Isso esconde qualquer corte na cintura do eleitor, oculta o corte horizontal reto da camisa do candidato e protege os logos, números e textos do candidato de sobreposição.
 *   **Título de Apoio Dinâmico no Topo (Redimensionado e Seguro):**
     *   Se um nome de apoiador for fornecido (diferente de 'Anônimo'), o sistema renderizará no topo da imagem, de forma centralizada e em letras maiúsculas, o seguinte texto formatado em branco:
         ```text
