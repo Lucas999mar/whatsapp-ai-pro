@@ -19,101 +19,164 @@ const { createCanvas, loadImage } = require('canvas');
 
 // ── AUXILIAR: REMOÇÃO DE BACKGROUND ──────────────────────────
 /**
- * Remove o fundo de uma imagem usando servidores Gradio públicos
+ * Remove o fundo de uma imagem via chamadas HTTP REST diretas aos Spaces do Gradio.
+ * NÃO usa o SDK @gradio/client (instável em Node.js com conexões WebSocket).
  * Pipeline: leonelhs/rembg (CPU) → BRIA-RMBG-2.0 (GPU) → Inspyrenet (GPU)
- * 
- * IMPORTANTE: leonelhs/rembg retorna .webp — o canvas NÃO suporta webp.
- * Por isso, toda resposta passa por sharp para ser convertida em PNG antes de retornar.
+ * Toda resposta é convertida para PNG via sharp (canvas não suporta webp).
  */
 async function removeVoterBackground(voterBuffer, voterPhotoUrl = null) {
     console.log('   🤖 [PhotoComposer] Executando remoção de fundo da foto do eleitor...');
     const sharp = require('sharp');
+    const fetch = (await import('node-fetch')).default;
+    const FormData = (await import('form-data')).default;
     const maxRetries = 3;
     let lastError = null;
 
-    // Helper: baixa a imagem resultante de uma URL e converte para PNG via sharp
-    async function downloadAndConvertToPng(resultUrl) {
-        const fetch = (await import('node-fetch')).default;
-        const resp = await fetch(resultUrl);
-        const arrayBuffer = await resp.arrayBuffer();
-        const rawBuffer = Buffer.from(arrayBuffer);
-        // Converter para PNG (resolve problema do webp que canvas não decodifica)
+    // Helper: upload de arquivo para o espaço Gradio e retorna o path temporário
+    async function uploadToGradio(spaceUrl, buffer) {
+        const form = new FormData();
+        form.append('files', buffer, { filename: 'voter.png', contentType: 'image/png' });
+        const resp = await fetch(`${spaceUrl}/gradio_api/upload`, {
+            method: 'POST',
+            body: form,
+            headers: form.getHeaders(),
+        });
+        if (!resp.ok) throw new Error(`Upload falhou: ${resp.status} ${resp.statusText}`);
+        const paths = await resp.json();
+        return paths[0]; // ex: "/tmp/gradio/abc123/voter.png"
+    }
+
+    // Helper: chama o endpoint /call/ do Gradio e faz polling até obter resultado
+    async function callGradioApi(spaceUrl, apiName, data) {
+        // Passo 1: enviar requisição
+        const callResp = await fetch(`${spaceUrl}/gradio_api/call${apiName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data }),
+        });
+        if (!callResp.ok) throw new Error(`Call falhou: ${callResp.status} ${callResp.statusText}`);
+        const { event_id } = await callResp.json();
+        if (!event_id) throw new Error('Sem event_id na resposta.');
+
+        // Passo 2: polling SSE para obter resultado (max 60s)
+        const resultResp = await fetch(`${spaceUrl}/gradio_api/call${apiName}/${event_id}`);
+        const text = await resultResp.text();
+
+        // Parsear SSE events
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith('event: complete') || lines[i].startsWith('event:complete')) {
+                const dataLine = lines[i + 1];
+                if (dataLine && dataLine.startsWith('data:')) {
+                    const jsonStr = dataLine.replace(/^data:\s*/, '');
+                    const parsed = JSON.parse(jsonStr);
+                    return parsed;
+                }
+            }
+            if (lines[i].startsWith('event: error') || lines[i].startsWith('event:error')) {
+                const dataLine = lines[i + 1];
+                throw new Error('Gradio retornou erro: ' + (dataLine || 'desconhecido'));
+            }
+        }
+        throw new Error('Nenhum evento complete encontrado na resposta SSE.');
+    }
+
+    // Helper: baixa a imagem resultante e converte para PNG via sharp
+    async function downloadAndConvertToPng(imageUrl) {
+        const resp = await fetch(imageUrl);
+        if (!resp.ok) throw new Error(`Download falhou: ${resp.status}`);
+        const rawBuffer = Buffer.from(await resp.arrayBuffer());
         const pngBuffer = await sharp(rawBuffer).png().toBuffer();
         console.log(`   ✅ Imagem convertida para PNG (${pngBuffer.length} bytes)`);
         return pngBuffer;
     }
 
-    // Helper: determina o input ideal para envio ao Gradio
-    async function getInputData() {
-        const { handle_file } = await import('@gradio/client');
-        if (voterPhotoUrl) {
-            return handle_file(voterPhotoUrl);
+    // Helper: extrai URL absoluta do resultado Gradio
+    function extractResultUrl(spaceUrl, resultData) {
+        if (!resultData) return null;
+
+        // resultData pode ser: [{url, path}] ou [{url, path}, {url, path}]
+        const items = Array.isArray(resultData) ? resultData : [resultData];
+        for (const item of items) {
+            if (item && typeof item === 'object') {
+                // Verificar se é um array aninhado
+                if (Array.isArray(item)) {
+                    for (const sub of item) {
+                        if (sub?.url) return sub.url.startsWith('http') ? sub.url : `${spaceUrl}${sub.url}`;
+                        if (sub?.path) return `${spaceUrl}/gradio_api/file=${sub.path}`;
+                    }
+                }
+                if (item.url) return item.url.startsWith('http') ? item.url : `${spaceUrl}${item.url}`;
+                if (item.path) return `${spaceUrl}/gradio_api/file=${item.path}`;
+            }
         }
-        return new Blob([voterBuffer], { type: 'image/png' });
+        return null;
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         // ── TIER 1: leonelhs/rembg (CPU puro, sem limites de cota GPU) ──
         try {
-            const { Client } = await import('@gradio/client');
-            const inputData = await getInputData();
-
+            const spaceUrl = 'https://leonelhs-rembg.hf.space';
             console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando leonelhs/rembg (CPU)...`);
-            const client = await Client.connect('leonelhs/rembg');
-            const result = await client.predict('/predict', [inputData, 'u2net']);
 
-            const resultUrl = result?.data?.[0]?.url;
-            if (resultUrl) {
-                console.log('   ✅ Remoção concluída via leonelhs/rembg (CPU). Baixando e convertendo...');
-                return await downloadAndConvertToPng(resultUrl);
+            const uploadedPath = await uploadToGradio(spaceUrl, voterBuffer);
+            const result = await callGradioApi(spaceUrl, '/predict', [
+                { path: uploadedPath },
+                'u2net'
+            ]);
+
+            const imageUrl = extractResultUrl(spaceUrl, result);
+            if (imageUrl) {
+                console.log('   ✅ Remoção concluída via leonelhs/rembg (CPU).');
+                return await downloadAndConvertToPng(imageUrl);
             }
             throw new Error('Retorno inválido de leonelhs/rembg.');
         } catch (err) {
             lastError = err;
-            console.warn(`   ⚠️ Tier 1 (leonelhs/rembg) falhou na tentativa ${attempt}:`, err.message);
+            console.warn(`   ⚠️ Tier 1 (leonelhs/rembg) falhou:`, err.message);
         }
 
-        // ── TIER 2: briaai/BRIA-RMBG-2.0 (GPU, pode ter limite de cota) ──
+        // ── TIER 2: briaai/BRIA-RMBG-2.0 (GPU) ──
         try {
-            const { Client } = await import('@gradio/client');
-            const inputData = await getInputData();
+            const spaceUrl = 'https://briaai-bria-rmbg-2-0.hf.space';
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando BRIA-RMBG-2.0...`);
 
-            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando briaai/BRIA-RMBG-2.0...`);
-            const client = await Client.connect('briaai/BRIA-RMBG-2.0');
-            const result = await client.predict('/image', { image: inputData });
+            const uploadedPath = await uploadToGradio(spaceUrl, voterBuffer);
+            const result = await callGradioApi(spaceUrl, '/image', [
+                { path: uploadedPath }
+            ]);
 
-            const resultUrl = result?.data?.[1]?.url || result?.data?.[0]?.[0]?.url || result?.data?.[0]?.url;
-            if (resultUrl) {
-                console.log('   ✅ Remoção concluída via BRIA RMBG 2.0. Baixando e convertendo...');
-                return await downloadAndConvertToPng(resultUrl);
+            const imageUrl = extractResultUrl(spaceUrl, result);
+            if (imageUrl) {
+                console.log('   ✅ Remoção concluída via BRIA RMBG 2.0.');
+                return await downloadAndConvertToPng(imageUrl);
             }
             throw new Error('Retorno inválido do BRIA 2.0.');
         } catch (briaErr) {
             lastError = briaErr;
-            console.warn(`   ⚠️ Tier 2 (BRIA 2.0) falhou na tentativa ${attempt}:`, briaErr.message);
+            console.warn(`   ⚠️ Tier 2 (BRIA 2.0) falhou:`, briaErr.message);
         }
 
-        // ── TIER 3: gokaygokay/Inspyrenet-Rembg (GPU, backup final) ──
+        // ── TIER 3: gokaygokay/Inspyrenet-Rembg (GPU) ──
         try {
-            const { Client } = await import('@gradio/client');
-            const inputData = await getInputData();
-
+            const spaceUrl = 'https://gokaygokay-inspyrenet-rembg.hf.space';
             console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando Inspyrenet-Rembg...`);
-            const client = await Client.connect('gokaygokay/Inspyrenet-Rembg');
-            const result = await client.predict('/predict', {
-                input_image: inputData,
-                output_type: 'Default'
-            });
 
-            const resultUrl = result?.data?.[0]?.url;
-            if (resultUrl) {
-                console.log('   ✅ Remoção concluída via Inspyrenet. Baixando e convertendo...');
-                return await downloadAndConvertToPng(resultUrl);
+            const uploadedPath = await uploadToGradio(spaceUrl, voterBuffer);
+            const result = await callGradioApi(spaceUrl, '/predict', [
+                { path: uploadedPath },
+                'Default'
+            ]);
+
+            const imageUrl = extractResultUrl(spaceUrl, result);
+            if (imageUrl) {
+                console.log('   ✅ Remoção concluída via Inspyrenet.');
+                return await downloadAndConvertToPng(imageUrl);
             }
             throw new Error('Retorno inválido do Inspyrenet.');
         } catch (inspErr) {
             lastError = inspErr;
-            console.warn(`   ⚠️ Tier 3 (Inspyrenet) falhou na tentativa ${attempt}:`, inspErr.message);
+            console.warn(`   ⚠️ Tier 3 (Inspyrenet) falhou:`, inspErr.message);
         }
 
         if (attempt < maxRetries) {
