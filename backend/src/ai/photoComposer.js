@@ -335,21 +335,24 @@ async function composePhoto({
     const bgG = px[1];
     const bgB = px[2];
 
-    // 2. Preencher o fundo do new canvas com a cor original do template
+    // 2. Preencher o fundo do novo canvas com a cor original do template
     ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
     ctx.fillRect(0, 0, W, H);
 
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
     let dx, dy, dw, dh;
 
+    // Bounding Box para o eleitor (evita cobrir o candidato)
+    // O eleitor deve ocupar no máximo 48% da largura e no máximo 74% da altura
+    const vw = Math.round(W * 0.48);
+    const vh = Math.round(H * 0.74);
+    const vy = Math.round(H * 0.08);
+    const vx = isVoterOnLeft ? Math.round(W * 0.04) : W - vw - Math.round(W * 0.04);
+
+    const voterAspect = voterImg.width / voterImg.height;
+
     if (isFallback) {
         // Se for o fallback, manter o enquadramento do Polaroid retangular
-        const vw = Math.round(W * 0.48);
-        const vh = Math.round(H * 0.82);
-        const vy = Math.round(H * 0.08);
-        const vx = isVoterOnLeft ? Math.round(W * 0.04) : Math.round(W * 0.48);
-
-        const voterAspect = voterImg.width / voterImg.height;
         dw = vw;
         dh = vh;
         if (voterAspect > vw / vh) {
@@ -363,28 +366,20 @@ async function composePhoto({
         dy = vy + (vh - dh);
     } else {
         // Caso de sucesso (silhueta sem fundo):
-        // Altura fixa grande e imersiva para o eleitor (82% da altura total)
-        dh = Math.round(H * 0.82);
-        // Multiplica a altura pela proporção da silhueta para definir a largura proporcional
-        dw = Math.round(dh * (voterImg.width / voterImg.height));
-
-        // Alinhamento vertical da cabeça (8% a partir do topo)
-        dy = Math.round(H * 0.08);
-
-        // Alinhamento horizontal (Borda esquerda ou Borda direita)
-        if (isVoterOnLeft) {
-            // Se o eleitor fica na esquerda, alinha à esquerda com margem de 4%
-            dx = Math.round(W * 0.04);
-            // Evitar que vá muito para a esquerda/centro
-            const maxX = Math.round(W * 0.1);
-            if (dx > maxX) dx = maxX;
+        // Ajustamos para caber de maneira proporcional na Bounding Box da lateral
+        if (voterAspect > vw / vh) {
+            dw = vw;
+            dh = Math.round(vw / voterAspect);
         } else {
-            // Se o eleitor fica na direita, alinha à direita com margem de 4%
-            dx = W - dw - Math.round(W * 0.04);
-            // Evitar que sobreponha muito o candidato (limitando a posição mínima x a 42% da imagem)
-            const minX = Math.round(W * 0.42);
-            if (dx < minX) dx = minX;
+            dh = vh;
+            dw = Math.round(vh * voterAspect);
         }
+
+        // Alinhamento horizontal centralizado no box lateral correspondente
+        dx = vx + (vw - dw) / 2;
+
+        // Alinhamento vertical descendo até o "chão" (topo do rodapé/banner)
+        dy = vy + (vh - dh);
     }
 
     // Desenhar o eleitor (Layer 2) - Ele é desenhado NO FUNDO para o candidato ficar NA FRENTE
