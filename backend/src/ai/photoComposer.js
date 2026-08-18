@@ -11,7 +11,7 @@ const { createCanvas, loadImage } = require('canvas');
  * Nova Abordagem (Fidelidade Máxima & Zero Hallucination):
  * 1. Analisa a cena (candidato) via OpenAI Vision para segmentação lógica (esquerda/direita).
  * 2. Remove o background do eleitor utilizando o modelo Inspyrenet-Rembg via API do Gradio
- *    (fallback para BRIA-RMBG-1.4 se falhar).
+ *    (com retentativas automáticas e fallback para BRIA).
  * 3. Com a biblioteca Canvas, gera uma composição onde o eleitor é inserido com drop shadow realista.
  * 4. Copia a faixa inferior do template por cima para garantir que rodapés e textos fiquem totalmente preservados.
  * 5. Bypassa totalmente o DALL-E para garantir que Nilton César e o eleitor tenham suas faces 100% originais.
@@ -20,59 +20,67 @@ const { createCanvas, loadImage } = require('canvas');
 // ── AUXILIAR: REMOÇÃO DE BACKGROUND ──────────────────────────
 /**
  * Remove o fundo de uma imagem usando servidores Gradio públicos (Inspyrenet / BRIA)
+ * com 3 retentativas automatizadas para mitigar instabilidade de servidores gratuitos.
  */
 async function removeVoterBackground(voterBuffer) {
     console.log('   🤖 [PhotoComposer] Executando remoção de fundo da foto do eleitor...');
-    try {
-        const { Client } = await import('@gradio/client');
+    const maxRetries = 3;
 
-        // Criar o Blob do buffer
-        const blob = new Blob([voterBuffer], { type: 'image/png' });
-
-        // 1. Tentar usar gokaygokay/Inspyrenet-Rembg (melhor qualidade)
-        console.log('   🤖 Conectando ao espaço gokaygokay/Inspyrenet-Rembg...');
-        const client = await Client.connect('gokaygokay/Inspyrenet-Rembg');
-        const result = await client.predict('/predict', {
-            input_image: blob,
-            output_type: 'Default'
-        });
-
-        if (result && result.data && result.data[0] && result.data[0].url) {
-            const resultUrl = result.data[0].url;
-            console.log('   🤖 Remoção concluída via Inspyrenet. Fazendo download...');
-            const fetch = (await import('node-fetch')).default;
-            const resp = await fetch(resultUrl);
-            const arrayBuffer = await resp.arrayBuffer();
-            return Buffer.from(arrayBuffer);
-        }
-        throw new Error('Retorno do Inspyrenet inválido.');
-    } catch (err) {
-        console.warn('   ⚠️ Remoção com Inspyrenet falhou, tentando fallback BRIA RMBG:', err.message);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const { Client } = await import('@gradio/client');
             const blob = new Blob([voterBuffer], { type: 'image/png' });
 
-            // 2. Tentar usar o briaai/BRIA-RMBG-1.4 como plano B
-            console.log('   🤖 Conectando ao espaço briaai/BRIA-RMBG-1.4...');
-            const client = await Client.connect('briaai/BRIA-RMBG-1.4');
-            const result = await client.predict('/image', {
-                image: blob
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando gokaygokay/Inspyrenet-Rembg...`);
+            const client = await Client.connect('gokaygokay/Inspyrenet-Rembg');
+            const result = await client.predict('/predict', {
+                input_image: blob,
+                output_type: 'Default'
             });
 
             if (result && result.data && result.data[0] && result.data[0].url) {
                 const resultUrl = result.data[0].url;
-                console.log('   🤖 Remoção concluída via BRIA RMBG. Fazendo download...');
+                console.log('   🤖 Remoção concluída via Inspyrenet. Fazendo download...');
                 const fetch = (await import('node-fetch')).default;
                 const resp = await fetch(resultUrl);
                 const arrayBuffer = await resp.arrayBuffer();
                 return Buffer.from(arrayBuffer);
             }
-            throw new Error('Retorno do BRIA inválido.');
-        } catch (fallbackErr) {
-            console.warn('   ❌ Todas as remoções de fundo falharam. Retornando imagem original do eleitor.');
-            return voterBuffer;
+            throw new Error('Retorno inválido do Inspyrenet.');
+        } catch (err) {
+            console.warn(`   ⚠️ Tentativa ${attempt} com Inspyrenet falhou:`, err.message);
+
+            // Fallback imediato para o modelo BRIA dentro da mesma tentativa
+            try {
+                const { Client } = await import('@gradio/client');
+                const blob = new Blob([voterBuffer], { type: 'image/png' });
+                console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando briaai/BRIA-RMBG-1.4...`);
+                const client = await Client.connect('briaai/BRIA-RMBG-1.4');
+                const result = await client.predict('/image', {
+                    image: blob
+                });
+
+                if (result && result.data && result.data[0] && result.data[0].url) {
+                    const resultUrl = result.data[0].url;
+                    console.log('   🤖 Remoção concluída via BRIA RMBG. Fazendo download...');
+                    const fetch = (await import('node-fetch')).default;
+                    const resp = await fetch(resultUrl);
+                    const arrayBuffer = await resp.arrayBuffer();
+                    return Buffer.from(arrayBuffer);
+                }
+                throw new Error('Retorno inválido do BRIA.');
+            } catch (fallbackErr) {
+                console.warn(`   ⚠️ Tentativa ${attempt} com BRIA falhou:`, fallbackErr.message);
+            }
+
+            if (attempt < maxRetries) {
+                console.log('   ⏳ Aguardando 2 segundos para tentar novamente...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
         }
     }
+
+    throw new Error('Erro ao remover o fundo da foto do eleitor nos servidores de IA. Favor tentar novamente.');
 }
 
 // ── ANÁLISE DE CENA ──────────────────────────────────────────
@@ -292,20 +300,8 @@ async function composePhoto({
 
     console.log(`   👉 Posicionamento do eleitor: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'} (Candidato está à: ${candidatePos})`);
 
-    // 2. Remover fundo do eleitor
-    let processedVoterBuffer = voterBuffer;
-    let isFallback = false;
-    try {
-        const noBgBuffer = await removeVoterBackground(voterBuffer);
-        if (noBgBuffer === voterBuffer) {
-            isFallback = true;
-        } else {
-            processedVoterBuffer = noBgBuffer;
-        }
-    } catch (err) {
-        console.warn('   ⚠️ Erro ao remover fundo, usando fallback:', err.message);
-        isFallback = true;
-    }
+    // 2. Remover fundo do eleitor (se falhar definitivamente, lança erro para evitar Polaroid)
+    const processedVoterBuffer = await removeVoterBackground(voterBuffer);
 
     // 3. Carregar imagens no Canvas
     let templateImg, voterImgRaw;
@@ -321,15 +317,28 @@ async function composePhoto({
     const H = templateImg.height;
 
     // Recorta as bordas transparentes para obter escala realista da silhueta do eleitor
-    const voterImg = isFallback ? voterImgRaw : trimTransparentBorders(voterImgRaw);
+    const voterImg = trimTransparentBorders(voterImgRaw);
 
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext('2d');
 
+    // 1. Amostrar a cor de fundo original do template (canto superior direito)
+    const sampleCanvas = createCanvas(1, 1);
+    const sampleCtx = sampleCanvas.getContext('2d');
+    sampleCtx.drawImage(templateImg, W - 5, 5, 1, 1, 0, 0, 1, 1);
+    const px = sampleCtx.getImageData(0, 0, 1, 1).data;
+    const bgR = px[0];
+    const bgG = px[1];
+    const bgB = px[2];
+
+    // 2. Preencher o fundo do novo canvas com a cor original do template
+    ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
+    ctx.fillRect(0, 0, W, H);
+
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
     let dx, dy, dw, dh;
 
-    // Bounding Box ajustada para o eleitor (aumentada para bater no mesmo tamanho/escala do candidato)
+    // Bounding Box ajustada para o eleitor para bater exatamente no padrão do candidato (Tamanho de Estúdio)
     const vw = Math.round(W * 0.52);
     const vh = Math.round(H * 0.80);
     const vy = Math.round(H * 0.08);
@@ -337,94 +346,38 @@ async function composePhoto({
 
     const voterAspect = voterImg.width / voterImg.height;
 
-    if (isFallback) {
-        // Se for o fallback, o eleitor mantém enquadramento retangular recortado pela largura/altura do box
-        if (voterAspect > vw / vh) {
-            dw = vw;
-            dh = Math.round(vw / voterAspect);
-        } else {
-            dh = vh;
-            dw = Math.round(vh * voterAspect);
-        }
-        dx = vx + (vw - dw) / 2;
-        dy = vy + (vh - dh);
+    // Caso de sucesso (silhueta sem fundo):
+    // Ajustamos para caber de maneira proporcional na Bounding Box lateral
+    if (voterAspect > vw / vh) {
+        dw = vw;
+        dh = Math.round(vw / voterAspect);
     } else {
-        // Caso de sucesso (silhueta sem fundo):
-        // Ajustamos para caber de maneira proporcional na Bounding Box lateral
-        if (voterAspect > vw / vh) {
-            dw = vw;
-            dh = Math.round(vw / voterAspect);
-        } else {
-            dh = vh;
-            dw = Math.round(vh * voterAspect);
-        }
-
-        // Alinhamento horizontal de modo a manter o eleitor bem enquadrado ao lado
-        dx = vx + (vw - dw) / 2;
-
-        // Alinhamento vertical descendo até o "chão" (topo do rodapé/banner)
-        dy = vy + (vh - dh);
+        dh = vh;
+        dw = Math.round(vh * voterAspect);
     }
 
-    // 4. Desenhar no Canvas conforme o caminho (Sucesso ou Fallback)
-    if (isFallback) {
-        // --- CAMINHO DE FALLBACK (Sem remoção de fundo: desenha Polaroid por CIMA do template) ---
-        // Desenhar template do candidato como fundo (Layer 1)
-        ctx.drawImage(templateImg, 0, 0, W, H);
+    // Alinhamento horizontal de modo a manter o eleitor bem enquadrado ao lado
+    dx = vx + (vw - dw) / 2;
 
-        // Desenhar a moldura Polaroid do eleitor por cima (Layer 2)
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-        ctx.shadowBlur = Math.round(W * 0.015);
-        ctx.shadowOffsetX = Math.round(W * 0.003);
-        ctx.shadowOffsetY = Math.round(W * 0.003);
+    // Alinhamento vertical descendo até o "chão" (topo do rodapé/banner)
+    dy = vy + (vh - dh);
 
-        const pad = Math.round(W * 0.015);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
-        ctx.strokeStyle = '#dddddd';
-        ctx.lineWidth = Math.max(1, Math.round(W * 0.0015));
-        ctx.strokeRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
+    // 3. Desenhar a silhueta recortada do eleitor ao fundo (Layer 2)
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = Math.round(W * 0.015);
+    ctx.shadowOffsetX = Math.round(W * 0.006);
+    ctx.shadowOffsetY = Math.round(W * 0.006);
+    ctx.drawImage(voterImg, dx, dy, dw, dh);
+    ctx.restore();
 
-        ctx.drawImage(voterImg, dx, dy, dw, dh);
-        ctx.restore();
+    // 4. Desenhar o template do candidato filtrado por cima (Layer 3)
+    const isolatedTemplate = isolateCandidate(templateImg, bgR, bgG, bgB);
+    ctx.drawImage(isolatedTemplate, 0, 0);
 
-        // Desenhar a banda inferior do template por cima da moldura (Layer 3)
-        const bannerHeight = Math.round(H * 0.45);
-        ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
-
-    } else {
-        // --- CAMINHO DE SUCESSO (Com silhueta recortada: monta o estúdio atrás) ---
-        // 1. Amostrar a cor de fundo original do template (canto superior direito)
-        const sampleCanvas = createCanvas(1, 1);
-        const sampleCtx = sampleCanvas.getContext('2d');
-        sampleCtx.drawImage(templateImg, W - 5, 5, 1, 1, 0, 0, 1, 1);
-        const px = sampleCtx.getImageData(0, 0, 1, 1).data;
-        const bgR = px[0];
-        const bgG = px[1];
-        const bgB = px[2];
-
-        // 2. Preencher o fundo do novo canvas com a cor original do template
-        ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
-        ctx.fillRect(0, 0, W, H);
-
-        // 3. Desenhar a silhueta recortada do eleitor ao fundo (Layer 2)
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-        ctx.shadowBlur = Math.round(W * 0.015);
-        ctx.shadowOffsetX = Math.round(W * 0.006);
-        ctx.shadowOffsetY = Math.round(W * 0.006);
-        ctx.drawImage(voterImg, dx, dy, dw, dh);
-        ctx.restore();
-
-        // 4. Desenhar o template do candidato filtrado por cima (Layer 3)
-        const isolatedTemplate = isolateCandidate(templateImg, bgR, bgG, bgB);
-        ctx.drawImage(isolatedTemplate, 0, 0);
-
-        // 5. Desenhar a banda inferior (rodapé) opaca para cobrir cortes do corpo (Layer 4)
-        const bannerHeight = Math.round(H * 0.45);
-        ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
-    }
+    // 5. Desenhar a banda inferior (rodapé) opaca para cobrir cortes do corpo (Layer 4)
+    const bannerHeight = Math.round(H * 0.45);
+    ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
 
     // O texto "[NOME] APOIA" foi removido a pedido expresso do usuário para manter o topo limpo.
 
@@ -435,7 +388,7 @@ async function composePhoto({
     return {
         url: `data:image/png;base64,${base64Str}`,
         base64: base64Str,
-        revisedPrompt: isFallback ? 'Canvas Fallback composition with polaroid' : 'Canvas cutout composition',
+        revisedPrompt: 'Canvas cutout composition',
     };
 }
 
