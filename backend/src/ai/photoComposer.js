@@ -284,6 +284,7 @@ function isolateCandidate(templateImg, bgR, bgG, bgB) {
 async function composePhoto({
     templateBuffer,    // Buffer da imagem template (candidato)
     voterBuffer,       // Buffer da imagem do eleitor
+    voterPhotoUrl = null, // URL pública da foto do eleitor
     sceneAnalysis,     // Análise prévia da cena (opcional)
     templateBase64,    // Base64 do template para análise
     size = '1024x1024',
@@ -326,7 +327,7 @@ async function composePhoto({
     console.log(`   👉 Posicionamento do eleitor: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'} (Candidato está à: ${candidatePos})`);
 
     // 2. Remover fundo do eleitor (se falhar definitivamente, lança erro para evitar Polaroid)
-    const processedVoterBuffer = await removeVoterBackground(voterBuffer);
+    const processedVoterBuffer = await removeVoterBackground(voterBuffer, voterPhotoUrl);
 
     // 3. Carregar imagens no Canvas
     let templateImg, voterImgRaw;
