@@ -19,23 +19,44 @@ const { createCanvas, loadImage } = require('canvas');
 
 // ── AUXILIAR: REMOÇÃO DE BACKGROUND ──────────────────────────
 /**
- * Remove o fundo de uma imagem usando servidores Gradio públicos (Inspyrenet / BRIA)
- * com 3 retentativas automatizadas e 3 tiers escalonados para resolver oscilações da imagem.
+ * Remove o fundo de uma imagem usando servidores Gradio públicos
+ * Pipeline: leonelhs/rembg (CPU) → BRIA-RMBG-2.0 (GPU) → Inspyrenet (GPU)
+ * 
+ * IMPORTANTE: leonelhs/rembg retorna .webp — o canvas NÃO suporta webp.
+ * Por isso, toda resposta passa por sharp para ser convertida em PNG antes de retornar.
  */
 async function removeVoterBackground(voterBuffer, voterPhotoUrl = null) {
     console.log('   🤖 [PhotoComposer] Executando remoção de fundo da foto do eleitor...');
+    const sharp = require('sharp');
     const maxRetries = 3;
     let lastError = null;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        // TIER 1: leonelhs/rembg (Espaço CPU, sem limites de cota de GPU, muito estável)
-        try {
-            const { Client, handle_file } = await import('@gradio/client');
+    // Helper: baixa a imagem resultante de uma URL e converte para PNG via sharp
+    async function downloadAndConvertToPng(resultUrl) {
+        const fetch = (await import('node-fetch')).default;
+        const resp = await fetch(resultUrl);
+        const arrayBuffer = await resp.arrayBuffer();
+        const rawBuffer = Buffer.from(arrayBuffer);
+        // Converter para PNG (resolve problema do webp que canvas não decodifica)
+        const pngBuffer = await sharp(rawBuffer).png().toBuffer();
+        console.log(`   ✅ Imagem convertida para PNG (${pngBuffer.length} bytes)`);
+        return pngBuffer;
+    }
 
-            // Determinar o input (URL pelo handle_file é muito mais leve e estável em ambientes de nuvem)
-            const inputData = voterPhotoUrl
-                ? handle_file(voterPhotoUrl)
-                : new Blob([voterBuffer], { type: 'image/png' });
+    // Helper: determina o input ideal para envio ao Gradio
+    async function getInputData() {
+        const { handle_file } = await import('@gradio/client');
+        if (voterPhotoUrl) {
+            return handle_file(voterPhotoUrl);
+        }
+        return new Blob([voterBuffer], { type: 'image/png' });
+    }
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        // ── TIER 1: leonelhs/rembg (CPU puro, sem limites de cota GPU) ──
+        try {
+            const { Client } = await import('@gradio/client');
+            const inputData = await getInputData();
 
             console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando leonelhs/rembg (CPU)...`);
             const client = await Client.connect('leonelhs/rembg');
@@ -43,80 +64,65 @@ async function removeVoterBackground(voterBuffer, voterPhotoUrl = null) {
 
             const resultUrl = result?.data?.[0]?.url;
             if (resultUrl) {
-                console.log('   🤖 Remoção concluída via leonelhs/rembg (CPU). Fazendo download...');
-                const fetch = (await import('node-fetch')).default;
-                const resp = await fetch(resultUrl);
-                const arrayBuffer = await resp.arrayBuffer();
-                return Buffer.from(arrayBuffer);
+                console.log('   ✅ Remoção concluída via leonelhs/rembg (CPU). Baixando e convertendo...');
+                return await downloadAndConvertToPng(resultUrl);
             }
             throw new Error('Retorno inválido de leonelhs/rembg.');
         } catch (err) {
             lastError = err;
-            console.warn(`   ⚠️ Tentativa ${attempt} com leonelhs/rembg falhou:`, err.message);
+            console.warn(`   ⚠️ Tier 1 (leonelhs/rembg) falhou na tentativa ${attempt}:`, err.message);
+        }
 
-            // TIER 2: briaai/BRIA-RMBG-2.0 (Backup, pode ter limite de GPU mas é boa contingência)
-            try {
-                const { Client, handle_file } = await import('@gradio/client');
-                const inputData = voterPhotoUrl
-                    ? handle_file(voterPhotoUrl)
-                    : new Blob([voterBuffer], { type: 'image/png' });
+        // ── TIER 2: briaai/BRIA-RMBG-2.0 (GPU, pode ter limite de cota) ──
+        try {
+            const { Client } = await import('@gradio/client');
+            const inputData = await getInputData();
 
-                console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando briaai/BRIA-RMBG-2.0 (Backup)...`);
-                const client = await Client.connect('briaai/BRIA-RMBG-2.0');
-                const result = await client.predict('/image', {
-                    image: inputData
-                });
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando briaai/BRIA-RMBG-2.0...`);
+            const client = await Client.connect('briaai/BRIA-RMBG-2.0');
+            const result = await client.predict('/image', { image: inputData });
 
-                const resultUrl = result?.data?.[1]?.url || result?.data?.[0]?.[0]?.url;
-                if (resultUrl) {
-                    console.log('   🤖 Remoção concluída via BRIA RMBG 2.0. Fazendo download...');
-                    const fetch = (await import('node-fetch')).default;
-                    const resp = await fetch(resultUrl);
-                    const arrayBuffer = await resp.arrayBuffer();
-                    return Buffer.from(arrayBuffer);
-                }
-                throw new Error('Retorno inválido do BRIA 2.0.');
-            } catch (briaErr) {
-                lastError = briaErr;
-                console.warn(`   ⚠️ Tentativa ${attempt} com BRIA 2.0 falhou:`, briaErr.message);
-
-                // TIER 3: gokaygokay/Inspyrenet-Rembg (Backup 2)
-                try {
-                    const { Client, handle_file } = await import('@gradio/client');
-                    const inputData = voterPhotoUrl
-                        ? handle_file(voterPhotoUrl)
-                        : new Blob([voterBuffer], { type: 'image/png' });
-
-                    console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando gokaygokay/Inspyrenet-Rembg (Backup)...`);
-                    const client = await Client.connect('gokaygokay/Inspyrenet-Rembg');
-                    const result = await client.predict('/predict', {
-                        input_image: inputData,
-                        output_type: 'Default'
-                    });
-
-                    if (result && result.data && result.data[0] && result.data[0].url) {
-                        const resultUrl = result.data[0].url;
-                        console.log('   🤖 Remoção concluída via Inspyrenet. Fazendo download...');
-                        const fetch = (await import('node-fetch')).default;
-                        const resp = await fetch(resultUrl);
-                        const arrayBuffer = await resp.arrayBuffer();
-                        return Buffer.from(arrayBuffer);
-                    }
-                    throw new Error('Retorno inválido do Inspyrenet.');
-                } catch (inspErr) {
-                    lastError = inspErr;
-                    console.warn(`   ⚠️ Tentativa ${attempt} com Inspyrenet falhou:`, inspErr.message);
-                }
+            const resultUrl = result?.data?.[1]?.url || result?.data?.[0]?.[0]?.url || result?.data?.[0]?.url;
+            if (resultUrl) {
+                console.log('   ✅ Remoção concluída via BRIA RMBG 2.0. Baixando e convertendo...');
+                return await downloadAndConvertToPng(resultUrl);
             }
+            throw new Error('Retorno inválido do BRIA 2.0.');
+        } catch (briaErr) {
+            lastError = briaErr;
+            console.warn(`   ⚠️ Tier 2 (BRIA 2.0) falhou na tentativa ${attempt}:`, briaErr.message);
+        }
 
-            if (attempt < maxRetries) {
-                console.log('   ⏳ Aguardando 2 segundos para tentar novamente...');
-                await new Promise(resolve => setTimeout(resolve, 2000));
+        // ── TIER 3: gokaygokay/Inspyrenet-Rembg (GPU, backup final) ──
+        try {
+            const { Client } = await import('@gradio/client');
+            const inputData = await getInputData();
+
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando Inspyrenet-Rembg...`);
+            const client = await Client.connect('gokaygokay/Inspyrenet-Rembg');
+            const result = await client.predict('/predict', {
+                input_image: inputData,
+                output_type: 'Default'
+            });
+
+            const resultUrl = result?.data?.[0]?.url;
+            if (resultUrl) {
+                console.log('   ✅ Remoção concluída via Inspyrenet. Baixando e convertendo...');
+                return await downloadAndConvertToPng(resultUrl);
             }
+            throw new Error('Retorno inválido do Inspyrenet.');
+        } catch (inspErr) {
+            lastError = inspErr;
+            console.warn(`   ⚠️ Tier 3 (Inspyrenet) falhou na tentativa ${attempt}:`, inspErr.message);
+        }
+
+        if (attempt < maxRetries) {
+            console.log('   ⏳ Aguardando 2 segundos antes da próxima rodada...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
     }
 
-    throw new Error('Erro ao remover o fundo da foto do eleitor nos servidores de IA. Detalhes: ' + (lastError?.stack || lastError?.message || lastError));
+    throw new Error('Erro ao remover o fundo da foto do eleitor nos servidores de IA. Detalhes: ' + (lastError?.message || lastError));
 }
 
 // ── ANÁLISE DE CENA ──────────────────────────────────────────
