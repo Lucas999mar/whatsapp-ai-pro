@@ -326,23 +326,10 @@ async function composePhoto({
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext('2d');
 
-    // 1. Amostrar a cor de fundo original do template (canto superior direito)
-    const sampleCanvas = createCanvas(1, 1);
-    const sampleCtx = sampleCanvas.getContext('2d');
-    sampleCtx.drawImage(templateImg, W - 5, 5, 1, 1, 0, 0, 1, 1);
-    const px = sampleCtx.getImageData(0, 0, 1, 1).data;
-    const bgR = px[0];
-    const bgG = px[1];
-    const bgB = px[2];
-
-    // 2. Preencher o fundo do novo canvas com a cor original do template
-    ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
-    ctx.fillRect(0, 0, W, H);
-
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
     let dx, dy, dw, dh;
 
-    // Bounding Box ajustada para o eleitor (aumentada ligeiramente para bater com o tamanho do candidato no mesmo padrão)
+    // Bounding Box ajustada para o eleitor (aumentada para bater no mesmo tamanho/escala do candidato)
     const vw = Math.round(W * 0.52);
     const vh = Math.round(H * 0.80);
     const vy = Math.round(H * 0.08);
@@ -351,21 +338,19 @@ async function composePhoto({
     const voterAspect = voterImg.width / voterImg.height;
 
     if (isFallback) {
-        // Se for o fallback, manter o enquadramento do Polaroid retangular
-        dw = vw;
-        dh = vh;
+        // Se for o fallback, o eleitor mantém enquadramento retangular recortado pela largura/altura do box
         if (voterAspect > vw / vh) {
             dw = vw;
-            dh = vw / voterAspect;
+            dh = Math.round(vw / voterAspect);
         } else {
             dh = vh;
-            dw = vh * voterAspect;
+            dw = Math.round(vh * voterAspect);
         }
         dx = vx + (vw - dw) / 2;
         dy = vy + (vh - dh);
     } else {
         // Caso de sucesso (silhueta sem fundo):
-        // Ajustamos para caber de maneira proporcional na Bounding Box aumentada
+        // Ajustamos para caber de maneira proporcional na Bounding Box lateral
         if (voterAspect > vw / vh) {
             dw = vw;
             dh = Math.round(vw / voterAspect);
@@ -381,46 +366,65 @@ async function composePhoto({
         dy = vy + (vh - dh);
     }
 
-    // Desenhar o eleitor (Layer 2) - Ele é desenhado NO FUNDO para o candidato ficar NA FRENTE
-    ctx.save();
+    // 4. Desenhar no Canvas conforme o caminho (Sucesso ou Fallback)
     if (isFallback) {
-        // Se a remoção de fundo falhou totalmente, desenhamos com borda clássica de Polaroid para parecer intencional e limpo
+        // --- CAMINHO DE FALLBACK (Sem remoção de fundo: desenha Polaroid por CIMA do template) ---
+        // Desenhar template do candidato como fundo (Layer 1)
+        ctx.drawImage(templateImg, 0, 0, W, H);
+
+        // Desenhar a moldura Polaroid do eleitor por cima (Layer 2)
+        ctx.save();
         ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-        ctx.shadowBlur = Math.round(W * 0.01);
+        ctx.shadowBlur = Math.round(W * 0.015);
         ctx.shadowOffsetX = Math.round(W * 0.003);
         ctx.shadowOffsetY = Math.round(W * 0.003);
 
-        const pad = Math.round(W * 0.01);
+        const pad = Math.round(W * 0.015);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
         ctx.strokeStyle = '#dddddd';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = Math.max(1, Math.round(W * 0.0015));
         ctx.strokeRect(dx - pad, dy - pad, dw + pad * 2, dh + pad * 2);
+
+        ctx.drawImage(voterImg, dx, dy, dw, dh);
+        ctx.restore();
+
+        // Desenhar a banda inferior do template por cima da moldura (Layer 3)
+        const bannerHeight = Math.round(H * 0.45);
+        ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
+
     } else {
-        // Se removeu o fundo, colocamos um drop-shadow realista na silhueta
+        // --- CAMINHO DE SUCESSO (Com silhueta recortada: monta o estúdio atrás) ---
+        // 1. Amostrar a cor de fundo original do template (canto superior direito)
+        const sampleCanvas = createCanvas(1, 1);
+        const sampleCtx = sampleCanvas.getContext('2d');
+        sampleCtx.drawImage(templateImg, W - 5, 5, 1, 1, 0, 0, 1, 1);
+        const px = sampleCtx.getImageData(0, 0, 1, 1).data;
+        const bgR = px[0];
+        const bgG = px[1];
+        const bgB = px[2];
+
+        // 2. Preencher o fundo do novo canvas com a cor original do template
+        ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
+        ctx.fillRect(0, 0, W, H);
+
+        // 3. Desenhar a silhueta recortada do eleitor ao fundo (Layer 2)
+        ctx.save();
         ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
         ctx.shadowBlur = Math.round(W * 0.015);
         ctx.shadowOffsetX = Math.round(W * 0.006);
         ctx.shadowOffsetY = Math.round(W * 0.006);
-    }
+        ctx.drawImage(voterImg, dx, dy, dw, dh);
+        ctx.restore();
 
-    ctx.drawImage(voterImg, dx, dy, dw, dh);
-    ctx.restore();
-
-    // Desenhar template do candidato por cima (Layer 3)
-    if (isFallback) {
-        // Fallback: desenha o template original (o eleitor ficará coberto por trás pela polaroid branca)
-        ctx.drawImage(templateImg, 0, 0, W, H);
-    } else {
-        // Sucesso: Isola o candidato do fundo e desenha por CIMA do eleitor (fazendo o eleitor ficar ATRÁS dele!)
+        // 4. Desenhar o template do candidato filtrado por cima (Layer 3)
         const isolatedTemplate = isolateCandidate(templateImg, bgR, bgG, bgB);
         ctx.drawImage(isolatedTemplate, 0, 0);
-    }
 
-    // Desenhar a banda inferior do template por cima do eleitor para proteger banners, logos e números (Layer 3.5)
-    // Para ocultar cortes de cintura e o corte horizontal do candidato, desenhamos o rodapé e o banner (45% inferiores)
-    const bannerHeight = Math.round(H * 0.45);
-    ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
+        // 5. Desenhar a banda inferior (rodapé) opaca para cobrir cortes do corpo (Layer 4)
+        const bannerHeight = Math.round(H * 0.45);
+        ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
+    }
 
     // O texto "[NOME] APOIA" foi removido a pedido expresso do usuário para manter o topo limpo.
 
