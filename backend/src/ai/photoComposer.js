@@ -342,10 +342,9 @@ async function composePhoto({
     // Ajustar proporção e limites do eleitor proporcionalmente ao template
     let dx, dy, dw, dh;
 
-    // Bounding Box para o eleitor (evita cobrir o candidato)
-    // O eleitor deve ocupar no máximo 48% da largura e no máximo 74% da altura
-    const vw = Math.round(W * 0.48);
-    const vh = Math.round(H * 0.74);
+    // Bounding Box ajustada para o eleitor (aumentada ligeiramente para bater com o tamanho do candidato no mesmo padrão)
+    const vw = Math.round(W * 0.52);
+    const vh = Math.round(H * 0.80);
     const vy = Math.round(H * 0.08);
     const vx = isVoterOnLeft ? Math.round(W * 0.04) : W - vw - Math.round(W * 0.04);
 
@@ -366,7 +365,7 @@ async function composePhoto({
         dy = vy + (vh - dh);
     } else {
         // Caso de sucesso (silhueta sem fundo):
-        // Ajustamos para caber de maneira proporcional na Bounding Box da lateral
+        // Ajustamos para caber de maneira proporcional na Bounding Box aumentada
         if (voterAspect > vw / vh) {
             dw = vw;
             dh = Math.round(vw / voterAspect);
@@ -375,7 +374,7 @@ async function composePhoto({
             dw = Math.round(vh * voterAspect);
         }
 
-        // Alinhamento horizontal centralizado no box lateral correspondente
+        // Alinhamento horizontal de modo a manter o eleitor bem enquadrado ao lado
         dx = vx + (vw - dw) / 2;
 
         // Alinhamento vertical descendo até o "chão" (topo do rodapé/banner)
@@ -423,25 +422,7 @@ async function composePhoto({
     const bannerHeight = Math.round(H * 0.45);
     ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
 
-    // Desenhar o texto "[NOME DO ELEITOR] APOIA" no topo (Layer 4)
-    if (voterName && String(voterName).trim().toLowerCase() !== 'anônimo') {
-        ctx.save();
-        const fontSize = Math.round(H * 0.022); // Redimensionado para ser clássico, pequeno e elegante (evita ficar em cima de cabeças)
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-
-        const cleanName = String(voterName).trim().toUpperCase();
-        const text = `${cleanName}  APOIA`;
-        // Desenha bem no topo (1.5% de margem Y de segurança)
-        ctx.fillText(text, W / 2, Math.round(H * 0.015));
-        ctx.restore();
-    }
+    // O texto "[NOME] APOIA" foi removido a pedido expresso do usuário para manter o topo limpo.
 
     const finalBuffer = canvas.toBuffer('image/png');
     const base64Str = finalBuffer.toString('base64');
