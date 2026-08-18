@@ -381,11 +381,23 @@ async function composePhoto({
         dw = Math.round(vh * voterAspect);
     }
 
-    // Alinhamento horizontal de modo a manter o eleitor bem enquadrado ao lado
-    dx = vx + (vw - dw) / 2;
+    // Alinhamento vertical principal na cabeça (alinhado com o candidato no topo)
+    dy = vy;
 
-    // Alinhamento vertical descendo até o "chão" (topo do rodapé/banner)
-    dy = vy + (vh - dh);
+    // Ajuste proporcional para evitar que o eleitor flutue no fundo (garantir que chegue ao rodapé/banner)
+    const bannerHeight = Math.round(H * 0.45);
+    const bannerStart = H - bannerHeight;
+    const minHeightToReachBanner = bannerStart - vy;
+
+    if (dh < minHeightToReachBanner) {
+        // Multiplicamos largura e altura para esticar até a borda do banner, preservando aspect ratio e cabeça alinhada no topo
+        const scaleFactor = minHeightToReachBanner / dh;
+        dh = minHeightToReachBanner;
+        dw = Math.round(dw * scaleFactor);
+    }
+
+    // Alinhamento horizontal centralizado no lado correto
+    dx = vx + (vw - dw) / 2;
 
     // 3. Desenhar a silhueta recortada do eleitor ao fundo (Layer 2)
     ctx.save();
@@ -400,8 +412,7 @@ async function composePhoto({
     const isolatedTemplate = isolateCandidate(templateImg, bgR, bgG, bgB);
     ctx.drawImage(isolatedTemplate, 0, 0);
 
-    // 5. Desenhar a banda inferior (rodapé) opaca para cobrir cortes do corpo (Layer 4)
-    const bannerHeight = Math.round(H * 0.45);
+    // Desenhar a banda inferior (rodapé) opaca para cobrir cortes do corpo (Layer 4)
     ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
 
     // O texto "[NOME] APOIA" foi removido a pedido expresso do usuário para manter o topo limpo.
