@@ -209,10 +209,45 @@ async function chromaKeyTemplate(templateBuffer, bgR, bgG, bgB) {
         .toBuffer();
 }
 
+// ── APLICAR DEGRADÊ SUAVE NA BASE (GRADIENT FADE OUT) ────────
+async function applyBottomFade(imageBuffer, width, height) {
+    try {
+        const fadeStartRow = Math.round(height * 0.70); // inicia o fade no bottom 30%
+        const maskPixels = Buffer.alloc(width * height * 4);
+
+        for (let y = 0; y < height; y++) {
+            let alpha = 255;
+            if (y >= fadeStartRow) {
+                const ratio = (y - fadeStartRow) / (height - fadeStartRow);
+                alpha = Math.round(255 * (1 - ratio));
+            }
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                maskPixels[idx] = 0;
+                maskPixels[idx + 1] = 0;
+                maskPixels[idx + 2] = 0;
+                maskPixels[idx + 3] = alpha;
+            }
+        }
+
+        const maskBuffer = await sharp(maskPixels, { raw: { width, height, channels: 4 } })
+            .png()
+            .toBuffer();
+
+        return await sharp(imageBuffer)
+            .composite([{ input: maskBuffer, blend: 'dest-in' }])
+            .png()
+            .toBuffer();
+    } catch (err) {
+        console.error('   ⚠️ applyBottomFade falhou, usando imagem original:', err.message);
+        return imageBuffer;
+    }
+}
+
 // ── ANÁLISE DE CENA ──────────────────────────────────────────
 async function analyzeTemplateScene(imageBase64, apiKey = null) {
     const key = apiKey || config.openai.apiKey;
-    if (!key) return { person_position: 'center', available_space: 'left' };
+    if (!key) return { has_candidate: true, person_position: 'center', available_space: 'left' };
 
     try {
         const client = new OpenAI({ apiKey: key });
@@ -221,14 +256,16 @@ async function analyzeTemplateScene(imageBase64, apiKey = null) {
             messages: [
                 {
                     role: 'system',
-                    content: `You analyze campaign photos. Return ONLY valid JSON:
-{"person_position":"left","available_space":"right side"}
-Where person_position = where the main person is (left/center/right).`
+                    content: `You analyze political campaign templates. Return ONLY valid JSON:
+{"has_candidate":true,"person_position":"left","available_space":"right side"}
+Where:
+- has_candidate: true if there is a person (candidato) photo overlayed on the template background. If there is ONLY background, logo, and text (NO human face), has_candidate MUST be false.
+- person_position: "left", "center", "right" or "none" (where the candidato face is located).`
                 },
                 {
                     role: 'user',
                     content: [
-                        { type: 'text', text: 'Where is the main person in this photo?' },
+                        { type: 'text', text: 'Does this template have a candidate person in it? Or is it only background and logos?' },
                         { type: 'image_url', image_url: { url: imageBase64 } }
                     ]
                 }
@@ -244,7 +281,7 @@ Where person_position = where the main person is (left/center/right).`
         return JSON.parse(c.trim());
     } catch (err) {
         console.log('   ⚠️ Análise de cena falhou, usando defaults:', err.message);
-        return { person_position: 'center', available_space: 'left' };
+        return { has_candidate: true, person_position: 'center', available_space: 'left' };
     }
 }
 
@@ -252,7 +289,7 @@ Where person_position = where the main person is (left/center/right).`
 /**
  * Camadas (de baixo para cima):
  *   1. Fundo sólido (cor amostrada do template)
- *   2. Eleitor (sem fundo, com drop shadow) — mesma altura do candidato
+ *   2. Eleitor (sem fundo, com drop shadow e opcionalmente fade na base)
  *   3. Template com Chroma Key (fundo transparente, candidato opaco = eleitor fica "atrás")
  *   4. Banner inferior original do template (sobrepõe tudo para preservar textos/logos)
  */
@@ -266,7 +303,7 @@ async function composePhoto({
     apiKey = null,
     voterName = null,
 }) {
-    console.log('📸 [PhotoComposer] Iniciando composição (eleitor ATRÁS do candidato)...');
+    console.log('📸 [PhotoComposer] Iniciando composição...');
 
     // 1. Analisar cena
     let analysis = sceneAnalysis;
@@ -276,21 +313,20 @@ async function composePhoto({
         console.log('   ✅ Análise:', JSON.stringify(analysis));
     }
 
+    const hasCandidate = analysis?.has_candidate !== false; // default true
     const candidatePos = String(analysis?.person_position || 'center').toLowerCase();
-    let isVoterOnLeft;
-    if (candidatePos.includes('right') || candidatePos.includes('direita')) {
-        isVoterOnLeft = true; // candidato à direita → eleitor à esquerda
-    } else {
-        // Candidato left/center → eleitor vai para a DIREITA (padrão mais natural)
-        isVoterOnLeft = false;
+
+    let isVoterOnLeft = false;
+    if (hasCandidate) {
+        if (candidatePos.includes('right') || candidatePos.includes('direita')) {
+            isVoterOnLeft = true; // candidato à direita → eleitor à esquerda
+        }
     }
-    console.log(`   👉 Eleitor: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'} (atrás do candidato)`);
 
     // 2. Remover fundo do eleitor
     const processedVoterBuffer = await removeVoterBackground(voterBuffer);
 
     // 3. Metadados do template
-    // Converter template para PNG com alpha para garantir composição correta
     const templatePng = await sharp(templateBuffer).ensureAlpha().png().toBuffer();
     const templateMeta = await sharp(templatePng).metadata();
     const W = templateMeta.width;
@@ -317,42 +353,76 @@ async function composePhoto({
     const bgR = samplePixel[0], bgG = samplePixel[1], bgB = samplePixel[2];
     console.log(`   🎨 Cor de fundo: rgb(${bgR},${bgG},${bgB})`);
 
-    // 6. Calcular dimensões do eleitor — MESMA ALTURA E PROPORÇÃO
+    // 6. Calcular dimensões e fade baseados no Modo (Com candidato vs Solo/Logo)
     const bannerHeight = Math.round(H * 0.25); // banner inferior (textos, logos)
     const usableHeight = H - bannerHeight;
 
-    // Eleitor ocupa ~88% da área útil em altura para coincidir com a mesma altura visual natural
-    const targetVoterH = Math.round(usableHeight * 0.88);
-    const voterAspect = voterMeta.width / voterMeta.height;
-    let finalVoterH = targetVoterH;
-    let finalVoterW = Math.round(finalVoterH * voterAspect);
+    let targetVoterH;
+    let maxW;
+    let voterX;
+    let voterY;
+    let finalVoterBuffer;
 
-    // Limitar largura a 48% do template para não ocupar muito espaço lateral
-    const maxW = Math.round(W * 0.48);
-    if (finalVoterW > maxW) {
-        finalVoterW = maxW;
-        finalVoterH = Math.round(finalVoterW / voterAspect);
+    if (!hasCandidate) {
+        // MODO B: Apenas Logo (Solo)
+        // O eleitor deve ficar centralizado e recortado acima do nome ("Cesinha" fica a ~53% de H do topo)
+        // Reduzimos a altura útil ocupada para cerca de 44% do canvas para não sobrepor o nome
+        targetVoterH = Math.round(H * 0.44);
+        const voterAspect = voterMeta.width / voterMeta.height;
+        let finalVoterH = targetVoterH;
+        let finalVoterW = Math.round(finalVoterH * voterAspect);
+
+        const maxCenterW = Math.round(W * 0.48);
+        if (finalVoterW > maxCenterW) {
+            finalVoterW = maxCenterW;
+            finalVoterH = Math.round(finalVoterW / voterAspect);
+        }
+
+        // Redimensiona o eleitor
+        const resizedTemp = await sharp(trimmedVoter)
+            .resize(finalVoterW, finalVoterH, { fit: 'fill' })
+            .png()
+            .toBuffer();
+
+        // Aplica fade suave (gradient alpha) na base da imagem do eleitor para mesclar com o azul antes do nome
+        finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
+        voterX = Math.round((W - finalVoterW) / 2);
+        voterY = Math.round(H * 0.08); // Cabeça alinhada no topo
+        console.log(`   🎯 Modo SOLO (Sem candidato) -> Eleitor Centro: (${voterX}, ${voterY})`);
+    } else {
+        // MODO A: Com candidato na imagem
+        targetVoterH = Math.round(usableHeight * 0.88);
+        const voterAspect = voterMeta.width / voterMeta.height;
+        let finalVoterH = targetVoterH;
+        let finalVoterW = Math.round(finalVoterH * voterAspect);
+
+        maxW = Math.round(W * 0.48);
+        if (finalVoterW > maxW) {
+            finalVoterW = maxW;
+            finalVoterH = Math.round(finalVoterW / voterAspect);
+        }
+
+        finalVoterBuffer = await sharp(trimmedVoter)
+            .resize(finalVoterW, finalVoterH, { fit: 'fill' })
+            .png()
+            .toBuffer();
+
+        if (isVoterOnLeft) {
+            voterX = Math.round(W * 0.015); // se na esquerda, alinha próximo à borda esquerda
+        } else {
+            // Se na direita, alinha próximo à borda direita, evitando ficar escondido atrás da cabeça do candidato
+            voterX = W - finalVoterW - Math.round(W * 0.015);
+        }
+        voterY = Math.round(H * 0.12); // Cabeça ligeiramente abaixo da dele
+        console.log(`   👥 Modo DUPLA (Com candidato) -> Eleitor Lateral: (${voterX}, ${voterY})`);
     }
 
-    const resizedVoter = await sharp(trimmedVoter)
-        .resize(finalVoterW, finalVoterH, { fit: 'fill' })
-        .png()
-        .toBuffer();
+    const finalVoterMeta = await sharp(finalVoterBuffer).metadata();
+    const finalVoterW = finalVoterMeta.width;
+    const finalVoterH = finalVoterMeta.height;
 
     // Mantido em 0 para não quebrar a linha branca e outros alinhamentos do template
     const candidateShiftX = 0;
-
-    // Posição horizontal do eleitor (posicionado nas laterais com pequeno overlap natural)
-    let voterX;
-    if (isVoterOnLeft) {
-        voterX = Math.round(W * 0.015); // se na esquerda, alinha próximo à borda esquerda
-    } else {
-        // Se na direita, alinha próximo à borda direita, evitando ficar escondido atrás da cabeça do candidato
-        voterX = W - finalVoterW - Math.round(W * 0.015);
-    }
-    // Cabeça do eleitor ligeiramente abaixo da cabeça do candidato (12% do topo) para parecer atrás naturalmente
-    const voterY = Math.round(H * 0.12);
-    console.log(`   📍 Eleitor: (${voterX}, ${voterY}) → ${finalVoterW}x${finalVoterH}`);
 
     // 7. Chroma Key no template (tornar fundo transparente)
     console.log('   🎯 Aplicando Chroma Key no template...');
@@ -369,7 +439,7 @@ async function composePhoto({
     const shadowOffset = Math.round(W * 0.004);
     let shadowBuffer;
     try {
-        shadowBuffer = await sharp(resizedVoter)
+        shadowBuffer = await sharp(finalVoterBuffer)
             .composite([{
                 input: Buffer.from([0, 0, 0, 90]),
                 raw: { width: 1, height: 1, channels: 4 },
@@ -397,13 +467,13 @@ async function composePhoto({
 
     // Eleitor sem fundo (Layer 2 - Atrás)
     composites.push({
-        input: resizedVoter,
+        input: finalVoterBuffer,
         left: voterX,
         top: Math.max(0, voterY),
         blend: 'over',
     });
 
-    // Template com Chroma Key deslocado para a esquerda (Layer 3 - Frente)
+    // Template com Chroma Key (Layer 3 - Frente)
     composites.push({ input: chromaTemplate, left: candidateShiftX, top: 0, blend: 'over' });
 
     // Banner inferior original (Layer 4 — fixo em 0 para não mover a identificação visual)
