@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import logoImage from '../assets/logo.png';
 
 /**
  * Página pública para eleitores fazerem upload da foto 
@@ -359,7 +360,7 @@ export default function PhotoCampaignPublic() {
                 {/* Header */}
                 <div style={styles.header}>
                     <div style={styles.headerBadge}>
-                        <span style={{ fontSize: '24px' }}>📸</span>
+                        <img src={logoImage} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '22px' }} alt="Logo Evoluir Mais" />
                     </div>
                     <h1 style={styles.title}>
                         {campaign?.title || 'Foto com Candidato'}
@@ -822,7 +823,7 @@ export default function PhotoCampaignPublic() {
 
                 {/* Footer */}
                 <div style={styles.footer}>
-                    <p>Powered by <strong style={{ color: '#8B5CF6' }}>WhatsApp AI Pro</strong></p>
+                    <p>Powered by <strong style={{ color: '#8B5CF6' }}>Evoluir Mais</strong></p>
                 </div>
             </div>
 
