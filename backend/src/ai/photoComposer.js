@@ -321,14 +321,14 @@ async function composePhoto({
     const bannerHeight = Math.round(H * 0.25); // banner inferior (textos, logos)
     const usableHeight = H - bannerHeight;
 
-    // Eleitor ocupa ~103% da área útil em altura para coincidir com a mesma altura visual
-    const targetVoterH = Math.round(usableHeight * 1.03);
+    // Eleitor ocupa ~92% da área útil em altura para coincidir com a mesma altura visual
+    const targetVoterH = Math.round(usableHeight * 0.92);
     const voterAspect = voterMeta.width / voterMeta.height;
     let finalVoterH = targetVoterH;
     let finalVoterW = Math.round(finalVoterH * voterAspect);
 
-    // Limitar largura a 60% do template para manter proporção mas permitir escala natural
-    const maxW = Math.round(W * 0.60);
+    // Limitar largura a 55% do template para manter proporção mas permitir escala natural
+    const maxW = Math.round(W * 0.55);
     if (finalVoterW > maxW) {
         finalVoterW = maxW;
         finalVoterH = Math.round(finalVoterW / voterAspect);
@@ -339,19 +339,19 @@ async function composePhoto({
         .png()
         .toBuffer();
 
-    // Deslocamento do candidato para a esquerda (para abrir espaço e enquadrar melhor)
-    const candidateShiftX = -Math.round(W * 0.08);
+    // Mantido em 0 para não quebrar a linha branca e outros alinhamentos do template
+    const candidateShiftX = 0;
 
-    // Posição horizontal do eleitor
+    // Posição horizontal do eleitor (aproxima do centro para overlap natural)
     let voterX;
     if (isVoterOnLeft) {
-        voterX = -Math.round(finalVoterW * 0.05); // levemente para fora ou alinhado à esquerda
+        voterX = Math.round(W * 0.10); // se na esquerda, move levemente para a direita
     } else {
-        // Encaixado na direita, mas deslocado para a esquerda para overlap natural
-        voterX = W - finalVoterW - Math.round(W * 0.04);
+        // Se na direita, move levemente para a esquerda (overlap nas costas do candidato)
+        voterX = W - finalVoterW - Math.round(W * 0.09);
     }
-    // Base do eleitor alinhada com o topo do banner (pés tocam o banner)
-    const voterY = Math.max(0, usableHeight - finalVoterH);
+    // Alinha o topo da cabeça do eleitor com o topo da cabeça do candidato (8% do topo)
+    const voterY = Math.round(H * 0.08);
     console.log(`   📍 Eleitor: (${voterX}, ${voterY}) → ${finalVoterW}x${finalVoterH}`);
 
     // 7. Chroma Key no template (tornar fundo transparente)
