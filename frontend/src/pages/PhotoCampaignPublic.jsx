@@ -265,12 +265,31 @@ export default function PhotoCampaignPublic() {
         }, 3000); // Polling a cada 3 segundos
     }
 
-    function handleDownload() {
+    async function handleDownload() {
         if (!result?.result_url) return;
-        const link = document.createElement('a');
-        link.href = result.result_url;
-        link.download = `foto-com-${campaign?.candidate_name || 'candidato'}.png`;
-        link.click();
+        try {
+            const response = await fetch(result.result_url);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `foto-com-${campaign?.candidate_name || 'candidato'}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Liberar memória do blob após o download
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+        } catch (err) {
+            console.error('Falha no download via blob:', err);
+            // Fallback caso dê algum erro de CORS ou rede
+            const link = document.createElement('a');
+            link.href = result.result_url;
+            link.target = '_blank';
+            link.download = `foto-com-${campaign?.candidate_name || 'candidato'}.png`;
+            link.click();
+        }
     }
 
     function handleShare() {
