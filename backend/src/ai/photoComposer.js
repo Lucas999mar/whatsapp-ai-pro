@@ -321,14 +321,14 @@ async function composePhoto({
     const bannerHeight = Math.round(H * 0.25); // banner inferior (textos, logos)
     const usableHeight = H - bannerHeight;
 
-    // Eleitor ocupa ~95% da área útil em altura (mesma escala do candidato)
-    const targetVoterH = Math.round(usableHeight * 0.95);
+    // Eleitor ocupa ~103% da área útil em altura para coincidir com a mesma altura visual
+    const targetVoterH = Math.round(usableHeight * 1.03);
     const voterAspect = voterMeta.width / voterMeta.height;
     let finalVoterH = targetVoterH;
     let finalVoterW = Math.round(finalVoterH * voterAspect);
 
-    // Limitar largura a 50% do template para não sobrepor demais o candidato
-    const maxW = Math.round(W * 0.50);
+    // Limitar largura a 60% do template para manter proporção mas permitir escala natural
+    const maxW = Math.round(W * 0.60);
     if (finalVoterW > maxW) {
         finalVoterW = maxW;
         finalVoterH = Math.round(finalVoterW / voterAspect);
@@ -339,12 +339,16 @@ async function composePhoto({
         .png()
         .toBuffer();
 
-    // Posição horizontal
+    // Deslocamento do candidato para a esquerda (para abrir espaço e enquadrar melhor)
+    const candidateShiftX = -Math.round(W * 0.08);
+
+    // Posição horizontal do eleitor
     let voterX;
     if (isVoterOnLeft) {
-        voterX = Math.round(W * 0.02);
+        voterX = -Math.round(finalVoterW * 0.05); // levemente para fora ou alinhado à esquerda
     } else {
-        voterX = W - finalVoterW - Math.round(W * 0.02);
+        // Encaixado na direita, mas deslocado para a esquerda para overlap natural
+        voterX = W - finalVoterW - Math.round(W * 0.04);
     }
     // Base do eleitor alinhada com o topo do banner (pés tocam o banner)
     const voterY = Math.max(0, usableHeight - finalVoterH);
@@ -386,23 +390,23 @@ async function composePhoto({
     if (shadowBuffer) {
         const sx = voterX + shadowOffset;
         const sy = voterY + shadowOffset;
-        if (sx >= 0 && sy >= 0 && sx + finalVoterW <= W && sy + finalVoterH <= H) {
+        if (sx >= -finalVoterW && sy >= 0 && sx <= W && sy + finalVoterH <= H) {
             composites.push({ input: shadowBuffer, left: sx, top: sy, blend: 'over' });
         }
     }
 
-    // Eleitor sem fundo (Layer 2)
+    // Eleitor sem fundo (Layer 2 - Atrás)
     composites.push({
         input: resizedVoter,
-        left: Math.max(0, Math.min(voterX, W - finalVoterW)),
+        left: voterX,
         top: Math.max(0, voterY),
         blend: 'over',
     });
 
-    // Template com Chroma Key (candidato na frente, fundo transparente) (Layer 3)
-    composites.push({ input: chromaTemplate, left: 0, top: 0, blend: 'over' });
+    // Template com Chroma Key deslocado para a esquerda (Layer 3 - Frente)
+    composites.push({ input: chromaTemplate, left: candidateShiftX, top: 0, blend: 'over' });
 
-    // Banner inferior original (Layer 4 — cobre qualquer artefato no rodapé)
+    // Banner inferior original (Layer 4 — fixo em 0 para não mover a identificação visual)
     composites.push({
         input: bannerBuffer,
         left: 0,
