@@ -216,24 +216,38 @@ async function chromaKeyTemplate(templateBuffer, bgR, bgG, bgB) {
         .toBuffer();
 }
 
-// ── APLICAR DEGRADÊ SUAVE NA BASE (GRADIENT FADE OUT) ────────
+// ── APLICAR DEGRADÊ SUAVE NA BASE E LATERAIS (GRADIENT FADE OUT & FEATHERING) ────────
 async function applyBottomFade(imageBuffer, width, height) {
     try {
-        const fadeStartRow = Math.round(height * 0.70); // inicia o fade no bottom 30%
+        const fadeStartRow = Math.round(height * 0.72); // inicia o fade no bottom 28%
+        // Margem de desvanecimento nas laterais para apagar bordas de corte reto vertical
+        const fadeBorderW = Math.max(10, Math.min(30, Math.round(width * 0.05)));
         const maskPixels = Buffer.alloc(width * height * 4);
 
         for (let y = 0; y < height; y++) {
-            let alpha = 255;
+            let alphaY = 255;
             if (y >= fadeStartRow) {
-                const ratio = (y - fadeStartRow) / (height - fadeStartRow);
-                alpha = Math.round(255 * (1 - ratio));
+                const ratioY = (y - fadeStartRow) / (height - fadeStartRow);
+                alphaY = Math.round(255 * (1 - ratioY));
             }
+
             for (let x = 0; x < width; x++) {
+                let alphaX = 255;
+                if (x < fadeBorderW) {
+                    // Gradiente de entrada pela esquerda
+                    alphaX = Math.round(255 * (x / fadeBorderW));
+                } else if (x >= width - fadeBorderW) {
+                    // Gradiente de saída pela direita
+                    alphaX = Math.round(255 * ((width - 1 - x) / fadeBorderW));
+                }
+
+                // O alpha resultante é a interseção dos degradês
+                const finalAlpha = Math.min(alphaY, alphaX);
                 const idx = (y * width + x) * 4;
                 maskPixels[idx] = 0;
                 maskPixels[idx + 1] = 0;
                 maskPixels[idx + 2] = 0;
-                maskPixels[idx + 3] = alpha;
+                maskPixels[idx + 3] = finalAlpha;
             }
         }
 
@@ -381,12 +395,8 @@ async function composePhoto({
             .png()
             .toBuffer();
 
-        // Se for Modo SOLO/B e quisermos aplicar o fade suave automático na base:
-        if (!hasCandidate) {
-            finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
-        } else {
-            finalVoterBuffer = resizedTemp;
-        }
+        // Aplica o degradê de desvanecimento na base e laterais para integrar a foto do celular
+        finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
 
         voterX = Math.round(customCoords.x);
         voterY = Math.round(customCoords.y);
@@ -431,10 +441,11 @@ async function composePhoto({
                 finalVoterH = Math.round(finalVoterW / voterAspect);
             }
 
-            finalVoterBuffer = await sharp(trimmedVoter)
+            const resizedTemp = await sharp(trimmedVoter)
                 .resize(finalVoterW, finalVoterH, { fit: 'fill' })
                 .png()
                 .toBuffer();
+            finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
 
             if (isVoterOnLeft) {
                 voterX = Math.round(W * 0.015); // se na esquerda, alinha próximo à borda esquerda
