@@ -21,6 +21,7 @@ export default function PhotoCampaignPublic() {
     const [noBgUrl, setNoBgUrl] = useState(null);
     const [coords, setCoords] = useState({ x: 80, y: 70, width: 140, height: 200 });
     const [mirror, setMirror] = useState(false);
+    const [templateDimensions, setTemplateDimensions] = useState({ width: 320, height: 320 });
 
     const [submitting, setSubmitting] = useState(false);
     const [submission, setSubmission] = useState(null);
@@ -58,6 +59,22 @@ export default function PhotoCampaignPublic() {
         load();
         return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }, [shareToken]);
+
+    // ── CALCULAR ASPECT OUTLINE DO TEMPLATE SELECIONADO ──────
+    useEffect(() => {
+        if (!selectedTemplate || !campaign?.templates) return;
+        const tmpl = campaign.templates.find(t => t.id === selectedTemplate);
+        if (!tmpl) return;
+
+        const img = new Image();
+        img.src = tmpl.url;
+        img.onload = () => {
+            const aspect = img.naturalWidth / img.naturalHeight;
+            const targetW = 320;
+            const targetH = Math.round(targetW / aspect);
+            setTemplateDimensions({ width: targetW, height: targetH });
+        };
+    }, [selectedTemplate, campaign]);
 
     // ── UPLOAD DE FOTO DO ELEITOR ──────────────────────────
     function handleFileSelect(e) {
@@ -120,9 +137,9 @@ export default function PhotoCampaignPublic() {
                 const viewHeight = 200;
                 const viewWidth = Math.round(viewHeight * aspect);
 
-                // Centralizar horizontalmente
-                const initialX = Math.round((320 - viewWidth) / 2);
-                const initialY = 70; // 70px do topo do enquadramento
+                // Centralizar horizontalmente e verticalmente
+                const initialX = Math.round((templateDimensions.width - viewWidth) / 2);
+                const initialY = Math.round((templateDimensions.height - viewHeight) / 2);
 
                 setCoords({
                     x: initialX,
@@ -185,9 +202,9 @@ export default function PhotoCampaignPublic() {
             const W = templateImg.naturalWidth || 1024;
             const H = templateImg.naturalHeight || 1024;
 
-            // A nossa área visível no editor é de 320 x 320 px
-            const scaleX = W / 320;
-            const scaleY = H / 320;
+            // A nossa área visível no editor é proporcional ao templateDimensions
+            const scaleX = W / templateDimensions.width;
+            const scaleY = H / templateDimensions.height;
 
             const bodyData = {
                 template_id: selectedTemplate,
@@ -527,7 +544,10 @@ export default function PhotoCampaignPublic() {
                                 ref={viewAreaRef}
                                 style={{
                                     ...editorStyles.canvasContainer,
+                                    width: `${templateDimensions.width}px`,
+                                    height: `${templateDimensions.height}px`,
                                     backgroundImage: `url(${(campaign?.templates || []).find(t => t.id === selectedTemplate)?.url})`,
+                                    backgroundSize: '100% 100%',
                                 }}
                             >
                                 {/* Silhueta do Eleitor (Móvel) */}
@@ -545,6 +565,7 @@ export default function PhotoCampaignPublic() {
                                         userSelect: 'none',
                                         touchAction: 'none',
                                         zIndex: 10,
+                                        opacity: 0.85,
                                         transition: dragStartRef.current ? 'none' : 'transform 0.1s ease',
                                     }}
                                     onMouseDown={e => {
@@ -646,8 +667,8 @@ export default function PhotoCampaignPublic() {
                                                 const defaultH = 200;
                                                 const defaultW = Math.round(defaultH * aspect);
                                                 setCoords({
-                                                    x: Math.round((320 - defaultW) / 2),
-                                                    y: 70,
+                                                    x: Math.round((templateDimensions.width - defaultW) / 2),
+                                                    y: Math.round((templateDimensions.height - defaultH) / 2),
                                                     width: defaultW,
                                                     height: defaultH
                                                 });

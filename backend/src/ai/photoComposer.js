@@ -190,6 +190,13 @@ async function chromaKeyTemplate(templateBuffer, bgR, bgG, bgB) {
 
             if (a === 0) continue;
 
+            // Filtro de segurança: Evitar remover tons escuros e pretos (corpo/cabelo/roupa)
+            // Se o pixel sob teste for escuro (maxVal < 45), nós o preservamos.
+            const maxVal = Math.max(r, g, b);
+            if (maxVal < 45) {
+                continue;
+            }
+
             const dR = r - bgR;
             const dG = g - bgG;
             const dB = b - bgB;
