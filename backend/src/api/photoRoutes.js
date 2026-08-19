@@ -5,7 +5,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config/config');
 const { getSupabase } = require('../db/supabase');
-const { composePhoto, analyzeTemplateScene, saveComposedImage } = require('../ai/photoComposer');
+const { composePhoto, analyzeTemplateScene, saveComposedImage, removeVoterBackground } = require('../ai/photoComposer');
 
 const router = express.Router();
 
@@ -338,10 +338,10 @@ router.get('/photo-campaigns/public/:shareToken', async (req, res) => {
 });
 
 /**
- * POST /photo-campaigns/public/:shareToken/submit
- * Eleitor envia sua foto para composição
+ * POST /photo-campaigns/public/:shareToken/remove-bg
+ * Remove fundo da imagem do eleitor e retorna a URL transparente imediatamente
  */
-router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo'), async (req, res) => {
+router.post('/photo-campaigns/public/:shareToken/remove-bg', upload.single('photo'), async (req, res) => {
     try {
         const supabase = getSupabase();
 
@@ -360,7 +360,64 @@ router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo')
 
         if (!req.file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
 
-        const { template_id, voter_name } = req.body;
+        // Extrair o buffer da imagem carregada
+        const voterBuffer = fs.readFileSync(req.file.path);
+
+        // Chamar remoção da IA
+        const noBgBuffer = await removeVoterBackground(voterBuffer);
+
+        // Upload da foto sem fundo para o storage
+        const fileId = uuidv4();
+        const voterFileName = `photo_campaigns/${campaign.id}/voters/nobg_${fileId}.png`;
+
+        await supabase.storage.from('knowledge-files').upload(voterFileName, noBgBuffer, {
+            contentType: 'image/png',
+            upsert: true,
+        });
+
+        const { data: voterUrlData } = supabase.storage.from('knowledge-files').getPublicUrl(voterFileName);
+
+        // Remover temporário
+        try { fs.unlinkSync(req.file.path); } catch { }
+
+        res.json({
+            voter_no_bg_url: voterUrlData.publicUrl,
+        });
+
+    } catch (err) {
+        if (req.file) try { fs.unlinkSync(req.file.path); } catch { }
+        console.error('❌ [PhotoCampaign] Erro no remove-bg:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /photo-campaigns/public/:shareToken/submit
+ * Eleitor envia sua foto para composição (com suporte a coordenadas customizadas)
+ */
+router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo'), async (req, res) => {
+    try {
+        const supabase = getSupabase();
+
+        // Buscar campanha
+        const { data: campaign, error: campErr } = await supabase
+            .from('photo_campaigns')
+            .select('*')
+            .eq('share_token', req.params.shareToken)
+            .eq('active', true)
+            .single();
+
+        if (campErr || !campaign) {
+            if (req.file) try { fs.unlinkSync(req.file.path); } catch { }
+            return res.status(404).json({ error: 'Campanha não encontrada ou inativa' });
+        }
+
+        const { template_id, voter_name, voter_no_bg_url, voter_x, voter_y, voter_w, voter_h, voter_mirror } = req.body;
+
+        if (!req.file && !voter_no_bg_url) {
+            return res.status(400).json({ error: 'Nenhuma foto enviada' });
+        }
+
         if (!template_id) {
             if (req.file) try { fs.unlinkSync(req.file.path); } catch { }
             return res.status(400).json({ error: 'Selecione uma foto modelo' });
@@ -374,17 +431,22 @@ router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo')
         }
 
         const submissionId = uuidv4();
+        let voterPhotoUrlFinal = voter_no_bg_url;
+        let voterBuffer = null;
 
-        // Upload da foto do eleitor para Storage
-        const voterBuffer = fs.readFileSync(req.file.path);
-        const ext = path.extname(req.file.originalname) || '.png';
-        const voterFileName = `photo_campaigns/${campaign.id}/voters/${submissionId}${ext}`;
+        // Se enviou arquivo físico, faz o upload tradicional
+        if (req.file) {
+            voterBuffer = fs.readFileSync(req.file.path);
+            const ext = path.extname(req.file.originalname) || '.png';
+            const voterFileName = `photo_campaigns/${campaign.id}/voters/${submissionId}${ext}`;
 
-        await supabase.storage.from('knowledge-files').upload(voterFileName, voterBuffer, {
-            contentType: req.file.mimetype, upsert: true,
-        });
-        const { data: voterUrlData } = supabase.storage.from('knowledge-files').getPublicUrl(voterFileName);
-        try { fs.unlinkSync(req.file.path); } catch { }
+            await supabase.storage.from('knowledge-files').upload(voterFileName, voterBuffer, {
+                contentType: req.file.mimetype, upsert: true,
+            });
+            const { data: voterUrlData } = supabase.storage.from('knowledge-files').getPublicUrl(voterFileName);
+            voterPhotoUrlFinal = voterUrlData.publicUrl;
+            try { fs.unlinkSync(req.file.path); } catch { }
+        }
 
         // Criar registro de submission (status: processing)
         const submission = {
@@ -393,7 +455,7 @@ router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo')
             tenant_id: campaign.tenant_id,
             template_id,
             voter_name: voter_name || 'Anônimo',
-            voter_photo_url: voterUrlData.publicUrl,
+            voter_photo_url: voterPhotoUrlFinal,
             result_url: null,
             status: 'processing',
             created_at: new Date().toISOString(),
@@ -408,8 +470,28 @@ router.post('/photo-campaigns/public/:shareToken/submit', upload.single('photo')
             message: 'Sua foto está sendo processada! Aguarde alguns instantes...',
         });
 
+        // Montar coordenadas customizadas se enviadas
+        const customCoords = (voter_x !== undefined && voter_y !== undefined) ? {
+            x: Number(voter_x),
+            y: Number(voter_y),
+            w: Number(voter_w),
+            h: Number(voter_h),
+        } : null;
+
+        const isMirror = voter_mirror === true || voter_mirror === 'true';
+
         // ── PROCESSAMENTO EM BACKGROUND ──────────────────────
-        processComposition(campaign, template, voterBuffer, submissionId, voter_name, voterUrlData.publicUrl).catch(err => {
+        processComposition(
+            campaign,
+            template,
+            voterBuffer,
+            submissionId,
+            voter_name || 'Anônimo',
+            voterPhotoUrlFinal,
+            customCoords,
+            !!voter_no_bg_url,
+            isMirror
+        ).catch(err => {
             console.error('❌ [PhotoComposer] Erro no processamento:', err.message);
         });
 
@@ -478,11 +560,31 @@ router.get('/photo-campaigns/:id/submissions', requireAuth, async (req, res) => 
 // PROCESSAMENTO DE COMPOSIÇÃO (Background)
 // ═══════════════════════════════════════════════════════════════
 
-async function processComposition(campaign, template, voterBuffer, submissionId, voterName, voterPhotoUrl = null) {
+async function processComposition(
+    campaign,
+    template,
+    voterBuffer,
+    submissionId,
+    voterName,
+    voterPhotoUrl = null,
+    customCoords = null,
+    skipRemoveBg = false,
+    mirror = false
+) {
     const supabase = getSupabase();
 
     try {
         console.log(`📸 [PhotoComposer] Processando submissão ${submissionId}...`);
+
+        let finalVoterBuffer = voterBuffer;
+        if (!finalVoterBuffer && voterPhotoUrl) {
+            console.log(`   📥 Baixando imagem sem fundo do eleitor: ${voterPhotoUrl}`);
+            const resp = await fetch(voterPhotoUrl);
+            if (!resp.ok) throw new Error(`Falha ao carregar imagem sem fundo: ${resp.status}`);
+            finalVoterBuffer = Buffer.from(await resp.arrayBuffer());
+        }
+
+        if (!finalVoterBuffer) throw new Error('Não foi possível obter imagem da foto do eleitor');
 
         // Baixar a imagem template
         let templateBuffer;
@@ -497,11 +599,14 @@ async function processComposition(campaign, template, voterBuffer, submissionId,
         // Compor a foto
         const result = await composePhoto({
             templateBuffer,
-            voterBuffer,
+            voterBuffer: finalVoterBuffer,
             voterPhotoUrl,
             voterName,
             sceneAnalysis: template.scene_analysis,
             templateBase64: `data:image/png;base64,${templateBuffer.toString('base64')}`,
+            customCoords,
+            skipRemoveBg,
+            mirror,
         });
 
         // Salvar resultado no Storage

@@ -15,12 +15,21 @@ export default function PhotoCampaignPublic() {
     const [voterName, setVoterName] = useState('');
     const [voterPhoto, setVoterPhoto] = useState(null);
     const [voterPreview, setVoterPreview] = useState(null);
+
+    // Novos estados do Editor Interativo
+    const [removingBg, setRemovingBg] = useState(false);
+    const [noBgUrl, setNoBgUrl] = useState(null);
+    const [coords, setCoords] = useState({ x: 80, y: 70, width: 140, height: 200 });
+    const [mirror, setMirror] = useState(false);
+
     const [submitting, setSubmitting] = useState(false);
     const [submission, setSubmission] = useState(null);
     const [result, setResult] = useState(null);
-    const [step, setStep] = useState(1); // 1=choose, 2=upload, 3=processing, 4=done
+    const [step, setStep] = useState(1); // 1=choose, 2=upload, 3=processing, 4=done, 5=editor
     const fileInputRef = useRef(null);
     const pollingRef = useRef(null);
+    const viewAreaRef = useRef(null);
+    const dragStartRef = useRef(null);
 
     // Determinar API baseURL
     const apiBase = (() => {
@@ -75,22 +84,128 @@ export default function PhotoCampaignPublic() {
         reader.readAsDataURL(file);
     }
 
-    // ── ENVIAR PARA COMPOSIÇÃO ─────────────────────────────
-    async function handleSubmit() {
+    // ── REMOVER FUNDO ANTES DE EDITAR ──────────────────────
+    async function handleRemoveBg() {
         if (!selectedTemplate || !voterPhoto) return;
+
+        try {
+            setRemovingBg(true);
+            setError(null);
+
+            const formData = new FormData();
+            formData.append('photo', voterPhoto);
+
+            const resp = await fetch(`${apiBase}/photo-campaigns/public/${shareToken}/remove-bg`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!resp.ok) {
+                let errMsg = 'Não foi possível remover o fundo da imagem.';
+                try {
+                    const errData = await resp.json();
+                    errMsg = errData.error || errMsg;
+                } catch { }
+                throw new Error(errMsg);
+            }
+
+            const data = await resp.json();
+            setNoBgUrl(data.voter_no_bg_url);
+
+            // Carregar silhueta para determinar enquadramento inicial proporcional
+            const img = new Image();
+            img.src = data.voter_no_bg_url;
+            img.onload = () => {
+                const aspect = img.naturalWidth / img.naturalHeight;
+                const viewHeight = 200;
+                const viewWidth = Math.round(viewHeight * aspect);
+
+                // Centralizar horizontalmente
+                const initialX = Math.round((320 - viewWidth) / 2);
+                const initialY = 70; // 70px do topo do enquadramento
+
+                setCoords({
+                    x: initialX,
+                    y: initialY,
+                    width: viewWidth,
+                    height: viewHeight
+                });
+
+                setStep(5); // vai para o editor interativo
+            };
+        } catch (err) {
+            console.error('Erro na remoção de fundo:', err);
+            setError(err.message || 'Erro ao remover fundo. Tente enviar outra foto.');
+        } finally {
+            setRemovingBg(false);
+        }
+    }
+
+    // ── ZOOM NO EDITOR MANTENDO O CENTRO ───────────────────
+    function handleZoomChange(e) {
+        const newHeight = Number(e.target.value);
+        const aspect = coords.width / coords.height;
+        const newWidth = Math.round(newHeight * aspect);
+
+        const diffW = newWidth - coords.width;
+        const diffH = newHeight - coords.height;
+
+        setCoords(prev => ({
+            ...prev,
+            x: Math.round(prev.x - diffW / 2),
+            y: Math.round(prev.y - diffH / 2),
+            width: newWidth,
+            height: newHeight,
+        }));
+    }
+
+    function handleBackFromEditor() {
+        setStep(2);
+        setNoBgUrl(null);
+    }
+
+    // ── ENVIAR PARA COMPOSIÇÃO COM COORDENADAS ─────────────
+    async function handleSubmit() {
+        if (!selectedTemplate) return;
 
         try {
             setSubmitting(true);
             setStep(3);
 
-            const formData = new FormData();
-            formData.append('photo', voterPhoto);
-            formData.append('template_id', selectedTemplate);
-            formData.append('voter_name', voterName || 'Apoiador');
+            // Obter dimensões reais do template
+            const template = (campaign.templates || []).find(t => t.id === selectedTemplate);
+            const templateImg = new Image();
+            templateImg.src = template.url;
+
+            await new Promise((resolve) => {
+                templateImg.onload = resolve;
+                templateImg.onerror = resolve; // prossegue mesmo se falhar
+            });
+
+            const W = templateImg.naturalWidth || 1024;
+            const H = templateImg.naturalHeight || 1024;
+
+            // A nossa área visível no editor é de 320 x 320 px
+            const scaleX = W / 320;
+            const scaleY = H / 320;
+
+            const bodyData = {
+                template_id: selectedTemplate,
+                voter_name: voterName || 'Apoiador',
+                voter_no_bg_url: noBgUrl,
+                voter_x: Math.round(coords.x * scaleX),
+                voter_y: Math.round(coords.y * scaleY),
+                voter_w: Math.round(coords.width * scaleX),
+                voter_h: Math.round(coords.height * scaleY),
+                voter_mirror: mirror
+            };
 
             const resp = await fetch(`${apiBase}/photo-campaigns/public/${shareToken}/submit`, {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(bodyData),
             });
 
             if (!resp.ok) {
@@ -107,7 +222,7 @@ export default function PhotoCampaignPublic() {
         } catch (err) {
             console.error('Erro ao submeter foto:', err);
             setError(err.message || 'Erro de conexão. Verifique sua internet e tente novamente.');
-            setStep(2);
+            setStep(5); // Retorna para o editor
         } finally {
             setSubmitting(false);
         }
@@ -160,6 +275,8 @@ export default function PhotoCampaignPublic() {
         setSelectedTemplate(campaign?.templates?.length === 1 ? campaign.templates[0].id : null);
         setVoterPhoto(null);
         setVoterPreview(null);
+        setNoBgUrl(null);
+        setMirror(false);
         setSubmission(null);
         setResult(null);
         setError(null);
@@ -193,6 +310,8 @@ export default function PhotoCampaignPublic() {
             </div>
         );
     }
+
+    const activeStep = step === 5 ? 2 : step;
 
     return (
         <div style={styles.fullPage}>
@@ -230,17 +349,17 @@ export default function PhotoCampaignPublic() {
                         <React.Fragment key={s.num}>
                             {i > 0 && <div style={{
                                 ...styles.stepLine,
-                                background: step >= s.num ? '#8B5CF6' : '#1E293B'
+                                background: activeStep >= s.num ? '#8B5CF6' : '#1E293B'
                             }} />}
                             <div style={{
                                 ...styles.stepDot,
-                                background: step >= s.num
+                                background: activeStep >= s.num
                                     ? 'linear-gradient(135deg, #8B5CF6, #EC4899)'
                                     : '#1E293B',
-                                border: step >= s.num ? 'none' : '2px solid #334155',
-                                color: step >= s.num ? '#fff' : '#475569',
+                                border: activeStep >= s.num ? 'none' : '2px solid #334155',
+                                color: activeStep >= s.num ? '#fff' : '#475569',
                             }}>
-                                {step > s.num ? '✓' : s.num}
+                                {activeStep > s.num ? '✓' : s.num}
                             </div>
                         </React.Fragment>
                     ))}
@@ -248,7 +367,7 @@ export default function PhotoCampaignPublic() {
                 <div style={styles.stepsLabels}>
                     {['Escolha', 'Sua Foto', 'IA', 'Pronto!'].map((label, i) => (
                         <span key={i} style={{
-                            color: step >= i + 1 ? '#8B5CF6' : '#475569',
+                            color: activeStep >= i + 1 ? '#8B5CF6' : '#475569',
                             fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
                             letterSpacing: '0.05em', textAlign: 'center', flex: 1
                         }}>
@@ -379,16 +498,219 @@ export default function PhotoCampaignPublic() {
                                 ← Voltar
                             </button>
                             <button
-                                onClick={handleSubmit}
-                                disabled={!voterPhoto || submitting}
+                                onClick={handleRemoveBg}
+                                disabled={!voterPhoto || removingBg}
                                 style={{
                                     ...styles.primaryButton,
                                     flex: 1,
-                                    opacity: (!voterPhoto || submitting) ? 0.5 : 1,
-                                    cursor: (!voterPhoto || submitting) ? 'not-allowed' : 'pointer',
+                                    opacity: (!voterPhoto || removingBg) ? 0.5 : 1,
+                                    cursor: (!voterPhoto || removingBg) ? 'not-allowed' : 'pointer',
                                 }}
                             >
-                                {submitting ? 'Enviando...' : '✨ Gerar Minha Foto'}
+                                {removingBg ? 'Identificando silhueta...' : '✨ Ajustar Enquadramento'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── STEP 5: Editor de Enquadramento ──────────────── */}
+                {step === 5 && noBgUrl && (
+                    <div style={{ animation: 'fadeIn 0.4s ease' }}>
+                        <h2 style={styles.stepTitle}>Ajuste sua Foto</h2>
+                        <p style={styles.stepDesc}>
+                            Arraste ou use os botões para se enquadrar perfeitamente no modelo
+                        </p>
+
+                        {/* Área do Canvas Interativo */}
+                        <div style={editorStyles.canvasWrapper}>
+                            <div
+                                ref={viewAreaRef}
+                                style={{
+                                    ...editorStyles.canvasContainer,
+                                    backgroundImage: `url(${(campaign?.templates || []).find(t => t.id === selectedTemplate)?.url})`,
+                                }}
+                            >
+                                {/* Silhueta do Eleitor (Móvel) */}
+                                <img
+                                    src={noBgUrl}
+                                    alt="Sua Foto sem fundo"
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${coords.x}px`,
+                                        top: `${coords.y}px`,
+                                        width: `${coords.width}px`,
+                                        height: `${coords.height}px`,
+                                        transform: mirror ? 'scaleX(-1)' : 'none',
+                                        cursor: 'move',
+                                        userSelect: 'none',
+                                        touchAction: 'none',
+                                        zIndex: 10,
+                                        transition: dragStartRef.current ? 'none' : 'transform 0.1s ease',
+                                    }}
+                                    onMouseDown={e => {
+                                        e.preventDefault();
+                                        const startX = e.clientX;
+                                        const startY = e.clientY;
+                                        const initialX = coords.x;
+                                        const initialY = coords.y;
+                                        dragStartRef.current = true;
+
+                                        const onMouseMove = ev => {
+                                            const dx = ev.clientX - startX;
+                                            const dy = ev.clientY - startY;
+                                            setCoords(prev => ({
+                                                ...prev,
+                                                x: Math.round(initialX + dx),
+                                                y: Math.round(initialY + dy),
+                                            }));
+                                        };
+                                        const onMouseUp = () => {
+                                            dragStartRef.current = null;
+                                            window.removeEventListener('mousemove', onMouseMove);
+                                            window.removeEventListener('mouseup', onMouseUp);
+                                        };
+                                        window.addEventListener('mousemove', onMouseMove);
+                                        window.addEventListener('mouseup', onMouseUp);
+                                    }}
+                                    onTouchStart={e => {
+                                        const touch = e.touches[0];
+                                        const startX = touch.clientX;
+                                        const startY = touch.clientY;
+                                        const initialX = coords.x;
+                                        const initialY = coords.y;
+                                        dragStartRef.current = true;
+
+                                        const onTouchMove = ev => {
+                                            const t = ev.touches[0];
+                                            const dx = t.clientX - startX;
+                                            const dy = t.clientY - startY;
+                                            setCoords(prev => ({
+                                                ...prev,
+                                                x: Math.round(initialX + dx),
+                                                y: Math.round(initialY + dy),
+                                            }));
+                                        };
+                                        const onTouchEnd = () => {
+                                            dragStartRef.current = null;
+                                            window.removeEventListener('touchmove', onTouchMove);
+                                            window.removeEventListener('touchend', onTouchEnd);
+                                        };
+                                        window.addEventListener('touchmove', onTouchMove, { passive: true });
+                                        window.addEventListener('touchend', onTouchEnd);
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Controles do Editor */}
+                        <div style={editorStyles.controlsCard}>
+                            {/* Zoom Slider */}
+                            <div style={editorStyles.controlGroup}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <span style={editorStyles.controlLabel}>🔍 Tamanho da Foto</span>
+                                    <span style={{ color: '#8B5CF6', fontSize: '13px', fontWeight: 700 }}>
+                                        {Math.round((coords.height / 200) * 100)}%
+                                    </span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="60"
+                                    max="360"
+                                    value={coords.height}
+                                    onChange={handleZoomChange}
+                                    style={editorStyles.slider}
+                                />
+                            </div>
+
+                            {/* Botões direcionais e espelhamento */}
+                            <div style={editorStyles.actionsRow}>
+                                <div style={editorStyles.dpad}>
+                                    <button
+                                        onClick={() => setCoords(prev => ({ ...prev, y: prev.y - 6 }))}
+                                        style={editorStyles.dpadBtn}
+                                        title="Subir"
+                                    >
+                                        ▲
+                                    </button>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => setCoords(prev => ({ ...prev, x: prev.x - 6 }))}
+                                            style={editorStyles.dpadBtn}
+                                            title="Esquerda"
+                                        >
+                                            ◀
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const aspect = coords.width / coords.height;
+                                                const defaultH = 200;
+                                                const defaultW = Math.round(defaultH * aspect);
+                                                setCoords({
+                                                    x: Math.round((320 - defaultW) / 2),
+                                                    y: 70,
+                                                    width: defaultW,
+                                                    height: defaultH
+                                                });
+                                            }}
+                                            style={editorStyles.dpadResetBtn}
+                                            title="Centralizar"
+                                        >
+                                            🎯
+                                        </button>
+                                        <button
+                                            onClick={() => setCoords(prev => ({ ...prev, x: prev.x + 6 }))}
+                                            style={editorStyles.dpadBtn}
+                                            title="Direita"
+                                        >
+                                            ▶
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={() => setCoords(prev => ({ ...prev, y: prev.y + 6 }))}
+                                        style={editorStyles.dpadBtn}
+                                        title="Descer"
+                                    >
+                                        ▼
+                                    </button>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
+                                    <button
+                                        onClick={() => setMirror(!mirror)}
+                                        style={{
+                                            ...editorStyles.utilityBtn,
+                                            border: mirror ? '1px solid #8B5CF6' : '1px solid rgba(255,255,255,0.1)',
+                                            background: mirror ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                                            color: mirror ? '#8B5CF6' : '#94A3B8'
+                                        }}
+                                    >
+                                        Inverter ⇄
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {error && (
+                            <div style={styles.errorBanner}>
+                                ⚠️ {error}
+                                <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', marginLeft: '8px', fontWeight: 700 }}>✕</button>
+                            </div>
+                        )}
+
+                        {/* Botões do rodape */}
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                            <button onClick={handleBackFromEditor} style={styles.secondaryButton}>
+                                ← Outra Foto
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={submitting}
+                                style={{
+                                    ...styles.primaryButton,
+                                    flex: 1,
+                                }}
+                            >
+                                {submitting ? 'Criando Foto...' : '✨ Confirmar & Gerar'}
                             </button>
                         </div>
                     </div>
@@ -716,4 +1038,97 @@ const styles = {
     errorIcon: {
         fontSize: '48px', marginBottom: '16px',
     },
+};
+
+const editorStyles = {
+    canvasWrapper: {
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: '20px',
+    },
+    canvasContainer: {
+        width: '320px',
+        height: '320px',
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: '16px',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        border: '3px solid rgba(139,92,246,0.3)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        touchAction: 'none',
+    },
+    controlsCard: {
+        background: '#1E293B',
+        borderRadius: '16px',
+        padding: '16px',
+        border: '1px solid rgba(255,255,255,0.05)',
+        marginBottom: '20px',
+    },
+    controlGroup: {
+        marginBottom: '16px',
+    },
+    controlLabel: {
+        color: '#94A3B8',
+        fontSize: '13px',
+        fontWeight: 600,
+    },
+    slider: {
+        width: '100%',
+        height: '6px',
+        borderRadius: '3px',
+        background: '#0F172A',
+        outline: 'none',
+        WebkitAppearance: 'none',
+        accentColor: '#8B5CF6',
+    },
+    actionsRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '16px',
+    },
+    dpad: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4px',
+    },
+    dpadBtn: {
+        width: '36px',
+        height: '36px',
+        borderRadius: '8px',
+        border: 'none',
+        background: '#334155',
+        color: '#fff',
+        fontSize: '14px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'background 0.2s',
+    },
+    dpadResetBtn: {
+        width: '36px',
+        height: '36px',
+        borderRadius: '8px',
+        border: '1px solid rgba(139,92,246,0.2)',
+        background: '#0F172A',
+        color: '#8B5CF6',
+        fontSize: '14px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'background 0.2s',
+    },
+    utilityBtn: {
+        padding: '10px 16px',
+        borderRadius: '10px',
+        fontSize: '13px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        whiteSpace: 'nowrap',
+    }
 };

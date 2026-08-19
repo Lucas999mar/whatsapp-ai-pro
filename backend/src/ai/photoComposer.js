@@ -302,6 +302,9 @@ async function composePhoto({
     size = '1024x1024',
     apiKey = null,
     voterName = null,
+    customCoords = null, // { x: number, y: number, w: number, h: number }
+    skipRemoveBg = false,
+    mirror = false,
 }) {
     console.log('📸 [PhotoComposer] Iniciando composição...');
 
@@ -324,7 +327,7 @@ async function composePhoto({
     }
 
     // 2. Remover fundo do eleitor
-    const processedVoterBuffer = await removeVoterBackground(voterBuffer);
+    const processedVoterBuffer = skipRemoveBg ? voterBuffer : await removeVoterBackground(voterBuffer);
 
     // 3. Metadados do template
     const templatePng = await sharp(templateBuffer).ensureAlpha().png().toBuffer();
@@ -357,64 +360,87 @@ async function composePhoto({
     const bannerHeight = Math.round(H * 0.25); // banner inferior (textos, logos)
     const usableHeight = H - bannerHeight;
 
-    let targetVoterH;
-    let maxW;
     let voterX;
     let voterY;
     let finalVoterBuffer;
 
-    if (!hasCandidate) {
-        // MODO B: Apenas Logo (Solo)
-        // O eleitor deve ficar centralizado e recortado acima do nome ("Cesinha" fica a ~53% de H do topo)
-        // Reduzimos a altura útil ocupada para cerca de 44% do canvas para não sobrepor o nome
-        targetVoterH = Math.round(H * 0.44);
-        const voterAspect = voterMeta.width / voterMeta.height;
-        let finalVoterH = targetVoterH;
-        let finalVoterW = Math.round(finalVoterH * voterAspect);
+    if (customCoords) {
+        // MODO CUSTOMIZADO (Vindo do Editor de Mover/Redimensionar do Frontend)
+        const finalVoterW = Math.round(customCoords.w);
+        const finalVoterH = Math.round(customCoords.h);
 
-        const maxCenterW = Math.round(W * 0.48);
-        if (finalVoterW > maxCenterW) {
-            finalVoterW = maxCenterW;
-            finalVoterH = Math.round(finalVoterW / voterAspect);
-        }
-
-        // Redimensiona o eleitor
         const resizedTemp = await sharp(trimmedVoter)
             .resize(finalVoterW, finalVoterH, { fit: 'fill' })
             .png()
             .toBuffer();
 
-        // Aplica fade suave (gradient alpha) na base da imagem do eleitor para mesclar com o azul antes do nome
-        finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
-        voterX = Math.round((W - finalVoterW) / 2);
-        voterY = Math.round(H * 0.08); // Cabeça alinhada no topo
-        console.log(`   🎯 Modo SOLO (Sem candidato) -> Eleitor Centro: (${voterX}, ${voterY})`);
-    } else {
-        // MODO A: Com candidato na imagem
-        targetVoterH = Math.round(usableHeight * 0.88);
-        const voterAspect = voterMeta.width / voterMeta.height;
-        let finalVoterH = targetVoterH;
-        let finalVoterW = Math.round(finalVoterH * voterAspect);
-
-        maxW = Math.round(W * 0.48);
-        if (finalVoterW > maxW) {
-            finalVoterW = maxW;
-            finalVoterH = Math.round(finalVoterW / voterAspect);
-        }
-
-        finalVoterBuffer = await sharp(trimmedVoter)
-            .resize(finalVoterW, finalVoterH, { fit: 'fill' })
-            .png()
-            .toBuffer();
-
-        if (isVoterOnLeft) {
-            voterX = Math.round(W * 0.015); // se na esquerda, alinha próximo à borda esquerda
+        // Se for Modo SOLO/B e quisermos aplicar o fade suave automático na base:
+        if (!hasCandidate) {
+            finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
         } else {
-            // Se na direita, alinha próximo à borda direita, evitando ficar escondido atrás da cabeça do candidato
-            voterX = W - finalVoterW - Math.round(W * 0.015);
+            finalVoterBuffer = resizedTemp;
         }
-        voterY = Math.round(H * 0.12); // Cabeça ligeiramente abaixo da dele
-        console.log(`   👥 Modo DUPLA (Com candidato) -> Eleitor Lateral: (${voterX}, ${voterY})`);
+
+        voterX = Math.round(customCoords.x);
+        voterY = Math.round(customCoords.y);
+        console.log(`   📍 Eleitor (Custom Coords): (${voterX}, ${voterY}) -> ${finalVoterW}x${finalVoterH}`);
+    } else {
+        // MODO AUTOMÁTICO (Sem editor)
+        let targetVoterH;
+        let maxW;
+
+        if (!hasCandidate) {
+            // MODO B: Apenas Logo (Solo)
+            targetVoterH = Math.round(H * 0.44);
+            const voterAspect = voterMeta.width / voterMeta.height;
+            let finalVoterH = targetVoterH;
+            let finalVoterW = Math.round(finalVoterH * voterAspect);
+
+            const maxCenterW = Math.round(W * 0.48);
+            if (finalVoterW > maxCenterW) {
+                finalVoterW = maxCenterW;
+                finalVoterH = Math.round(finalVoterW / voterAspect);
+            }
+
+            const resizedTemp = await sharp(trimmedVoter)
+                .resize(finalVoterW, finalVoterH, { fit: 'fill' })
+                .png()
+                .toBuffer();
+
+            finalVoterBuffer = await applyBottomFade(resizedTemp, finalVoterW, finalVoterH);
+            voterX = Math.round((W - finalVoterW) / 2);
+            voterY = Math.round(H * 0.08); // Cabeça alinhada no topo
+            console.log(`   🎯 Modo SOLO (Sem candidato) -> Eleitor Centro: (${voterX}, ${voterY})`);
+        } else {
+            // MODO A: Com candidato na imagem
+            targetVoterH = Math.round(usableHeight * 0.88);
+            const voterAspect = voterMeta.width / voterMeta.height;
+            let finalVoterH = targetVoterH;
+            let finalVoterW = Math.round(finalVoterH * voterAspect);
+
+            maxW = Math.round(W * 0.48);
+            if (finalVoterW > maxW) {
+                finalVoterW = maxW;
+                finalVoterH = Math.round(finalVoterW / voterAspect);
+            }
+
+            finalVoterBuffer = await sharp(trimmedVoter)
+                .resize(finalVoterW, finalVoterH, { fit: 'fill' })
+                .png()
+                .toBuffer();
+
+            if (isVoterOnLeft) {
+                voterX = Math.round(W * 0.015); // se na esquerda, alinha próximo à borda esquerda
+            } else {
+                voterX = W - finalVoterW - Math.round(W * 0.015);
+            }
+            voterY = Math.round(H * 0.12); // Cabeça ligeiramente abaixo da dele
+            console.log(`   👥 Modo DUPLA (Com candidato) -> Eleitor Lateral: (${voterX}, ${voterY})`);
+        }
+    }
+
+    if (mirror) {
+        finalVoterBuffer = await sharp(finalVoterBuffer).flop().png().toBuffer();
     }
 
     const finalVoterMeta = await sharp(finalVoterBuffer).metadata();
@@ -545,4 +571,5 @@ module.exports = {
     composePhoto,
     saveComposedImage,
     buildCompositionPrompt,
+    removeVoterBackground,
 };
