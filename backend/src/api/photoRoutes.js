@@ -487,8 +487,8 @@ async function processComposition(campaign, template, voterBuffer, submissionId,
         // Baixar a imagem template
         let templateBuffer;
         if (template.url) {
-            const fetch = (await import('node-fetch')).default;
             const resp = await fetch(template.url);
+            if (!resp.ok) throw new Error(`Erro ao baixar template: ${resp.status}`);
             templateBuffer = Buffer.from(await resp.arrayBuffer());
         }
 

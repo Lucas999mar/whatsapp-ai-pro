@@ -55,8 +55,9 @@ export default function PhotoCampaignPublic() {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Validar tipo
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        // Validar tipo (inclui 'image/jpg' para compatibilidade mobile)
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(file.type) && !file.type.startsWith('image/')) {
             alert('Por favor, envie uma imagem JPG, PNG ou WebP.');
             return;
         }
@@ -68,6 +69,7 @@ export default function PhotoCampaignPublic() {
         }
 
         setVoterPhoto(file);
+        setError(null); // limpar erros anteriores
         const reader = new FileReader();
         reader.onload = (ev) => setVoterPreview(ev.target.result);
         reader.readAsDataURL(file);
@@ -92,8 +94,9 @@ export default function PhotoCampaignPublic() {
             });
 
             if (!resp.ok) {
-                const err = await resp.json();
-                throw new Error(err.error || 'Erro ao enviar foto');
+                let errMsg = 'Erro ao enviar foto';
+                try { const err = await resp.json(); errMsg = err.error || errMsg; } catch { }
+                throw new Error(errMsg);
             }
 
             const data = await resp.json();
@@ -102,7 +105,8 @@ export default function PhotoCampaignPublic() {
             // Iniciar polling para verificar status
             startPolling(data.id);
         } catch (err) {
-            setError(err.message);
+            console.error('Erro ao submeter foto:', err);
+            setError(err.message || 'Erro de conexão. Verifique sua internet e tente novamente.');
             setStep(2);
         } finally {
             setSubmitting(false);
@@ -357,7 +361,8 @@ export default function PhotoCampaignPublic() {
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/jpeg,image/png,image/webp"
+                            accept="image/jpeg,image/png,image/webp,image/*"
+                            capture="environment"
                             style={{ display: 'none' }}
                             onChange={handleFileSelect}
                         />

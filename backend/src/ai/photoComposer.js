@@ -1,89 +1,76 @@
 const OpenAI = require('openai');
 const config = require('../config/config');
-const fs = require('fs');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { createCanvas, loadImage } = require('canvas');
+const sharp = require('sharp');
 
 /**
  * Photo Composer — Motor de composição de fotos com candidato
  * 
- * Nova Abordagem (Fidelidade Máxima & Zero Hallucination):
- * 1. Analisa a cena (candidato) via OpenAI Vision para segmentação lógica (esquerda/direita).
- * 2. Remove o background do eleitor utilizando o modelo Inspyrenet-Rembg/BRIA-RMBG-2.0 via API do Gradio
- *    (com retentativas automáticas e 3 níveis de fallback escalonados).
- * 3. Com a biblioteca Canvas, gera uma composição onde o eleitor é inserido com drop shadow realista.
- * 4. Copia a faixa inferior do template por cima para garantir que rodapés e textos fiquem totalmente preservados.
- * 5. Bypassa totalmente o DALL-E para garantir que Nilton César e o eleitor tenham suas faces 100% originais.
+ * Abordagem (Fidelidade Máxima & Zero Hallucination):
+ * 1. Remove o background do eleitor via APIs gratuitas do HuggingFace.
+ * 2. Posiciona o eleitor ATRÁS do candidato (mesma altura).
+ * 3. Usa Chroma Key no template para tornar o fundo transparente,
+ *    permitindo que o eleitor apareça por detrás.
+ * 4. Toda manipulação é feita com sharp (sem canvas nativo).
  */
 
 // ── AUXILIAR: REMOÇÃO DE BACKGROUND ──────────────────────────
-/**
- * Remove o fundo de uma imagem via chamadas HTTP REST diretas aos Spaces do Gradio.
- * NÃO usa o SDK @gradio/client (instável em Node.js com conexões WebSocket).
- * Pipeline: leonelhs/rembg (CPU) → BRIA-RMBG-2.0 (GPU) → Inspyrenet (GPU)
- * Toda resposta é convertida para PNG via sharp (canvas não suporta webp).
- */
-async function removeVoterBackground(voterBuffer, voterPhotoUrl = null) {
+async function removeVoterBackground(voterBuffer) {
     console.log('   🤖 [PhotoComposer] Executando remoção de fundo da foto do eleitor...');
-    const sharp = require('sharp');
-    const fetch = (await import('node-fetch')).default;
-    const FormData = (await import('form-data')).default;
-    const maxRetries = 3;
+
+    const pngInput = await sharp(voterBuffer).png().toBuffer();
+    const maxRetries = 2;
     let lastError = null;
 
-    // Helper: upload de arquivo para o espaço Gradio e retorna o path temporário
     async function uploadToGradio(spaceUrl, buffer) {
-        const form = new FormData();
-        form.append('files', buffer, { filename: 'voter.png', contentType: 'image/png' });
+        const boundary = '----FormBoundary' + Date.now().toString(36);
+        const header = `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="voter.png"\r\nContent-Type: image/png\r\n\r\n`;
+        const footer = `\r\n--${boundary}--\r\n`;
+        const body = Buffer.concat([Buffer.from(header), buffer, Buffer.from(footer)]);
+
         const resp = await fetch(`${spaceUrl}/gradio_api/upload`, {
             method: 'POST',
-            body: form,
-            headers: form.getHeaders(),
+            headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+            body,
+            signal: AbortSignal.timeout(30000),
         });
         if (!resp.ok) throw new Error(`Upload falhou: ${resp.status} ${resp.statusText}`);
         const paths = await resp.json();
-        return paths[0]; // ex: "/tmp/gradio/abc123/voter.png"
+        return paths[0];
     }
 
-    // Helper: chama o endpoint /call/ do Gradio e faz polling até obter resultado
     async function callGradioApi(spaceUrl, apiName, data) {
-        // Passo 1: enviar requisição
         const callResp = await fetch(`${spaceUrl}/gradio_api/call${apiName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data }),
+            signal: AbortSignal.timeout(30000),
         });
         if (!callResp.ok) throw new Error(`Call falhou: ${callResp.status} ${callResp.statusText}`);
         const { event_id } = await callResp.json();
         if (!event_id) throw new Error('Sem event_id na resposta.');
 
-        // Passo 2: polling SSE para obter resultado (max 60s)
-        const resultResp = await fetch(`${spaceUrl}/gradio_api/call${apiName}/${event_id}`);
+        const resultResp = await fetch(`${spaceUrl}/gradio_api/call${apiName}/${event_id}`, {
+            signal: AbortSignal.timeout(90000),
+        });
         const text = await resultResp.text();
 
-        // Parsear SSE events
         const lines = text.split('\n');
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].startsWith('event: complete') || lines[i].startsWith('event:complete')) {
                 const dataLine = lines[i + 1];
-                if (dataLine && dataLine.startsWith('data:')) {
-                    const jsonStr = dataLine.replace(/^data:\s*/, '');
-                    const parsed = JSON.parse(jsonStr);
-                    return parsed;
-                }
+                if (dataLine && dataLine.startsWith('data:'))
+                    return JSON.parse(dataLine.replace(/^data:\s*/, ''));
             }
             if (lines[i].startsWith('event: error') || lines[i].startsWith('event:error')) {
-                const dataLine = lines[i + 1];
-                throw new Error('Gradio retornou erro: ' + (dataLine || 'desconhecido'));
+                throw new Error('Gradio retornou erro: ' + (lines[i + 1] || 'desconhecido'));
             }
         }
         throw new Error('Nenhum evento complete encontrado na resposta SSE.');
     }
 
-    // Helper: baixa a imagem resultante e converte para PNG via sharp
     async function downloadAndConvertToPng(imageUrl) {
-        const resp = await fetch(imageUrl);
+        const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
         if (!resp.ok) throw new Error(`Download falhou: ${resp.status}`);
         const rawBuffer = Buffer.from(await resp.arrayBuffer());
         const pngBuffer = await sharp(rawBuffer).png().toBuffer();
@@ -91,15 +78,11 @@ async function removeVoterBackground(voterBuffer, voterPhotoUrl = null) {
         return pngBuffer;
     }
 
-    // Helper: extrai URL absoluta do resultado Gradio
     function extractResultUrl(spaceUrl, resultData) {
         if (!resultData) return null;
-
-        // resultData pode ser: [{url, path}] ou [{url, path}, {url, path}]
         const items = Array.isArray(resultData) ? resultData : [resultData];
         for (const item of items) {
             if (item && typeof item === 'object') {
-                // Verificar se é um array aninhado
                 if (Array.isArray(item)) {
                     for (const sub of item) {
                         if (sub?.url) return sub.url.startsWith('http') ? sub.url : `${spaceUrl}${sub.url}`;
@@ -114,412 +97,348 @@ async function removeVoterBackground(voterBuffer, voterPhotoUrl = null) {
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        // ── TIER 1: leonelhs/rembg (CPU puro, sem limites de cota GPU) ──
+        // ── TIER 1: leonelhs/rembg ──
         try {
             const spaceUrl = 'https://leonelhs-rembg.hf.space';
-            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando leonelhs/rembg (CPU)...`);
-
-            const uploadedPath = await uploadToGradio(spaceUrl, voterBuffer);
-            const result = await callGradioApi(spaceUrl, '/predict', [
-                { path: uploadedPath },
-                'u2net'
-            ]);
-
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} — leonelhs/rembg (CPU)...`);
+            const uploadedPath = await uploadToGradio(spaceUrl, pngInput);
+            const result = await callGradioApi(spaceUrl, '/predict', [{ path: uploadedPath }, 'u2net']);
             const imageUrl = extractResultUrl(spaceUrl, result);
             if (imageUrl) {
-                console.log('   ✅ Remoção concluída via leonelhs/rembg (CPU).');
+                console.log('   ✅ Remoção concluída via leonelhs/rembg.');
                 return await downloadAndConvertToPng(imageUrl);
             }
-            throw new Error('Retorno inválido de leonelhs/rembg.');
+            throw new Error('Retorno inválido.');
         } catch (err) {
             lastError = err;
-            console.warn(`   ⚠️ Tier 1 (leonelhs/rembg) falhou:`, err.message);
+            console.warn(`   ⚠️ Tier 1 falhou:`, err.message);
         }
 
-        // ── TIER 2: briaai/BRIA-RMBG-2.0 (GPU) ──
+        // ── TIER 2: BRIA-RMBG-2.0 ──
         try {
             const spaceUrl = 'https://briaai-bria-rmbg-2-0.hf.space';
-            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando BRIA-RMBG-2.0...`);
-
-            const uploadedPath = await uploadToGradio(spaceUrl, voterBuffer);
-            const result = await callGradioApi(spaceUrl, '/image', [
-                { path: uploadedPath }
-            ]);
-
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} — BRIA-RMBG-2.0...`);
+            const uploadedPath = await uploadToGradio(spaceUrl, pngInput);
+            const result = await callGradioApi(spaceUrl, '/image', [{ path: uploadedPath }]);
             const imageUrl = extractResultUrl(spaceUrl, result);
             if (imageUrl) {
                 console.log('   ✅ Remoção concluída via BRIA RMBG 2.0.');
                 return await downloadAndConvertToPng(imageUrl);
             }
-            throw new Error('Retorno inválido do BRIA 2.0.');
+            throw new Error('Retorno inválido.');
         } catch (briaErr) {
             lastError = briaErr;
-            console.warn(`   ⚠️ Tier 2 (BRIA 2.0) falhou:`, briaErr.message);
+            console.warn(`   ⚠️ Tier 2 falhou:`, briaErr.message);
         }
 
-        // ── TIER 3: gokaygokay/Inspyrenet-Rembg (GPU) ──
+        // ── TIER 3: Inspyrenet ──
         try {
             const spaceUrl = 'https://gokaygokay-inspyrenet-rembg.hf.space';
-            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} usando Inspyrenet-Rembg...`);
-
-            const uploadedPath = await uploadToGradio(spaceUrl, voterBuffer);
-            const result = await callGradioApi(spaceUrl, '/predict', [
-                { path: uploadedPath },
-                'Default'
-            ]);
-
+            console.log(`   🤖 Tentativa ${attempt}/${maxRetries} — Inspyrenet...`);
+            const uploadedPath = await uploadToGradio(spaceUrl, pngInput);
+            const result = await callGradioApi(spaceUrl, '/predict', [{ path: uploadedPath }, 'Default']);
             const imageUrl = extractResultUrl(spaceUrl, result);
             if (imageUrl) {
                 console.log('   ✅ Remoção concluída via Inspyrenet.');
                 return await downloadAndConvertToPng(imageUrl);
             }
-            throw new Error('Retorno inválido do Inspyrenet.');
+            throw new Error('Retorno inválido.');
         } catch (inspErr) {
             lastError = inspErr;
-            console.warn(`   ⚠️ Tier 3 (Inspyrenet) falhou:`, inspErr.message);
+            console.warn(`   ⚠️ Tier 3 falhou:`, inspErr.message);
         }
 
         if (attempt < maxRetries) {
-            console.log('   ⏳ Aguardando 2 segundos antes da próxima rodada...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('   ⏳ Aguardando 3s antes da próxima rodada...');
+            await new Promise(r => setTimeout(r, 3000));
         }
     }
 
-    throw new Error('Erro ao remover o fundo da foto do eleitor nos servidores de IA. Detalhes: ' + (lastError?.message || lastError));
+    throw new Error('Não foi possível remover o fundo da foto. Tente novamente em alguns segundos. (' + (lastError?.message || '') + ')');
+}
+
+// ── CHROMA KEY VIA SHARP (pixel-level) ───────────────────────
+/**
+ * Torna transparente o fundo sólido do template (Chroma Key),
+ * preservando o candidato, banner inferior e elementos gráficos.
+ * Funciona processando os pixels raw via Buffer.
+ */
+async function chromaKeyTemplate(templateBuffer, bgR, bgG, bgB) {
+    const meta = await sharp(templateBuffer).metadata();
+    const W = meta.width;
+    const H = meta.height;
+
+    // Extrair pixels raw RGBA
+    const rawBuffer = await sharp(templateBuffer)
+        .ensureAlpha()
+        .raw()
+        .toBuffer();
+
+    const pixels = Buffer.from(rawBuffer); // cópia mutável
+    const bannerStart = H - Math.round(H * 0.25); // proteger 25% inferior (banner)
+
+    const threshLow = 35;
+    const threshHigh = 70;
+
+    for (let y = 0; y < bannerStart; y++) {
+        for (let x = 0; x < W; x++) {
+            const idx = (y * W + x) * 4;
+            const r = pixels[idx];
+            const g = pixels[idx + 1];
+            const b = pixels[idx + 2];
+            const a = pixels[idx + 3];
+
+            if (a === 0) continue;
+
+            const dR = r - bgR;
+            const dG = g - bgG;
+            const dB = b - bgB;
+            const dist = Math.sqrt(dR * dR + dG * dG + dB * dB);
+
+            if (dist < threshLow) {
+                pixels[idx + 3] = 0; // totalmente transparente
+            } else if (dist < threshHigh) {
+                const ratio = (dist - threshLow) / (threshHigh - threshLow);
+                pixels[idx + 3] = Math.round(ratio * a);
+            }
+        }
+    }
+
+    return sharp(pixels, { raw: { width: W, height: H, channels: 4 } })
+        .png()
+        .toBuffer();
 }
 
 // ── ANÁLISE DE CENA ──────────────────────────────────────────
-/**
- * Analisa a imagem template do candidato para extrair informações de cena
- */
 async function analyzeTemplateScene(imageBase64, apiKey = null) {
     const key = apiKey || config.openai.apiKey;
-    if (!key) throw new Error('Chave da API OpenAI não configurada.');
+    if (!key) return { person_position: 'center', available_space: 'left' };
 
-    const client = new OpenAI({ apiKey: key });
-
-    const response = await client.chat.completions.create({
-        model: config.openai.visionModel || 'gpt-4o-mini',
-        messages: [
-            {
-                role: 'system',
-                content: `You are a professional photographer and image composition expert. Analyze this image and provide a detailed technical description in JSON format:
-{
-  "scene_description": "Brief description of the scene",
-  "lighting": "Lighting direction, type (natural/studio/mixed), intensity, color temperature",
-  "camera_angle": "Eye level, low angle, high angle, etc.",
-  "background": "Detailed background description",
-  "person_position": "Where the main person is positioned (left, center, right)",
-  "available_space": "Where there is space to add another person (left side, right side)",
-  "color_palette": "Dominant colors in the image",
-  "mood": "Overall mood/atmosphere",
-  "style": "Photo style (formal, casual, campaign, rally, etc.)",
-  "suggested_placement": "Best position and pose for adding a second person naturally"
-}
-Respond ONLY with valid JSON. Be extremely precise about lighting and positioning.`
-            },
-            {
-                role: 'user',
-                content: [
-                    { type: 'text', text: 'Analyze this campaign photo template for composition:' },
-                    { type: 'image_url', image_url: { url: imageBase64 } }
-                ]
-            }
-        ],
-        max_tokens: 800,
-        temperature: 0.3,
-    });
-
-    const content = response.choices[0].message.content;
     try {
-        let cleanContent = content.trim();
-        if (cleanContent.startsWith('```json')) {
-            cleanContent = cleanContent.substring(7);
-        }
-        if (cleanContent.endsWith('```')) {
-            cleanContent = cleanContent.substring(0, cleanContent.length - 3);
-        }
-        cleanContent = cleanContent.trim();
-        return JSON.parse(cleanContent);
-    } catch {
-        return { scene_description: content, lighting: 'unknown', available_space: 'right side', person_position: 'left' };
-    }
-}
-
-/**
- * Recorta as bordas transparentes ao redor de uma imagem (silhueta)
- * para obter a caixa delimitadora exata do eleitor e evitar miniaturização.
- */
-function trimTransparentBorders(img) {
-    try {
-        const tempCanvas = createCanvas(img.width, img.height);
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(img, 0, 0);
-
-        const imgData = tempCtx.getImageData(0, 0, img.width, img.height);
-        const data = imgData.data;
-        const width = img.width;
-        const height = img.height;
-
-        let minX = width;
-        let minY = height;
-        let maxX = -1;
-        let maxY = -1;
-
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const alpha = data[(y * width + x) * 4 + 3];
-                // Considerar pixels com opacidade > 15 (evita ruídos)
-                if (alpha > 15) {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
+        const client = new OpenAI({ apiKey: key });
+        const response = await client.chat.completions.create({
+            model: config.openai.visionModel || 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content: `You analyze campaign photos. Return ONLY valid JSON:
+{"person_position":"left","available_space":"right side"}
+Where person_position = where the main person is (left/center/right).`
+                },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Where is the main person in this photo?' },
+                        { type: 'image_url', image_url: { url: imageBase64 } }
+                    ]
                 }
-            }
-        }
+            ],
+            max_tokens: 150,
+            temperature: 0.1,
+        });
 
-        // Se for uma imagem vazia ou erro
-        if (maxX === -1 || maxY === -1) {
-            return img;
-        }
-
-        const cropWidth = maxX - minX + 1;
-        const cropHeight = maxY - minY + 1;
-
-        // Evitar recortes microscópicos por erro
-        if (cropWidth < 10 || cropHeight < 10) {
-            return img;
-        }
-
-        const croppedCanvas = createCanvas(cropWidth, cropHeight);
-        const croppedCtx = croppedCanvas.getContext('2d');
-        croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-
-        return croppedCanvas;
+        let c = response.choices[0].message.content.trim();
+        if (c.startsWith('```json')) c = c.substring(7);
+        if (c.startsWith('```')) c = c.substring(3);
+        if (c.endsWith('```')) c = c.substring(0, c.length - 3);
+        return JSON.parse(c.trim());
     } catch (err) {
-        console.warn('   ⚠️ Erro ao recortar bordas transparentes da foto do eleitor:', err.message);
-        return img;
+        console.log('   ⚠️ Análise de cena falhou, usando defaults:', err.message);
+        return { person_position: 'center', available_space: 'left' };
     }
 }
 
+// ── COMPOSIÇÃO DE FOTO (ELEITOR ATRÁS DO CANDIDATO) ──────────
 /**
- * Isola o candidato no template tornando transparentes todos os pixels
- * cuja cor esteja muito próxima da cor de fundo (Chroma Key dinâmico).
- */
-function isolateCandidate(templateImg, bgR, bgG, bgB) {
-    try {
-        const W = templateImg.width;
-        const H = templateImg.height;
-        const canvas = createCanvas(W, H);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(templateImg, 0, 0);
-
-        const imgData = ctx.getImageData(0, 0, W, H);
-        const data = imgData.data;
-
-        // O rodapé e o banner de nome (os 45% inferiores) devem permanecer intactos para não perder qualidade nem aparecer cortes
-        const bannerStart = H - Math.round(H * 0.45);
-
-        for (let y = 0; y < bannerStart; y++) {
-            for (let x = 0; x < W; x++) {
-                const idx = (y * W + x) * 4;
-                const r = data[idx];
-                const g = data[idx + 1];
-                const b = data[idx + 2];
-                const a = data[idx + 3];
-
-                if (a === 0) continue;
-
-                const dR = r - bgR;
-                const dG = g - bgG;
-                const dB = b - bgB;
-                const dist = Math.sqrt(dR * dR + dG * dG + dB * dB);
-
-                // Sensibilidade do Chroma Key
-                const threshLow = 30;
-                const threshHigh = 65;
-
-                if (dist < threshLow) {
-                    data[idx + 3] = 0;
-                } else if (dist < threshHigh) {
-                    const ratio = (dist - threshLow) / (threshHigh - threshLow);
-                    data[idx + 3] = Math.round(ratio * a);
-                }
-            }
-        }
-
-        ctx.putImageData(imgData, 0, 0);
-        return canvas;
-    } catch (err) {
-        console.warn('   ⚠️ Erro ao isolar candidato do template:', err.message);
-        return templateImg;
-    }
-}
-
-// ── COMPOSIÇÃO DE FOTO ───────────────────────────────────────
-/**
- * Compõe a foto do eleitor com a foto template do candidato
+ * Camadas (de baixo para cima):
+ *   1. Fundo sólido (cor amostrada do template)
+ *   2. Eleitor (sem fundo, com drop shadow) — mesma altura do candidato
+ *   3. Template com Chroma Key (fundo transparente, candidato opaco = eleitor fica "atrás")
+ *   4. Banner inferior original do template (sobrepõe tudo para preservar textos/logos)
  */
 async function composePhoto({
-    templateBuffer,    // Buffer da imagem template (candidato)
-    voterBuffer,       // Buffer da imagem do eleitor
-    voterPhotoUrl = null, // URL pública da foto do eleitor
-    sceneAnalysis,     // Análise prévia da cena (opcional)
-    templateBase64,    // Base64 do template para análise
+    templateBuffer,
+    voterBuffer,
+    voterPhotoUrl = null,
+    sceneAnalysis,
+    templateBase64,
     size = '1024x1024',
     apiKey = null,
-    voterName = null,  // Nome/título do apoiador
+    voterName = null,
 }) {
-    console.log('📸 [PhotoComposer] Iniciando composição de foto baseada em remoção de fundo...');
+    console.log('📸 [PhotoComposer] Iniciando composição (eleitor ATRÁS do candidato)...');
 
-    // 1. Analisar cena do template
+    // 1. Analisar cena
     let analysis = sceneAnalysis;
     if (!analysis && templateBase64) {
         console.log('   🔍 Analisando cena do template...');
-        try {
-            analysis = await analyzeTemplateScene(templateBase64, apiKey);
-            console.log('   ✅ Análise da cena concluída');
-        } catch (err) {
-            console.log('   ⚠️ Análise falhou, usando defaults:', err.message);
-            analysis = { person_position: 'left', available_space: 'right side' };
-        }
+        analysis = await analyzeTemplateScene(templateBase64, apiKey);
+        console.log('   ✅ Análise:', JSON.stringify(analysis));
     }
 
-    // Configurar lado em que o eleitor será posicionado
-    const candidatePos = String(analysis?.person_position || 'left').toLowerCase();
-    const spaceText = String(analysis?.available_space || 'right').toLowerCase();
-
-    let isVoterOnLeft = false;
-
+    const candidatePos = String(analysis?.person_position || 'center').toLowerCase();
+    let isVoterOnLeft;
     if (candidatePos.includes('left') || candidatePos.includes('esquerda')) {
         isVoterOnLeft = false;
     } else if (candidatePos.includes('right') || candidatePos.includes('direita')) {
         isVoterOnLeft = true;
     } else {
-        if (spaceText.includes('left') || spaceText.includes('esquerda')) {
-            isVoterOnLeft = true;
-        } else {
-            isVoterOnLeft = false;
+        isVoterOnLeft = true; // centro → voter à esquerda
+    }
+    console.log(`   👉 Eleitor: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'} (atrás do candidato)`);
+
+    // 2. Remover fundo do eleitor
+    const processedVoterBuffer = await removeVoterBackground(voterBuffer);
+
+    // 3. Metadados do template
+    // Converter template para PNG com alpha para garantir composição correta
+    const templatePng = await sharp(templateBuffer).ensureAlpha().png().toBuffer();
+    const templateMeta = await sharp(templatePng).metadata();
+    const W = templateMeta.width;
+    const H = templateMeta.height;
+    console.log(`   📐 Template: ${W}x${H}`);
+
+    // 4. Trimmar transparência do eleitor
+    let trimmedVoter;
+    try {
+        trimmedVoter = await sharp(processedVoterBuffer).trim().png().toBuffer();
+    } catch {
+        trimmedVoter = processedVoterBuffer; // se trim falhar, usa original
+    }
+    const voterMeta = await sharp(trimmedVoter).metadata();
+    console.log(`   📐 Eleitor (trimmed): ${voterMeta.width}x${voterMeta.height}`);
+
+    // 5. Amostrar cor de fundo do template
+    const sampleX = Math.max(0, W - 10);
+    const sampleY = Math.min(10, H - 1);
+    const samplePixel = await sharp(templatePng)
+        .extract({ left: sampleX, top: sampleY, width: 1, height: 1 })
+        .raw()
+        .toBuffer();
+    const bgR = samplePixel[0], bgG = samplePixel[1], bgB = samplePixel[2];
+    console.log(`   🎨 Cor de fundo: rgb(${bgR},${bgG},${bgB})`);
+
+    // 6. Calcular dimensões do eleitor
+    const bannerHeight = Math.round(H * 0.25); // banner inferior (textos, logos)
+    const usableHeight = H - bannerHeight;
+
+    // Eleitor ocupa ~80% da área útil em altura
+    const targetVoterH = Math.round(usableHeight * 0.82);
+    const voterScale = targetVoterH / voterMeta.height;
+    const targetVoterW = Math.round(voterMeta.width * voterScale);
+
+    // Limitar largura a 45% do template (não deve ficar maior que o candidato)
+    const maxW = Math.round(W * 0.45);
+    let finalVoterW = Math.min(targetVoterW, maxW);
+    let finalVoterH = Math.round(finalVoterW / (voterMeta.width / voterMeta.height));
+    if (finalVoterH < targetVoterH * 0.7) {
+        finalVoterH = targetVoterH;
+        finalVoterW = Math.round(finalVoterH * (voterMeta.width / voterMeta.height));
+    }
+
+    const resizedVoter = await sharp(trimmedVoter)
+        .resize(finalVoterW, finalVoterH, { fit: 'fill' })
+        .png()
+        .toBuffer();
+
+    // Posição
+    let voterX;
+    if (isVoterOnLeft) {
+        voterX = Math.round(W * 0.03);
+    } else {
+        voterX = W - finalVoterW - Math.round(W * 0.03);
+    }
+    // Base do eleitor alinhada com o topo do banner
+    const voterY = Math.max(0, usableHeight - finalVoterH);
+    console.log(`   📍 Eleitor: (${voterX}, ${voterY}) → ${finalVoterW}x${finalVoterH}`);
+
+    // 7. Chroma Key no template (tornar fundo transparente)
+    console.log('   🎯 Aplicando Chroma Key no template...');
+    const chromaTemplate = await chromaKeyTemplate(templatePng, bgR, bgG, bgB);
+
+    // 8. Extrair banda inferior (banner) do template ORIGINAL para cobrir cortes
+    const bannerBuffer = await sharp(templatePng)
+        .extract({ left: 0, top: H - bannerHeight, width: W, height: bannerHeight })
+        .png()
+        .toBuffer();
+
+    // 9. Criar sombra para o eleitor
+    const shadowBlur = Math.max(1, Math.round(W * 0.008));
+    const shadowOffset = Math.round(W * 0.004);
+    let shadowBuffer;
+    try {
+        shadowBuffer = await sharp(resizedVoter)
+            .composite([{
+                input: Buffer.from([0, 0, 0, 90]),
+                raw: { width: 1, height: 1, channels: 4 },
+                tile: true,
+                blend: 'in'
+            }])
+            .blur(shadowBlur)
+            .png()
+            .toBuffer();
+    } catch {
+        shadowBuffer = null; // sem sombra se falhar
+    }
+
+    // 10. Composição final
+    const composites = [];
+
+    // Sombra
+    if (shadowBuffer) {
+        const sx = voterX + shadowOffset;
+        const sy = voterY + shadowOffset;
+        if (sx >= 0 && sy >= 0 && sx + finalVoterW <= W && sy + finalVoterH <= H) {
+            composites.push({ input: shadowBuffer, left: sx, top: sy, blend: 'over' });
         }
     }
 
-    console.log(`   👉 Posicionamento do eleitor: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'} (Candidato está à: ${candidatePos})`);
+    // Eleitor sem fundo (Layer 2)
+    composites.push({
+        input: resizedVoter,
+        left: Math.max(0, Math.min(voterX, W - finalVoterW)),
+        top: Math.max(0, voterY),
+        blend: 'over',
+    });
 
-    // 2. Remover fundo do eleitor (se falhar definitivamente, lança erro para evitar Polaroid)
-    const processedVoterBuffer = await removeVoterBackground(voterBuffer, voterPhotoUrl);
+    // Template com Chroma Key (candidato na frente, fundo transparente) (Layer 3)
+    composites.push({ input: chromaTemplate, left: 0, top: 0, blend: 'over' });
 
-    // 3. Carregar imagens no Canvas
-    let templateImg, voterImgRaw;
-    try {
-        templateImg = await loadImage(templateBuffer);
-        voterImgRaw = await loadImage(processedVoterBuffer);
-    } catch (loadErr) {
-        console.error('   ❌ Erro ao decodificar imagens com canvas:', loadErr.message);
-        throw new Error('Falha ao decodificar os arquivos de imagem.');
-    }
+    // Banner inferior original (Layer 4 — cobre qualquer artefato no rodapé)
+    composites.push({
+        input: bannerBuffer,
+        left: 0,
+        top: H - bannerHeight,
+        blend: 'over',
+    });
 
-    const W = templateImg.width;
-    const H = templateImg.height;
+    const finalBuffer = await sharp({
+        create: {
+            width: W,
+            height: H,
+            channels: 4,
+            background: { r: bgR, g: bgG, b: bgB, alpha: 255 },
+        }
+    })
+        .composite(composites)
+        .png()
+        .toBuffer();
 
-    // Recorta as bordas transparentes para obter escala realista da silhueta do eleitor
-    const voterImg = trimTransparentBorders(voterImgRaw);
-
-    const canvas = createCanvas(W, H);
-    const ctx = canvas.getContext('2d');
-
-    // 1. Amostrar a cor de fundo original do template (canto superior direito)
-    const sampleCanvas = createCanvas(1, 1);
-    const sampleCtx = sampleCanvas.getContext('2d');
-    sampleCtx.drawImage(templateImg, W - 5, 5, 1, 1, 0, 0, 1, 1);
-    const px = sampleCtx.getImageData(0, 0, 1, 1).data;
-    const bgR = px[0];
-    const bgG = px[1];
-    const bgB = px[2];
-
-    // 2. Preencher o fundo do novo canvas com a cor original do template
-    ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
-    ctx.fillRect(0, 0, W, H);
-
-    // Ajustar proporção e limites do eleitor proporcionalmente ao template
-    let dx, dy, dw, dh;
-
-    // Bounding Box ajustada para o eleitor para bater exatamente no padrão do candidato (Tamanho de Estúdio)
-    const vw = Math.round(W * 0.52);
-    const vh = Math.round(H * 0.80);
-    const vy = Math.round(H * 0.08);
-    const vx = isVoterOnLeft ? Math.round(W * 0.04) : W - vw - Math.round(W * 0.04);
-
-    const voterAspect = voterImg.width / voterImg.height;
-
-    // Caso de sucesso (silhueta sem fundo):
-    // Ajustamos para caber de maneira proporcional na Bounding Box lateral
-    if (voterAspect > vw / vh) {
-        dw = vw;
-        dh = Math.round(vw / voterAspect);
-    } else {
-        dh = vh;
-        dw = Math.round(vh * voterAspect);
-    }
-
-    // Alinhamento vertical principal na cabeça (alinhado com o candidato no topo)
-    dy = vy;
-
-    // Ajuste proporcional para evitar que o eleitor flutue no fundo (garantir que chegue ao rodapé/banner)
-    const bannerHeight = Math.round(H * 0.45);
-    const bannerStart = H - bannerHeight;
-    const minHeightToReachBanner = bannerStart - vy;
-
-    if (dh < minHeightToReachBanner) {
-        // Multiplicamos largura e altura para esticar até a borda do banner, preservando aspect ratio e cabeça alinhada no topo
-        const scaleFactor = minHeightToReachBanner / dh;
-        dh = minHeightToReachBanner;
-        dw = Math.round(dw * scaleFactor);
-    }
-
-    // Alinhamento horizontal centralizado no lado correto
-    dx = vx + (vw - dw) / 2;
-
-    // 3. Desenhar a silhueta recortada do eleitor ao fundo (Layer 2)
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = Math.round(W * 0.015);
-    ctx.shadowOffsetX = Math.round(W * 0.006);
-    ctx.shadowOffsetY = Math.round(W * 0.006);
-    ctx.drawImage(voterImg, dx, dy, dw, dh);
-    ctx.restore();
-
-    // 4. Desenhar o template do candidato filtrado por cima (Layer 3)
-    const isolatedTemplate = isolateCandidate(templateImg, bgR, bgG, bgB);
-    ctx.drawImage(isolatedTemplate, 0, 0);
-
-    // Desenhar a banda inferior (rodapé) opaca para cobrir cortes do corpo (Layer 4)
-    ctx.drawImage(templateImg, 0, H - bannerHeight, W, bannerHeight, 0, H - bannerHeight, W, bannerHeight);
-
-    // O texto "[NOME] APOIA" foi removido a pedido expresso do usuário para manter o topo limpo.
-
-    const finalBuffer = canvas.toBuffer('image/png');
     const base64Str = finalBuffer.toString('base64');
+    console.log('   ✅ Composição concluída com sucesso!');
 
-    console.log('   ✅ Composição concluída com sucesso');
     return {
         url: `data:image/png;base64,${base64Str}`,
         base64: base64Str,
-        revisedPrompt: 'Canvas cutout composition',
+        revisedPrompt: 'Sharp composition – voter behind candidate',
     };
 }
 
-/**
- * Constrói o prompt (Mantido apenas por compatibilidade com a assinatura se necessário)
- */
 function buildCompositionPrompt(analysis = {}) {
-    return 'Canvas Cutout Composition';
+    return 'Sharp Cutout Composition';
 }
 
 // ── UPLOAD PARA SUPABASE ─────────────────────────────────────
-/**
- * Salva a imagem composta no Supabase Storage
- */
 async function saveComposedImage(imageData, campaignId, submissionId) {
     const { getSupabase } = require('../db/supabase');
     const supabase = getSupabase();
@@ -528,23 +447,17 @@ async function saveComposedImage(imageData, campaignId, submissionId) {
     if (imageData.base64) {
         buffer = Buffer.from(imageData.base64, 'base64');
     } else if (imageData.url && imageData.url.startsWith('data:')) {
-        const base64Data = imageData.url.split(',')[1];
-        buffer = Buffer.from(base64Data, 'base64');
+        buffer = Buffer.from(imageData.url.split(',')[1], 'base64');
     } else {
-        // Redownload
-        const fetch = (await import('node-fetch')).default;
         const resp = await fetch(imageData.url);
         buffer = Buffer.from(await resp.arrayBuffer());
     }
 
     const fileName = `photo_campaigns/${campaignId}/results/${submissionId}_${Date.now()}.png`;
 
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
         .from('knowledge-files')
-        .upload(fileName, buffer, {
-            contentType: 'image/png',
-            upsert: true,
-        });
+        .upload(fileName, buffer, { contentType: 'image/png', upsert: true });
 
     if (error) {
         console.error('❌ [PhotoComposer] Erro ao salvar no storage:', error.message);
