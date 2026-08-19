@@ -278,12 +278,11 @@ async function composePhoto({
 
     const candidatePos = String(analysis?.person_position || 'center').toLowerCase();
     let isVoterOnLeft;
-    if (candidatePos.includes('left') || candidatePos.includes('esquerda')) {
-        isVoterOnLeft = false;
-    } else if (candidatePos.includes('right') || candidatePos.includes('direita')) {
-        isVoterOnLeft = true;
+    if (candidatePos.includes('right') || candidatePos.includes('direita')) {
+        isVoterOnLeft = true; // candidato à direita → eleitor à esquerda
     } else {
-        isVoterOnLeft = true; // centro → voter à esquerda
+        // Candidato left/center → eleitor vai para a DIREITA (padrão mais natural)
+        isVoterOnLeft = false;
     }
     console.log(`   👉 Eleitor: ${isVoterOnLeft ? 'ESQUERDA' : 'DIREITA'} (atrás do candidato)`);
 
@@ -318,22 +317,21 @@ async function composePhoto({
     const bgR = samplePixel[0], bgG = samplePixel[1], bgB = samplePixel[2];
     console.log(`   🎨 Cor de fundo: rgb(${bgR},${bgG},${bgB})`);
 
-    // 6. Calcular dimensões do eleitor
+    // 6. Calcular dimensões do eleitor — MESMA ALTURA que o candidato
     const bannerHeight = Math.round(H * 0.25); // banner inferior (textos, logos)
     const usableHeight = H - bannerHeight;
 
-    // Eleitor ocupa ~80% da área útil em altura
-    const targetVoterH = Math.round(usableHeight * 0.82);
-    const voterScale = targetVoterH / voterMeta.height;
-    const targetVoterW = Math.round(voterMeta.width * voterScale);
+    // Eleitor ocupa ~95% da área útil em altura (mesma escala do candidato)
+    const targetVoterH = Math.round(usableHeight * 0.95);
+    const voterAspect = voterMeta.width / voterMeta.height;
+    let finalVoterH = targetVoterH;
+    let finalVoterW = Math.round(finalVoterH * voterAspect);
 
-    // Limitar largura a 45% do template (não deve ficar maior que o candidato)
-    const maxW = Math.round(W * 0.45);
-    let finalVoterW = Math.min(targetVoterW, maxW);
-    let finalVoterH = Math.round(finalVoterW / (voterMeta.width / voterMeta.height));
-    if (finalVoterH < targetVoterH * 0.7) {
-        finalVoterH = targetVoterH;
-        finalVoterW = Math.round(finalVoterH * (voterMeta.width / voterMeta.height));
+    // Limitar largura a 50% do template para não sobrepor demais o candidato
+    const maxW = Math.round(W * 0.50);
+    if (finalVoterW > maxW) {
+        finalVoterW = maxW;
+        finalVoterH = Math.round(finalVoterW / voterAspect);
     }
 
     const resizedVoter = await sharp(trimmedVoter)
@@ -341,14 +339,14 @@ async function composePhoto({
         .png()
         .toBuffer();
 
-    // Posição
+    // Posição horizontal
     let voterX;
     if (isVoterOnLeft) {
-        voterX = Math.round(W * 0.03);
+        voterX = Math.round(W * 0.02);
     } else {
-        voterX = W - finalVoterW - Math.round(W * 0.03);
+        voterX = W - finalVoterW - Math.round(W * 0.02);
     }
-    // Base do eleitor alinhada com o topo do banner
+    // Base do eleitor alinhada com o topo do banner (pés tocam o banner)
     const voterY = Math.max(0, usableHeight - finalVoterH);
     console.log(`   📍 Eleitor: (${voterX}, ${voterY}) → ${finalVoterW}x${finalVoterH}`);
 
