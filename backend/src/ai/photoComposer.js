@@ -18,7 +18,7 @@ const sharp = require('sharp');
 async function removeVoterBackground(voterBuffer) {
     console.log('   🤖 [PhotoComposer] Executando remoção de fundo da foto do eleitor...');
 
-    const pngInput = await sharp(voterBuffer).png().toBuffer();
+    const pngInput = await sharp(voterBuffer).rotate().png().toBuffer();
     const maxRetries = 2;
     let lastError = null;
 
@@ -390,7 +390,7 @@ async function composePhoto({
         const finalVoterW = Math.round(customCoords.w);
         const finalVoterH = Math.round(customCoords.h);
 
-        const resizedTemp = await sharp(trimmedVoter)
+        const resizedTemp = await sharp(processedVoterBuffer)
             .resize(finalVoterW, finalVoterH, { fit: 'fill' })
             .png()
             .toBuffer();

@@ -77,8 +77,57 @@ export default function PhotoCampaignPublic() {
         };
     }, [selectedTemplate, campaign]);
 
+    // Helper para redimensionar fotos grandes antes do upload
+    function compressImage(file, maxDimension = 1200) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxDimension || height > maxDimension) {
+                        if (width > height) {
+                            height = Math.round((height * maxDimension) / width);
+                            width = maxDimension;
+                        } else {
+                            width = Math.round((width * maxDimension) / height);
+                            height = maxDimension;
+                        }
+                    } else {
+                        resolve(file);
+                        return;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob((blob) => {
+                        if (!blob) {
+                            resolve(file);
+                            return;
+                        }
+                        const compressedFile = new File([blob], file.name || 'photo.jpeg', {
+                            type: 'image/jpeg',
+                            lastModified: Date.now(),
+                        });
+                        resolve(compressedFile);
+                    }, 'image/jpeg', 0.85);
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
+        });
+    }
+
     // ── UPLOAD DE FOTO DO ELEITOR ──────────────────────────
-    function handleFileSelect(e) {
+    async function handleFileSelect(e) {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -89,17 +138,24 @@ export default function PhotoCampaignPublic() {
             return;
         }
 
-        // Validar tamanho (max 20MB)
-        if (file.size > 20 * 1024 * 1024) {
-            alert('A imagem deve ter no máximo 20MB.');
-            return;
-        }
+        // Mostrar preview local rápido
+        const quickReader = new FileReader();
+        quickReader.onload = (ev) => setVoterPreview(ev.target.result);
+        quickReader.readAsDataURL(file);
 
-        setVoterPhoto(file);
-        setError(null); // limpar erros anteriores
-        const reader = new FileReader();
-        reader.onload = (ev) => setVoterPreview(ev.target.result);
-        reader.readAsDataURL(file);
+        setError(null);
+
+        try {
+            const processedFile = await compressImage(file, 1200);
+            setVoterPhoto(processedFile);
+
+            const finalReader = new FileReader();
+            finalReader.onload = (ev) => setVoterPreview(ev.target.result);
+            finalReader.readAsDataURL(processedFile);
+        } catch (err) {
+            console.error("Erro na compressão:", err);
+            setVoterPhoto(file);
+        }
     }
 
     // ── REMOVER FUNDO ANTES DE EDITAR ──────────────────────
