@@ -517,7 +517,6 @@ export default function PhotoCampaignPublic() {
                             ref={fileInputRef}
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/*"
-                            capture="environment"
                             style={{ display: 'none' }}
                             onChange={handleFileSelect}
                         />
