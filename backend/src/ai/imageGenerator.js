@@ -61,25 +61,25 @@ async function generateImage({ prompt, style = 'realistic', size = '1024x1024', 
         console.log(`   🎭 Estilo: ${style}`);
         console.log(`   📐 Tamanho: ${size}`);
 
-        // Use gpt-image-1 for best quality (falls back to dall-e-3)
+        // Use gpt-image-2 for best quality (falls back to gpt-image-1)
         let response;
         try {
             response = await client.images.generate({
-                model: 'gpt-image-1',
+                model: 'gpt-image-2',
                 prompt: enhancedPrompt,
                 n: 1,
                 size: size,
                 quality: quality,
             });
         } catch (modelErr) {
-            // Fallback to dall-e-3 if gpt-image-1 not available
-            console.log('   ⚠️ gpt-image-1 indisponível, usando dall-e-3...');
+            // Fallback to gpt-image-1 if gpt-image-2 not available
+            console.log('   ⚠️ gpt-image-2 indisponível, usando gpt-image-1...');
             response = await client.images.generate({
-                model: 'dall-e-3',
+                model: 'gpt-image-1',
                 prompt: enhancedPrompt,
                 n: 1,
                 size: size,
-                quality: quality === 'high' ? 'hd' : 'standard',
+                quality: quality,
             });
         }
 
@@ -147,19 +147,19 @@ async function editImage({ imageBuffer, prompt, style = 'realistic', size = '102
 
         let response;
         try {
-            // Try gpt-image-1 edit first
+            // Try gpt-image-2 edit first
             response = await client.images.edit({
-                model: 'gpt-image-1',
+                model: 'gpt-image-2',
                 image: fs.createReadStream(tempPath),
                 prompt: enhancedPrompt,
                 n: 1,
                 size: size,
             });
         } catch (editErr) {
-            // Fallback to dall-e-2 edit
-            console.log('   ⚠️ Fallback para dall-e-2 edit...');
+            // Fallback to gpt-image-1 edit
+            console.log('   ⚠️ Fallback para gpt-image-1 edit...');
             response = await client.images.edit({
-                model: 'dall-e-2',
+                model: 'gpt-image-1',
                 image: fs.createReadStream(tempPath),
                 prompt: enhancedPrompt,
                 n: 1,
