@@ -183,6 +183,11 @@ export default function BroadcastPage() {
 
     setUploading(true);
 
+    let directErrorDetails = '';
+    let directSuccess = false;
+    let finalUrl = '';
+    let finalFileName = '';
+
     try {
       // 1. Solicita a signed URL do backend (evita limite de tamanho de payload no backend Nginx/Render/etc.)
       const res = await api.post('/upload/signed-url', {
@@ -191,30 +196,56 @@ export default function BroadcastPage() {
       });
 
       const { signedUrl, publicUrl, fileName } = res.data;
+      finalUrl = publicUrl;
+      finalFileName = fileName;
 
       // 2. Realiza o upload direto para o Supabase Storage via PUT
-      const uploadRes = await fetch(signedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type
-        }
-      });
+      try {
+        const uploadRes = await fetch(signedUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream'
+          }
+        });
 
-      if (!uploadRes.ok) {
-        throw new Error('Falha no upload direto para o Storage do Supabase');
+        if (uploadRes.ok) {
+          directSuccess = true;
+        } else {
+          const errBody = await uploadRes.text();
+          directErrorDetails = `Status ${uploadRes.status}: ${errBody}`;
+          console.warn('Falha no upload direto para o Storage do Supabase:', directErrorDetails);
+        }
+      } catch (directErr) {
+        directErrorDetails = directErr.message || String(directErr);
+        console.warn('Erro ao realizar requisição de upload direto:', directErr);
+      }
+
+      // 3. Fallback: Se o upload direto falhou, tenta o upload tradicional enviando para o backend
+      if (!directSuccess) {
+        console.log('Tentando upload via fallback de proxy do backend...');
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const fallbackRes = await api.post('/upload', formData);
+        finalUrl = fallbackRes.data.url;
+        finalFileName = fallbackRes.data.fileName || file.name;
       }
 
       const type = file.type.split('/')[0];
       setMedia({
-        url: publicUrl,
+        url: finalUrl,
         type: type === 'application' ? 'document' : type,
-        fileName: fileName,
+        fileName: finalFileName,
         mimetype: file.type
       });
     } catch (err) {
       console.error('Upload error:', err);
-      alert('Erro ao enviar arquivo: ' + (err.response?.data?.error || err.message));
+      let errorMsg = err.response?.data?.error || err.message;
+      if (directErrorDetails) {
+        errorMsg += ` (Erro do Upload Direto: ${directErrorDetails})`;
+      }
+      alert('Erro ao enviar arquivo: ' + errorMsg);
     } finally {
       setUploading(false);
     }
