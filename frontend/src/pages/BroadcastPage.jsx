@@ -213,7 +213,11 @@ export default function BroadcastPage() {
           directSuccess = true;
         } else {
           const errBody = await uploadRes.text();
-          directErrorDetails = `Status ${uploadRes.status}: ${errBody}`;
+          if (errBody.includes('EntityTooLarge') || errBody.includes('Payload too large') || uploadRes.status === 413) {
+            directErrorDetails = "O arquivo excede o limite de tamanho máximo do Supabase (50MB no plano gratuito). Reduza o vídeo ou atualize o plano do Supabase.";
+          } else {
+            directErrorDetails = `Status ${uploadRes.status}: ${errBody}`;
+          }
           console.warn('Falha no upload direto para o Storage do Supabase:', directErrorDetails);
         }
       } catch (directErr) {
