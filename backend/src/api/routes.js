@@ -50,6 +50,38 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
   }
 });
 
+router.post('/upload/signed-url', authMiddleware, async (req, res) => {
+  try {
+    const { fileName, mimetype } = req.body;
+    if (!fileName) return res.status(400).json({ error: 'fileName é obrigatório' });
+
+    const uniqueFileName = `${Date.now()}_${fileName}`;
+    const supabase = getSupabase();
+    const filePath = `broadcast/${req.user.id}/${uniqueFileName}`;
+
+    const { data, error: uploadError } = await supabase.storage
+      .from('knowledge-files')
+      .createSignedUploadUrl(filePath);
+
+    if (uploadError) {
+      console.error('❌ Supabase Signed URL Storage Error:', uploadError);
+      throw new Error(`Erro ao gerar signed URL: ${uploadError.message}`);
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('knowledge-files').getPublicUrl(filePath);
+
+    res.json({
+      signedUrl: data.signedUrl,
+      publicUrl,
+      fileName: uniqueFileName,
+      originalName: fileName,
+      mimetype: mimetype || 'application/octet-stream'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/company/logo', authMiddleware, upload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });

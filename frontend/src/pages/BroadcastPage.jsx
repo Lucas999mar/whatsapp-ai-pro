@@ -182,17 +182,35 @@ export default function BroadcastPage() {
     if (!file) return;
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
-      const res = await api.post('/upload', formData);
+      // 1. Solicita a signed URL do backend (evita limite de tamanho de payload no backend Nginx/Render/etc.)
+      const res = await api.post('/upload/signed-url', {
+        fileName: file.name,
+        mimetype: file.type
+      });
+
+      const { signedUrl, publicUrl, fileName } = res.data;
+
+      // 2. Realiza o upload direto para o Supabase Storage via PUT
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type
+        }
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Falha no upload direto para o Storage do Supabase');
+      }
+
       const type = file.type.split('/')[0];
       setMedia({
-        url: res.data.url,
+        url: publicUrl,
         type: type === 'application' ? 'document' : type,
-        fileName: res.data.fileName,
-        mimetype: res.data.mimetype
+        fileName: fileName,
+        mimetype: file.type
       });
     } catch (err) {
       console.error('Upload error:', err);
@@ -354,8 +372,8 @@ export default function BroadcastPage() {
         <button
           onClick={() => setActiveTab('whatsapp')}
           className={`px-6 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 flex items-center gap-2.5 ${activeTab === 'whatsapp'
-              ? 'bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 shadow-md shadow-[#25D366]/5'
-              : 'text-slate-400 hover:text-white'
+            ? 'bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20 shadow-md shadow-[#25D366]/5'
+            : 'text-slate-400 hover:text-white'
             }`}
         >
           <Send size={16} />
@@ -364,8 +382,8 @@ export default function BroadcastPage() {
         <button
           onClick={() => setActiveTab('voice')}
           className={`px-6 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 flex items-center gap-2.5 ${activeTab === 'voice'
-              ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-md shadow-purple-500/5'
-              : 'text-slate-400 hover:text-white'
+            ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-md shadow-purple-500/5'
+            : 'text-slate-400 hover:text-white'
             }`}
         >
           <PhoneCall size={16} />
@@ -578,8 +596,8 @@ export default function BroadcastPage() {
                     key={camp.id}
                     onClick={() => setSelectedCampaign(camp)}
                     className={`glass-panel p-5 cursor-pointer border transition-all relative overflow-hidden group ${selectedCampaign?.id === camp.id
-                        ? 'border-purple-500/50 bg-purple-500/5 shadow-md shadow-purple-500/5'
-                        : 'border-white/5 hover:border-purple-500/25 hover:bg-white/5'
+                      ? 'border-purple-500/50 bg-purple-500/5 shadow-md shadow-purple-500/5'
+                      : 'border-white/5 hover:border-purple-500/25 hover:bg-white/5'
                       }`}
                   >
                     <div className="flex justify-between items-start mb-2">
@@ -618,8 +636,8 @@ export default function BroadcastPage() {
 
                     <div className="flex justify-between items-center text-xs mt-3 pt-3 border-t border-white/5">
                       <span className={`px-2 py-0.5 rounded-full font-bold scale-90 ${camp.status === 'finished' ? 'bg-green-500/10 text-green-400' :
-                          camp.status === 'running' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
-                            'bg-slate-500/10 text-slate-400'
+                        camp.status === 'running' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
+                          'bg-slate-500/10 text-slate-400'
                         }`}>
                         {camp.status === 'finished' ? 'Finalizada' :
                           camp.status === 'running' ? 'Executando' : 'Aguardando'}
@@ -732,17 +750,17 @@ export default function BroadcastPage() {
                                 </td>
                                 <td className="p-4 text-xs">
                                   <span className={`px-2 py-0.5 rounded-full block text-center font-bold text-[10px] uppercase w-fit ${call.status === 'completed' ? 'bg-green-500/10 text-green-400' :
-                                      call.status === 'calling' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
-                                        call.status === 'no_answer' ? 'bg-yellow-500/10 text-yellow-500' :
-                                          'bg-red-500/10 text-red-500'
+                                    call.status === 'calling' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
+                                      call.status === 'no_answer' ? 'bg-yellow-500/10 text-yellow-500' :
+                                        'bg-red-500/10 text-red-500'
                                     }`}>
                                     {call.status}
                                   </span>
                                 </td>
                                 <td className="p-4 text-xs">
                                   <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${call.outcome === 'interested' ? 'bg-green-500/20 text-green-300 border border-green-500/20' :
-                                      call.outcome === 'not_interested' ? 'bg-slate-500/20 text-slate-400' :
-                                        'bg-[#0F172A] text-slate-500'
+                                    call.outcome === 'not_interested' ? 'bg-slate-500/20 text-slate-400' :
+                                      'bg-[#0F172A] text-slate-500'
                                     }`}>
                                     {call.outcome === 'interested' ? 'Interessado 🎯' :
                                       call.outcome === 'not_interested' ? 'Recusou' : 'Nenhum'}
