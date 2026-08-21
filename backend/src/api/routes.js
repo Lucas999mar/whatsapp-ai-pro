@@ -850,83 +850,38 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
       const cleanPhone = testJid.split('@')[0];
 
       let shouldSkip = false;
+      let messageToSend = message;
 
-      if (requireOptIn || requireOptIn === 'true' || requireOptIn === true) {
-        try {
-          const supabase = getSupabase();
-          const { data: optInRecord } = await supabase
-            .from('whatsapp_opt_ins')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .eq('phone_number', cleanPhone)
-            .maybeSingle();
+      try {
+        const supabase = getSupabase();
+        const { data: optInRecord } = await supabase
+          .from('whatsapp_opt_ins')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('phone_number', cleanPhone)
+          .maybeSingle();
 
-          if (optInRecord) {
-            if (optInRecord.status === 'declined') {
-              console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos)`);
-              shouldSkip = true;
-            } else if (optInRecord.status === 'pending') {
-              // Já está pendente, apenas atualiza conteúdo a ser enviado mais tarde
-              await supabase
-                .from('whatsapp_opt_ins')
-                .update({
-                  pending_message: message,
-                  pending_media: media,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('tenant_id', tenantId)
-                .eq('phone_number', cleanPhone);
+        if (optInRecord && optInRecord.status === 'declined') {
+          console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos)`);
+          shouldSkip = true;
+        } else if (requireOptIn || requireOptIn === 'true' || requireOptIn === true) {
+          // Se o contato ainda não aceitou (ou não existe registro), anexa o opt-in à mensagem
+          if (!optInRecord || optInRecord.status !== 'accepted') {
+            messageToSend = message + "\n\n" + (optInMessage || "");
 
-              try {
-                await sendDirectMessage(agentId, number, optInMessage || message, null, { skipValidation: true, retries: 2 });
-                console.log(`📢 Broadcast [${tenantId}]: ⏳ Convite de Opt-in re-enviado para ${cleanPhone}`);
-              } catch (err) {
-                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite para ${cleanPhone}:`, err.message);
-              }
-              shouldSkip = true;
-            }
-            // Se status === 'accepted', prossegue para o envio normal abaixo!
-          } else {
-            // Insere como pendente e envia convite de opt-in
+            // Marca como pendente no banco para aguardar resposta
             await supabase
               .from('whatsapp_opt_ins')
-              .insert({
+              .upsert({
                 tenant_id: tenantId,
                 phone_number: cleanPhone,
                 status: 'pending',
-                pending_message: message,
-                pending_media: media
-              });
-
-            try {
-              await sendDirectMessage(agentId, number, optInMessage, null, { skipValidation: true, retries: 2 });
-              console.log(`📢 Broadcast [${tenantId}]: ⏳ Convite de Opt-in enviado para ${cleanPhone}`);
-            } catch (err) {
-              console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite para ${cleanPhone}:`, err.message);
-            }
-            shouldSkip = true;
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'tenant_id,phone_number' });
           }
-        } catch (e) {
-          console.error(`⚠️ Erro ao validar whatsapp_opt_ins para ${cleanPhone}:`, e.message);
         }
-      } else {
-        // Envio normal sem exigir opt-in, mas respeitando opt-out histórico
-        try {
-          const supabase = getSupabase();
-          const { data: optInRecord } = await supabase
-            .from('whatsapp_opt_ins')
-            .select('status')
-            .eq('tenant_id', tenantId)
-            .eq('phone_number', cleanPhone)
-            .maybeSingle();
-
-          if (optInRecord && optInRecord.status === 'declined') {
-            console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos anteriormente)`);
-            shouldSkip = true;
-          }
-        } catch (e) {
-          console.error(`⚠️ Erro ao verificar opt-out para ${cleanPhone}:`, e.message);
-        }
+      } catch (e) {
+        console.error(`⚠️ Erro ao verificar opt-in para ${cleanPhone}:`, e.message);
       }
 
       if (shouldSkip) {
@@ -939,7 +894,7 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
 
       try {
         // skipValidation: true → NÃO faz onWhatsApp() para cada número (evita rate-limit)
-        await sendDirectMessage(agentId, number, message, media, { skipValidation: true, retries: 2 });
+        await sendDirectMessage(agentId, number, messageToSend, media, { skipValidation: true, retries: 2 });
         sent++;
         console.log(`📢 Broadcast [${tenantId}]: ✅ ${sent}/${total} - Enviado para ${number}`);
       } catch (err) {

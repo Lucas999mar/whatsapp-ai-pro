@@ -24,7 +24,7 @@ export default function BroadcastPage() {
   const [uploading, setUploading] = useState(false);
 
   // ── OPT-IN / ARRESTS/TERMS ACCEPTANCE STATES ──
-  const [requireOptIn, setRequireOptIn] = useState(false);
+  const [requireOptIn, setRequireOptIn] = useState(true);
   const [optInMessage, setOptInMessage] = useState(
     `Olá! Gostaríamos de enviar ofertas e informações importantes para você.\n\nVocê aceita receber estas mensagens?\n\nResponda:\n*1* - Sim, aceito receber\n*2* - Não quero receber`
   );
@@ -798,8 +798,8 @@ export default function BroadcastPage() {
                           </td>
                           <td className="p-4 text-xs">
                             <span className={`px-2 py-1 rounded-full font-bold text-[10px] uppercase w-fit ${item.status === 'accepted' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                item.status === 'declined' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                  'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                              item.status === 'declined' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                               }`}>
                               {item.status === 'accepted' ? 'Aceitou' :
                                 item.status === 'declined' ? 'Recusou' : 'Pendente'}
