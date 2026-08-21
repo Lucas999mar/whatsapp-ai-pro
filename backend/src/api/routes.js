@@ -865,10 +865,8 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
           console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos)`);
           shouldSkip = true;
         } else if (requireOptIn || requireOptIn === 'true' || requireOptIn === true) {
-          // Se o contato ainda não aceitou (ou não existe registro), anexa o opt-in à mensagem
+          // Se o contato ainda não aceitou (ou não existe registro), envia mensagem com botões interativos
           if (!optInRecord || optInRecord.status !== 'accepted') {
-            messageToSend = message + "\n\n" + (optInMessage || "");
-
             // Marca como pendente no banco para aguardar resposta
             await supabase
               .from('whatsapp_opt_ins')
@@ -878,6 +876,42 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
                 status: 'pending',
                 updated_at: new Date().toISOString()
               }, { onConflict: 'tenant_id,phone_number' });
+
+            let msgWithButtons = messageToSend;
+
+            if (media && media.url) {
+              // Envia a mídia primeiro com a legenda original
+              try {
+                await sendDirectMessage(agentId, number, message, media, { skipValidation: true, retries: 2 });
+              } catch (mediaErr) {
+                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar mídia + legenda para ${cleanPhone}:`, mediaErr.message);
+              }
+              // Os botões vão na segunda mensagem simples com a pergunta de opt-in
+              msgWithButtons = optInMessage || "Você aceita receber nossas mensagens?";
+            } else {
+              // Não tem mídia, envia tudo no mesmo corpo de texto com botões
+              msgWithButtons = message + "\n\n" + (optInMessage || "");
+            }
+
+            try {
+              await sendDirectMessage(agentId, number, msgWithButtons, null, {
+                skipValidation: true,
+                retries: 2,
+                buttons: [
+                  { id: 'optin_yes', text: 'Confirmo' },
+                  { id: 'optin_no', text: 'Não confirmo' }
+                ],
+                footer: 'Selecione uma opção'
+              });
+              sent++;
+              console.log(`📢 Broadcast [${tenantId}]: ✅ ${sent}/${total} - Enviado com botões de opt-in para ${number}`);
+            } catch (btnErr) {
+              // Em caso de erro total no envio, marca como erro
+              errors++;
+              console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite em botões para ${cleanPhone}:`, btnErr.message);
+            }
+
+            shouldSkip = true; // Pula o envio padrão no fim do loop pois este contato já foi processado
           }
         }
       } catch (e) {
