@@ -286,6 +286,8 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
                     tenant_id: tenantId,
                     phone_number: cleanNumber,
                     status: 'declined',
+                    pending_message: null,
+                    pending_media: null,
                     updated_at: new Date().toISOString()
                   }, { onConflict: 'tenant_id,phone_number' });
 
@@ -297,19 +299,45 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
               }
 
               if (shouldMarkOptIn) {
+                const pendingMsg = optInEntry?.pending_message;
+                const pendingMediaRaw = optInEntry?.pending_media;
+
                 await supabase
                   .from('whatsapp_opt_ins')
                   .upsert({
                     tenant_id: tenantId,
                     phone_number: cleanNumber,
                     status: 'accepted',
+                    pending_message: null,
+                    pending_media: null,
                     updated_at: new Date().toISOString()
                   }, { onConflict: 'tenant_id,phone_number' });
 
                 await sock.sendPresenceUpdate('composing', sender);
                 await sock.sendMessage(sender, {
-                  text: `Ótimo! Sua inscrição foi confirmada e você receberá nossas mensagens.`
+                  text: `Ótimo! Sua inscrição foi confirmada.`
                 });
+
+                if (pendingMsg || pendingMediaRaw) {
+                  let parsedMedia = null;
+                  if (pendingMediaRaw) {
+                    try {
+                      parsedMedia = typeof pendingMediaRaw === 'string' ? JSON.parse(pendingMediaRaw) : pendingMediaRaw;
+                    } catch (pe) {
+                      parsedMedia = pendingMediaRaw;
+                    }
+                  }
+
+                  setTimeout(async () => {
+                    const { sendDirectMessage } = require('./bot');
+                    try {
+                      console.log(`🚀 Disparando mensagem em fila para ${cleanNumber} pós aceitação`);
+                      await sendDirectMessage(agentId, sender, pendingMsg, parsedMedia, { skipValidation: true });
+                    } catch (err) {
+                      console.error(`Erro ao disparar mensagem pendente após opt-in para ${cleanNumber}:`, err.message);
+                    }
+                  }, 2000);
+                }
                 return; // Intercepta e encerra
               }
             } catch (optInErr) {

@@ -865,36 +865,29 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
           console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos)`);
           shouldSkip = true;
         } else if (requireOptIn || requireOptIn === 'true' || requireOptIn === true) {
-          // Se o contato ainda não aceitou (ou não existe registro), envia mensagem com botões interativos
+          // Se o contato ainda não aceitou (ou não existe registro), envia apenas o opt-in e guarda a campanha
           if (!optInRecord || optInRecord.status !== 'accepted') {
-            // Marca como pendente no banco para aguardar resposta
+            let mediaJson = null;
+            if (media) {
+              mediaJson = typeof media === 'string' ? media : JSON.stringify(media);
+            }
+
+            // Marca como pendente e armazena mensagem e mídia originais
             await supabase
               .from('whatsapp_opt_ins')
               .upsert({
                 tenant_id: tenantId,
                 phone_number: cleanPhone,
                 status: 'pending',
+                pending_message: message || null,
+                pending_media: mediaJson,
                 updated_at: new Date().toISOString()
               }, { onConflict: 'tenant_id,phone_number' });
 
-            let msgWithButtons = messageToSend;
-
-            if (media && media.url) {
-              // Envia a mídia primeiro com a legenda original
-              try {
-                await sendDirectMessage(agentId, number, message, media, { skipValidation: true, retries: 2 });
-              } catch (mediaErr) {
-                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar mídia + legenda para ${cleanPhone}:`, mediaErr.message);
-              }
-              // Os botões vão na segunda mensagem simples com a pergunta de opt-in
-              msgWithButtons = optInMessage || "Você aceita receber nossas mensagens?";
-            } else {
-              // Não tem mídia, envia tudo no mesmo corpo de texto com botões
-              msgWithButtons = message + "\n\n" + (optInMessage || "");
-            }
+            const optInText = optInMessage || "Gostaríamos de enviar ofertas e informações importantes para você.\n\nVocê aceita receber estas mensagens?";
 
             try {
-              await sendDirectMessage(agentId, number, msgWithButtons, null, {
+              await sendDirectMessage(agentId, number, optInText, null, {
                 skipValidation: true,
                 retries: 2,
                 buttons: [
@@ -904,14 +897,13 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
                 footer: 'Selecione uma opção'
               });
               sent++;
-              console.log(`📢 Broadcast [${tenantId}]: ✅ ${sent}/${total} - Enviado com botões de opt-in para ${number}`);
+              console.log(`📢 Broadcast [${tenantId}]: ⏳ Convite enviado para ${number}. Mensagem real salva no banco.`);
             } catch (btnErr) {
-              // Em caso de erro total no envio, marca como erro
               errors++;
               console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite em botões para ${cleanPhone}:`, btnErr.message);
             }
 
-            shouldSkip = true; // Pula o envio padrão no fim do loop pois este contato já foi processado
+            shouldSkip = true; // Pula o envio imediato da mensagem/mídia real
           }
         }
       } catch (e) {
