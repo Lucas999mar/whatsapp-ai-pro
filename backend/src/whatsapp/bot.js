@@ -299,9 +299,6 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
               }
 
               if (shouldMarkOptIn) {
-                const pendingMsg = optInEntry?.pending_message;
-                const pendingMediaRaw = optInEntry?.pending_media;
-
                 await supabase
                   .from('whatsapp_opt_ins')
                   .upsert({
@@ -315,29 +312,8 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
                 await sock.sendPresenceUpdate('composing', sender);
                 await sock.sendMessage(sender, {
-                  text: `Ótimo! Sua inscrição foi confirmada.`
+                  text: `Ótimo! Sua aceitação para continuar foi confirmada.`
                 });
-
-                if (pendingMsg || pendingMediaRaw) {
-                  let parsedMedia = null;
-                  if (pendingMediaRaw) {
-                    try {
-                      parsedMedia = typeof pendingMediaRaw === 'string' ? JSON.parse(pendingMediaRaw) : pendingMediaRaw;
-                    } catch (pe) {
-                      parsedMedia = pendingMediaRaw;
-                    }
-                  }
-
-                  setTimeout(async () => {
-                    const { sendDirectMessage } = require('./bot');
-                    try {
-                      console.log(`🚀 Disparando mensagem em fila para ${cleanNumber} pós aceitação`);
-                      await sendDirectMessage(agentId, sender, pendingMsg, parsedMedia, { skipValidation: true });
-                    } catch (err) {
-                      console.error(`Erro ao disparar mensagem pendente após opt-in para ${cleanNumber}:`, err.message);
-                    }
-                  }, 2000);
-                }
                 return; // Intercepta e encerra
               }
             } catch (optInErr) {

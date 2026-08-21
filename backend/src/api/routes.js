@@ -865,45 +865,64 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
           console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos)`);
           shouldSkip = true;
         } else if (requireOptIn || requireOptIn === 'true' || requireOptIn === true) {
-          // Se o contato ainda não aceitou (ou não existe registro), envia apenas o opt-in e guarda a campanha
+          // Se o contato ainda não aceitou (ou não existe registro), envia o conteúdo com os termos de consentimento diretamente
           if (!optInRecord || optInRecord.status !== 'accepted') {
-            let mediaJson = null;
-            if (media) {
-              mediaJson = typeof media === 'string' ? media : JSON.stringify(media);
-            }
-
-            // Marca como pendente e armazena mensagem e mídia originais
             await supabase
               .from('whatsapp_opt_ins')
               .upsert({
                 tenant_id: tenantId,
                 phone_number: cleanPhone,
                 status: 'pending',
-                pending_message: message || null,
-                pending_media: mediaJson,
+                pending_message: null,
+                pending_media: null,
                 updated_at: new Date().toISOString()
               }, { onConflict: 'tenant_id,phone_number' });
 
-            const optInText = optInMessage || "Gostaríamos de enviar ofertas e informações importantes para você.\n\nVocê aceita receber estas mensagens?";
+            const optInText = optInMessage || "Você aceita receber nossas comunicações?";
 
-            try {
-              await sendDirectMessage(agentId, number, optInText, null, {
-                skipValidation: true,
-                retries: 2,
-                buttons: [
-                  { id: 'optin_yes', text: 'Confirmo' },
-                  { id: 'optin_no', text: 'Não confirmo' }
-                ],
-                footer: 'Selecione uma opção'
-              });
-              sent++;
-              console.log(`📢 Broadcast [${tenantId}]: ⏳ Convite enviado para ${number}. Mensagem real salva no banco.`);
-            } catch (btnErr) {
-              errors++;
-              console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite em botões para ${cleanPhone}:`, btnErr.message);
+            if (media && media.url) {
+              try {
+                await sendDirectMessage(agentId, number, message, media, { skipValidation: true, retries: 2 });
+              } catch (mediaErr) {
+                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar mídia para ${cleanPhone}:`, mediaErr.message);
+              }
+
+              try {
+                await sendDirectMessage(agentId, number, optInText, null, {
+                  skipValidation: true,
+                  retries: 2,
+                  buttons: [
+                    { id: 'optin_yes', text: 'Confirmo' },
+                    { id: 'optin_no', text: 'Não confirmo' }
+                  ],
+                  footer: 'Selecione uma opção'
+                });
+                sent++;
+                console.log(`📢 Broadcast [${tenantId}]: ✅ Conteúdo + termos enviados para ${number}`);
+              } catch (btnErr) {
+                errors++;
+                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar termos para ${cleanPhone}:`, btnErr.message);
+              }
+            } else {
+              try {
+                await sendDirectMessage(agentId, number, message + "\n\n" + optInText, null, {
+                  skipValidation: true,
+                  retries: 2,
+                  buttons: [
+                    { id: 'optin_yes', text: 'Confirmo' },
+                    { id: 'optin_no', text: 'Não confirmo' }
+                  ],
+                  footer: 'Selecione uma opção'
+                });
+                sent++;
+                console.log(`📢 Broadcast [${tenantId}]: ✅ Mensagem + termos enviados para ${number}`);
+              } catch (btnErr) {
+                errors++;
+                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar mensagem + termos para ${cleanPhone}:`, btnErr.message);
+              }
             }
 
-            shouldSkip = true; // Pula o envio imediato da mensagem/mídia real
+            shouldSkip = true; // Pula o envio padrão no fim do loop
           }
         }
       } catch (e) {

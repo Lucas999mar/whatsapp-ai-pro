@@ -26,7 +26,7 @@ export default function BroadcastPage() {
   // ── OPT-IN / ARRESTS/TERMS ACCEPTANCE STATES ──
   const [requireOptIn, setRequireOptIn] = useState(true);
   const [optInMessage, setOptInMessage] = useState(
-    `Olá! Gostaríamos de enviar ofertas e informações importantes para você.\n\nVocê aceita receber estas mensagens?\n\nResponda:\n*1* - Sim, aceito receber\n*2* - Não quero receber`
+    `Olá! Gostaríamos de enviar ofertas e informações importantes para você.\n\nVocê aceita receber estas mensagens?\n\nResponda:\n1 - Sim, aceito receber\n2 - Não quero receber`
   );
   const [optIns, setOptIns] = useState([]);
   const [loadingOptIns, setLoadingOptIns] = useState(false);
