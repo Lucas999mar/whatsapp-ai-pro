@@ -771,8 +771,8 @@ router.delete('/whatsapp/agents/:id', authMiddleware, async (req, res) => {
 });
 
 router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
-  const { agentId, numbers, message, delay, media } = req.body;
-  const tenantId = req.user.id;
+  const { agentId, numbers, message, delay, media, requireOptIn, optInMessage } = req.body;
+  const tenantId = req.user.tenant_id || req.user.id;
 
   if (!agentId || !numbers || (!message && !media)) {
     return res.status(400).json({ error: 'Faltam parâmetros obrigatórios' });
@@ -803,7 +803,7 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
     const total = numbers.length;
 
     console.log(`\n📢 ══════════════════════════════════════════════════`);
-    console.log(`📢 BROADCAST INICIADO [${tenantId}]`);
+    console.log(`📢 BROADCAST INICIADO [${tenantId}] (Opt-In: ${requireOptIn ? 'Sim' : 'Não'})`);
     console.log(`📢 Agente: ${hasAgent.name} (${agentId})`);
     console.log(`📢 Total de contatos: ${total}`);
     console.log(`📢 Delay configurado: ${delay}s`);
@@ -839,6 +839,102 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
           console.log(`📊 Broadcast ABORTADO: ${sent} enviados, ${errors} erros de ${total} total.`);
           return;
         }
+      }
+
+      // Format JID to get clean phone number
+      let cleanNumber = number.replace(/\D/g, '');
+      if (cleanNumber.length >= 10 && cleanNumber.length <= 11 && !cleanNumber.startsWith('55')) {
+        cleanNumber = '55' + cleanNumber;
+      }
+      const testJid = cleanNumber.includes('@') ? cleanNumber : `${cleanNumber}@s.whatsapp.net`;
+      const cleanPhone = testJid.split('@')[0];
+
+      let shouldSkip = false;
+
+      if (requireOptIn || requireOptIn === 'true' || requireOptIn === true) {
+        try {
+          const supabase = getSupabase();
+          const { data: optInRecord } = await supabase
+            .from('whatsapp_opt_ins')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('phone_number', cleanPhone)
+            .maybeSingle();
+
+          if (optInRecord) {
+            if (optInRecord.status === 'declined') {
+              console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos)`);
+              shouldSkip = true;
+            } else if (optInRecord.status === 'pending') {
+              // Já está pendente, apenas atualiza conteúdo a ser enviado mais tarde
+              await supabase
+                .from('whatsapp_opt_ins')
+                .update({
+                  pending_message: message,
+                  pending_media: media,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('tenant_id', tenantId)
+                .eq('phone_number', cleanPhone);
+
+              try {
+                await sendDirectMessage(agentId, number, optInMessage || message, null, { skipValidation: true, retries: 2 });
+                console.log(`📢 Broadcast [${tenantId}]: ⏳ Convite de Opt-in re-enviado para ${cleanPhone}`);
+              } catch (err) {
+                console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite para ${cleanPhone}:`, err.message);
+              }
+              shouldSkip = true;
+            }
+            // Se status === 'accepted', prossegue para o envio normal abaixo!
+          } else {
+            // Insere como pendente e envia convite de opt-in
+            await supabase
+              .from('whatsapp_opt_ins')
+              .insert({
+                tenant_id: tenantId,
+                phone_number: cleanPhone,
+                status: 'pending',
+                pending_message: message,
+                pending_media: media
+              });
+
+            try {
+              await sendDirectMessage(agentId, number, optInMessage, null, { skipValidation: true, retries: 2 });
+              console.log(`📢 Broadcast [${tenantId}]: ⏳ Convite de Opt-in enviado para ${cleanPhone}`);
+            } catch (err) {
+              console.error(`📢 Broadcast [${tenantId}]: ❌ Erro ao enviar convite para ${cleanPhone}:`, err.message);
+            }
+            shouldSkip = true;
+          }
+        } catch (e) {
+          console.error(`⚠️ Erro ao validar whatsapp_opt_ins para ${cleanPhone}:`, e.message);
+        }
+      } else {
+        // Envio normal sem exigir opt-in, mas respeitando opt-out histórico
+        try {
+          const supabase = getSupabase();
+          const { data: optInRecord } = await supabase
+            .from('whatsapp_opt_ins')
+            .select('status')
+            .eq('tenant_id', tenantId)
+            .eq('phone_number', cleanPhone)
+            .maybeSingle();
+
+          if (optInRecord && optInRecord.status === 'declined') {
+            console.log(`📢 Broadcast [${tenantId}]: 🚫 Ignorado ${cleanPhone} (Usuário recusou termos anteriormente)`);
+            shouldSkip = true;
+          }
+        } catch (e) {
+          console.error(`⚠️ Erro ao verificar opt-out para ${cleanPhone}:`, e.message);
+        }
+      }
+
+      if (shouldSkip) {
+        // Incrementa delay normal para parecer humano
+        const baseDelay = (delay || 10) * 1000;
+        const jitter = Math.random() * 5000;
+        await new Promise(r => setTimeout(r, baseDelay + jitter));
+        continue;
       }
 
       try {
@@ -881,6 +977,76 @@ router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
     console.error(`❌ Broadcast CRASH [${tenantId}]:`, err.message);
   });
 });
+
+// ── WHATSAPP OPT-INS ROUTES ──────────────────────────────────
+router.get('/whatsapp/opt-ins', authMiddleware, async (req, res) => {
+  try {
+    const tenantId = req.user.tenant_id || req.user.id;
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('whatsapp_opt_ins')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/whatsapp/opt-ins', authMiddleware, async (req, res) => {
+  try {
+    const tenantId = req.user.tenant_id || req.user.id;
+    const { phone_number, status } = req.body;
+
+    if (!phone_number || !status) {
+      return res.status(400).json({ error: 'Telefone e status são obrigatórios' });
+    }
+
+    let cleanPhone = phone_number.replace(/\D/g, '');
+    if (cleanPhone.length >= 10 && cleanPhone.length <= 11 && !cleanPhone.startsWith('55')) {
+      cleanPhone = '55' + cleanPhone;
+    }
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('whatsapp_opt_ins')
+      .upsert({
+        tenant_id: tenantId,
+        phone_number: cleanPhone,
+        status,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'tenant_id,phone_number' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/whatsapp/opt-ins/:id', authMiddleware, async (req, res) => {
+  try {
+    const tenantId = req.user.tenant_id || req.user.id;
+    const supabase = getSupabase();
+
+    const { error } = await supabase
+      .from('whatsapp_opt_ins')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ── WHATSAPP GROUP ROUTES ──────────────────────────────────────
 const { getAgentGroups, addParticipantsToGroup, verifyGroupAdmin } = require('../whatsapp/bot');

@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 
 export default function BroadcastPage() {
   // ── GENERAL STATES ──
-  const [activeTab, setActiveTab] = useState('whatsapp'); // 'whatsapp' | 'voice'
+  const [activeTab, setActiveTab] = useState('whatsapp'); // 'whatsapp' | 'voice' | 'consent'
 
   // ── WHATSAPP BROADCAST STATES ──
   const [agents, setAgents] = useState([]);
@@ -22,6 +22,16 @@ export default function BroadcastPage() {
   const [stats, setStats] = useState({ total: 0, sent: 0, errors: 0 });
   const [media, setMedia] = useState(null); // { url, type }
   const [uploading, setUploading] = useState(false);
+
+  // ── OPT-IN / ARRESTS/TERMS ACCEPTANCE STATES ──
+  const [requireOptIn, setRequireOptIn] = useState(false);
+  const [optInMessage, setOptInMessage] = useState(
+    `Olá! Gostaríamos de enviar ofertas e informações importantes para você.\n\nVocê aceita receber estas mensagens?\n\nResponda:\n*1* - Sim, aceito receber\n*2* - Não quero receber`
+  );
+  const [optIns, setOptIns] = useState([]);
+  const [loadingOptIns, setLoadingOptIns] = useState(false);
+  const [newOptInPhone, setNewOptInPhone] = useState('');
+  const [newOptInStatus, setNewOptInStatus] = useState('accepted');
 
   // ── AI VOICE CALLS STATES ──
   const [voiceCampaigns, setVoiceCampaigns] = useState([]);
@@ -48,6 +58,7 @@ export default function BroadcastPage() {
     fetchAgents();
     fetchVoiceCampaigns();
     fetchTelnyxConfig();
+    fetchOptIns();
   }, []);
 
   // Poll progress for active running campaigns
@@ -114,6 +125,45 @@ export default function BroadcastPage() {
       alert('Erro ao salvar configurações: ' + err.message);
     }
   };
+
+  const fetchOptIns = async () => {
+    setLoadingOptIns(true);
+    try {
+      const res = await api.get('/whatsapp/opt-ins');
+      setOptIns(res.data || []);
+    } catch (err) {
+      console.error('Error fetching opt-ins:', err);
+    } finally {
+      setLoadingOptIns(false);
+    }
+  };
+
+  const handleDeleteOptIn = async (id) => {
+    if (!window.confirm('Tem certeza que deseja remover este contato da lista de consentimento?')) return;
+    try {
+      await api.delete(`/whatsapp/opt-ins/${id}`);
+      setOptIns(prev => prev.filter(o => o.id !== id));
+    } catch (err) {
+      alert('Erro ao excluir registro: ' + err.message);
+    }
+  };
+
+  const handleAddOptIn = async (e) => {
+    e.preventDefault();
+    if (!newOptInPhone.trim()) return alert('Insira um número de telefone.');
+    try {
+      const res = await api.post('/whatsapp/opt-ins', {
+        phone_number: newOptInPhone,
+        status: newOptInStatus
+      });
+      setOptIns(prev => [res.data, ...prev.filter(o => o.phone_number !== res.data.phone_number)]);
+      setNewOptInPhone('');
+      alert('Registro de consentimento salvo com sucesso!');
+    } catch (err) {
+      alert('Erro ao salvar registro de consentimento: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
 
   const handleCreateVoiceCampaign = async (e) => {
     e.preventDefault();
@@ -356,7 +406,9 @@ export default function BroadcastPage() {
         numbers,
         message,
         delay,
-        media
+        media,
+        requireOptIn,
+        optInMessage: requireOptIn ? optInMessage : null
       });
 
       setStatus('finished');
@@ -423,6 +475,16 @@ export default function BroadcastPage() {
         >
           <PhoneCall size={16} />
           📞 Ligações de IA
+        </button>
+        <button
+          onClick={() => setActiveTab('consent')}
+          className={`px-6 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 flex items-center gap-2.5 ${activeTab === 'consent'
+            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-md shadow-blue-500/5'
+            : 'text-slate-400 hover:text-white'
+            }`}
+        >
+          <FileText size={16} />
+          📋 Controle de Consentimento
         </button>
       </div>
 
@@ -536,6 +598,36 @@ export default function BroadcastPage() {
                 </div>
               </div>
 
+              {/* SEÇÃO OPT-IN */}
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-semibold flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={requireOptIn}
+                      onChange={e => setRequireOptIn(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                    />
+                    Exigir Aceitação de Termos (Opt-In)
+                  </label>
+                  <span className="text-[10px] bg-purple-500/25 text-purple-300 px-2 py-0.5 rounded-full font-bold">Seguro</span>
+                </div>
+
+                {requireOptIn && (
+                  <div className="space-y-2 pt-2 animate-fade-in">
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      O sistema enviará primeiro a mensagem de consentimento abaixo. Se o contato aceitar (ex: responder Sim ou 1), ele receberá o disparo original e as mídias. Caso contrário, ele é poupado automaticamente.
+                    </p>
+                    <textarea
+                      className="w-full h-28 bg-[#0F172A] border border-white/10 rounded-xl p-3 text-slate-200 outline-none focus:border-[#25D366]/50 transition-all resize-none text-xs"
+                      placeholder="Digite a mensagem de aceitação de termos..."
+                      value={optInMessage}
+                      onChange={e => setOptInMessage(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={handleStartBroadcast}
                 disabled={loading || agents.length === 0}
@@ -587,6 +679,154 @@ export default function BroadcastPage() {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB CONTENT: CONTROLE DE CONSENTIMENTO ── */}
+      {activeTab === 'consent' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+          {/* CONTROL BOX - ADICIONAR MANUALMENTE */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="glass-panel p-8 space-y-6 border border-white/5">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Plus size={20} className="text-blue-400" />
+                Registrar Consentimento
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Adicione ou altere manualmente o status de um contato na lista de permissões da empresa para disparos de WhatsApp.
+              </p>
+
+              <form onSubmit={handleAddOptIn} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-semibold block">Número de Telefone</label>
+                  <input
+                    type="text"
+                    className="w-full bg-[#0F172A] border border-white/10 rounded-lg p-3 text-white outline-none focus:border-blue-500/50 text-sm"
+                    placeholder="Ex: 5511999999999"
+                    value={newOptInPhone}
+                    onChange={e => setNewOptInPhone(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-semibold block">Status do Consentimento</label>
+                  <select
+                    className="w-full bg-[#0F172A] border border-white/10 rounded-lg p-3 text-white outline-none text-sm"
+                    value={newOptInStatus}
+                    onChange={e => setNewOptInStatus(e.target.value)}
+                  >
+                    <option value="accepted">Aceitou Receber (Opt-In)</option>
+                    <option value="declined">Recusou/Bloqueado (Opt-Out)</option>
+                    <option value="pending">Aguardando Resposta (Pendente)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-md text-sm flex items-center justify-center gap-2"
+                >
+                  <Send size={16} />
+                  Salvar Registro
+                </button>
+              </form>
+            </div>
+
+            <div className="glass-panel p-6 bg-blue-500/5 border-blue-500/20">
+              <h4 className="text-white font-bold flex items-center gap-2 mb-2 text-sm">
+                <Info size={16} className="text-blue-400" />
+                Como funciona o Fluxo?
+              </h4>
+              <ul className="text-xs text-slate-400 space-y-2 list-disc pl-4 leading-relaxed">
+                <li><strong>Aceitou:</strong> Recebe os próximos disparos instantaneamente.</li>
+                <li><strong>Recusou:</strong> Bloqueado automaticamente de qualquer disparo (inclusive normais) para proteger a conta.</li>
+                <li><strong>Pendente:</strong> Aguardando o cliente responder Sim/1 para liberar o envio da mensagem.</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* LIST OF OPT-INS */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex justify-between items-center sm:gap-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Users className="text-blue-400" size={22} />
+                  Lista de Consentimento
+                </h3>
+                <span className="text-xs font-semibold px-2 py-0.5 bg-white/5 border border-white/10 text-slate-300 rounded-lg">
+                  {optIns.length} contatos
+                </span>
+              </div>
+              <button
+                onClick={fetchOptIns}
+                className="text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg transition-all"
+              >
+                Atualizar Lista
+              </button>
+            </div>
+
+            <div className="glass-panel border-white/5 overflow-hidden">
+              <div className="overflow-x-auto max-h-[600px]">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-white/5">
+                      <th className="p-4">Telefone</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Mensagem Pendente</th>
+                      <th className="p-4">Última Atualização</th>
+                      <th className="p-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {loadingOptIns ? (
+                      <tr>
+                        <td colSpan="5" className="p-8 text-center text-xs text-slate-400">
+                          <Loader2 className="animate-spin mx-auto mb-2" />
+                          Buscando registros...
+                        </td>
+                      </tr>
+                    ) : optIns.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="p-8 text-center text-xs text-slate-500 italic">
+                          Nenhum registro de consentimento encontrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      optIns.map(item => (
+                        <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="p-4 text-xs font-mono text-slate-200">
+                            {item.phone_number}
+                          </td>
+                          <td className="p-4 text-xs">
+                            <span className={`px-2 py-1 rounded-full font-bold text-[10px] uppercase w-fit ${item.status === 'accepted' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                item.status === 'declined' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                  'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                              }`}>
+                              {item.status === 'accepted' ? 'Aceitou' :
+                                item.status === 'declined' ? 'Recusou' : 'Pendente'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-xs text-slate-400 max-w-[200px] truncate">
+                            {item.pending_message || <span className="text-slate-600 italic">Nenhuma</span>}
+                          </td>
+                          <td className="p-4 text-xs text-slate-500">
+                            {new Date(item.updated_at || item.created_at).toLocaleDateString()} {new Date(item.updated_at || item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => handleDeleteOptIn(item.id)}
+                              className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg transition-all"
+                              title="Excluir Registro"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}

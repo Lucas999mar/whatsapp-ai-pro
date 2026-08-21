@@ -5,27 +5,36 @@ const { startLearningEngine } = require('./src/ai/learning');
 const { startObsidianWatcher } = require('./src/obsidian/watcher');
 const { startScheduler } = require('./src/whatsapp/scheduler');
 const { startTelegramFleet } = require('./src/telegram/bot');
+const { runMigrations } = require('./src/migrations');
 
 async function main() {
   console.log('🚀 Iniciando WhatsApp AI Pro...\n');
-  
+
+  // Roda migrações automática do banco
+  try {
+    await runMigrations();
+  } catch (migErr) {
+    console.error('⚠️ Falha ao rodar migrações do banco:', migErr.message);
+  }
+
   // Inicia API (sempre)
   startServer();
-  
+
+
   // Inicia Learning Engine (Jobs em background)
   try {
     startLearningEngine();
   } catch (e) {
     console.warn('⚠️ Learning Engine não iniciou:', e.message);
   }
-  
+
   // Inicia sincronização do Obsidian (apenas se houver paths configurados e existirem)
   try {
     startObsidianWatcher();
   } catch (e) {
     console.warn('⚠️ Obsidian Watcher não iniciou:', e.message);
   }
-  
+
   // Inicia Frota de Bots WhatsApp
   try {
     await startFleet();

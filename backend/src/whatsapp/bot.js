@@ -240,6 +240,146 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
             pendingMessages.delete(key);
 
+            // ── CHECK WHATSAPP OPT-IN/OUT ─────────────────────────
+            try {
+              const cleanNumber = sender.split('@')[0];
+              const supabase = getSupabase();
+
+              const textClean = finalContext.trim().toLowerCase();
+              const optOutWords = ['parar', 'sair', 'descadastrar', 'cancelar inscricao', 'stop', 'optout', 'opt-out', '2'];
+              const optInWords = ['quero receber', 'optin', 'opt-in', '1'];
+
+              // Busca registro de opt-in
+              const { data: optInEntry } = await supabase
+                .from('whatsapp_opt_ins')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .eq('phone_number', cleanNumber)
+                .maybeSingle();
+
+              let shouldMarkOptOut = false;
+              let shouldMarkOptIn = false;
+
+              if (optOutWords.includes(textClean) || (textClean.includes('parar') && textClean.length < 15)) {
+                shouldMarkOptOut = true;
+              } else if (optInWords.includes(textClean) || (textClean.includes('quero receber') && textClean.length < 20)) {
+                shouldMarkOptIn = true;
+              }
+
+              if (shouldMarkOptOut) {
+                await supabase
+                  .from('whatsapp_opt_ins')
+                  .upsert({
+                    tenant_id: tenantId,
+                    phone_number: cleanNumber,
+                    status: 'declined',
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'tenant_id,phone_number' });
+
+                await sock.sendPresenceUpdate('composing', sender);
+                await sock.sendMessage(sender, {
+                  text: `Você foi descadastrado da nossa lista e não receberá mais comunicações automatizadas.`
+                });
+                return;
+              }
+
+              if (shouldMarkOptIn) {
+                const pendingMsg = optInEntry?.pending_message;
+                const pendingMedia = optInEntry?.pending_media;
+
+                await supabase
+                  .from('whatsapp_opt_ins')
+                  .upsert({
+                    tenant_id: tenantId,
+                    phone_number: cleanNumber,
+                    status: 'accepted',
+                    pending_message: null,
+                    pending_media: null,
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'tenant_id,phone_number' });
+
+                await sock.sendPresenceUpdate('composing', sender);
+                await sock.sendMessage(sender, {
+                  text: `Ótimo! Sua inscrição foi confirmada e você receberá nossas mensagens.`
+                });
+
+                if (pendingMsg || pendingMedia) {
+                  setTimeout(async () => {
+                    const { sendDirectMessage } = require('./bot');
+                    try {
+                      await sendDirectMessage(agentId, sender, pendingMsg, pendingMedia, { skipValidation: true });
+                    } catch (err) {
+                      console.error(`Erro ao disparar mensagem pendente após opt-in para ${cleanNumber}:`, err.message);
+                    }
+                  }, 2000);
+                }
+                return;
+              }
+
+              if (optInEntry && optInEntry.status === 'pending') {
+                const isPositive = textClean === '1' || textClean.includes('sim') || textClean.includes('aceito') || textClean.includes('quero');
+                const isNegative = textClean === '2' || textClean.includes('não') || textClean.includes('nao') || textClean.includes('recuso');
+
+                if (isPositive) {
+                  const pendingMsg = optInEntry.pending_message;
+                  const pendingMedia = optInEntry.pending_media;
+
+                  await supabase
+                    .from('whatsapp_opt_ins')
+                    .update({
+                      status: 'accepted',
+                      pending_message: null,
+                      pending_media: null,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('tenant_id', tenantId)
+                    .eq('phone_number', cleanNumber);
+
+                  await sock.sendPresenceUpdate('composing', sender);
+                  await sock.sendMessage(sender, {
+                    text: `Obrigado por confirmar! Suas mensagens serão enviadas a seguir.`
+                  });
+
+                  if (pendingMsg || pendingMedia) {
+                    setTimeout(async () => {
+                      const { sendDirectMessage } = require('./bot');
+                      try {
+                        await sendDirectMessage(agentId, sender, pendingMsg, pendingMedia, { skipValidation: true });
+                      } catch (err) {
+                        console.error(`Erro ao disparar mensagem pendente após opt-in de confirmação para ${cleanNumber}:`, err.message);
+                      }
+                    }, 2000);
+                  }
+                  return;
+                } else if (isNegative) {
+                  await supabase
+                    .from('whatsapp_opt_ins')
+                    .update({
+                      status: 'declined',
+                      pending_message: null,
+                      pending_media: null,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('tenant_id', tenantId)
+                    .eq('phone_number', cleanNumber);
+
+                  await sock.sendPresenceUpdate('composing', sender);
+                  await sock.sendMessage(sender, {
+                    text: `Entendido. Você não receberá mais mensagens de nossa empresa.`
+                  });
+                  return;
+                } else {
+                  await sock.sendPresenceUpdate('composing', sender);
+                  await sock.sendMessage(sender, {
+                    text: `Gostaríamos de confirmar sua autorização para receber nossas mensagens.\n\nPor favor, responda:\n*1* - Sim, aceito receber mensagens\n*2* - Não aceito`
+                  });
+                  return;
+                }
+              }
+            } catch (optInErr) {
+              console.error('⚠️ Erro ao processar interceptação de opt-in:', optInErr.message);
+            }
+
             // 🤖 [NOVO] Verifica se a IA está ativada para este ticket
             try {
               const threadId = `${tenantId}__${sender}__${agentId}`;
