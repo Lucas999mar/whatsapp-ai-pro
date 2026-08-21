@@ -19,6 +19,7 @@ const BASE_AUTH_DIR = path.resolve(__dirname, '../../auth_info');
 
 const agents = new Map();
 const pendingMessages = new Map(); // Buffer para junção de mensagens picotadas
+const processedMessages = new Set(); // Cache para evitar processamento duplicado de mensagens
 
 async function getAgentsStatus(tenantId = null) {
   const { listAgents } = require('../db/repository');
@@ -164,6 +165,17 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
 
     for (const msg of messages) {
       if (msg.key.fromMe) continue;
+
+      const msgId = msg.key.id;
+      if (msgId) {
+        if (processedMessages.has(msgId)) continue;
+        processedMessages.add(msgId);
+        if (processedMessages.size > 5000) {
+          const firstVal = processedMessages.keys().next().value;
+          processedMessages.delete(firstVal);
+        }
+      }
+
       let sender = msg.key.remoteJid;
 
       // Tenta resolver LID para Telefone (PN) se for o caso
