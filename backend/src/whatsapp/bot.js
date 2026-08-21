@@ -646,34 +646,15 @@ async function sendDirectMessage(agentId, number, text, media = null, { skipVali
         if (text) options.caption = text;
         await currentAgent.socket.sendMessage(finalJid, options);
       } else if (options && options.buttons && options.buttons.length > 0) {
-        try {
-          console.log(`💬 [DirectMessage] Enviando botões interativos para ${finalJid}${attempt > 0 ? ` [tentativa ${attempt + 1}]` : ''}`);
-          const formattedButtons = options.buttons.map(btn => ({
-            name: "quick_reply",
-            buttonParamsJson: JSON.stringify({
-              display_text: btn.text,
-              id: btn.id
-            })
-          }));
+        console.log(`💬 [DirectMessage] Formatando botões como texto compatível para evitar bloqueios de rede para ${finalJid}`);
+        let buttonText = `📝 *${text}*`;
+        buttonText += `\n\nResponda para prosseguir:\n` + options.buttons.map((b, idx) => `👉 *${idx + 1}* ou *${b.text}*`).join('\n');
 
-          await currentAgent.socket.sendMessage(finalJid, {
-            viewOnceMessage: {
-              message: {
-                interactiveMessage: {
-                  body: { text: text },
-                  footer: { text: options.footer || "" },
-                  nativeFlowMessage: {
-                    buttons: formattedButtons
-                  }
-                }
-              }
-            }
-          });
-        } catch (buttonErr) {
-          console.warn('⚠️ Falha ao enviar com botões nativos, enviando como texto padrão:', buttonErr.message);
-          const plainText = text + "\n\n" + options.buttons.map((b, idx) => `*${idx + 1}* - ${b.text}`).join('\n');
-          await currentAgent.socket.sendMessage(finalJid, { text: plainText });
+        if (options.footer) {
+          buttonText += `\n\n_${options.footer}_`;
         }
+
+        await currentAgent.socket.sendMessage(finalJid, { text: buttonText });
       } else {
         console.log(`💬 [DirectMessage] Enviando texto para ${finalJid}${attempt > 0 ? ` [tentativa ${attempt + 1}]` : ''}`);
         await currentAgent.socket.sendMessage(finalJid, { text });
