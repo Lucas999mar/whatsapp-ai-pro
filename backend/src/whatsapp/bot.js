@@ -569,7 +569,8 @@ async function updateAgentSettings(agentId, newSettings) {
   }
 }
 
-async function sendDirectMessage(agentId, number, text, media = null, { skipValidation = false, retries = 2 } = {}) {
+async function sendDirectMessage(agentId, number, text, media = null, options = {}) {
+  const { skipValidation = false, retries = 2 } = options;
   const agent = agents.get(agentId);
   if (!agent || !agent.socket) throw new Error('Agente não está conectado ou não existe');
 
