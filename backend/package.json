@@ -13,7 +13,7 @@
     "@anthropic-ai/sdk": "^0.104.2",
     "@gradio/client": "^2.5.0",
     "@supabase/supabase-js": "^2.45.0",
-    "@whiskeysockets/baileys": "^6.7.18",
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "canvas": "^3.2.3",
     "chokidar": "^5.0.0",
     "cors": "^2.8.5",

@@ -1,10 +1,12 @@
-const {
-  makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  downloadMediaMessage,
-} = require('@whiskeysockets/baileys');
+// ── Baileys v7 (ESM-only) — Dynamic import wrapper for CommonJS ──
+let _baileys = null;
+async function getBaileys() {
+  if (!_baileys) {
+    _baileys = await import('@whiskeysockets/baileys');
+  }
+  return _baileys;
+}
+
 const pino = require('pino');
 const path = require('path');
 const fs = require('fs');
@@ -67,15 +69,15 @@ async function startWhatsAppBot(agentId = 'default', agentName = 'Assistente Pri
   const authDir = `${BASE_AUTH_DIR}_${agentId}`;
   if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
 
+  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = await getBaileys();
+
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
-  const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
-    version,
     logger,
     auth: state,
     printQRInTerminal: false,
-    browser: ['WA Pro', 'Chrome', '126.0.0'],
+    browser: ['WA Pro', 'Chrome', '130.0.0'],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     keepAliveIntervalMs: 30000,

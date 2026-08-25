@@ -1,10 +1,6 @@
-const { proto } = require('@whiskeysockets/baileys');
+// ── Baileys v7 (ESM-only) — Dynamic import wrapper for CommonJS ──
 const { getSupabase } = require('../db/supabase');
-const { 
-  Curve, 
-  signedKeyPair, 
-  generateRegistrationId 
-} = require('@whiskeysockets/baileys/lib/Utils');
+const crypto = require('crypto');
 
 const BufferJSON = {
   replacer: (k, v) => {
@@ -22,6 +18,9 @@ const BufferJSON = {
 };
 
 async function useSupabaseAuthState(agentId) {
+  const baileys = await import('@whiskeysockets/baileys');
+  const proto = baileys.proto;
+
   const supabase = getSupabase();
   const table = 'whatsapp_auth';
   const keys = {}; // Memória local para chaves temporárias
@@ -47,19 +46,23 @@ async function useSupabaseAuthState(agentId) {
 
   let creds = await readCreds();
   if (!creds) {
-    creds = {
-      noiseKey: Curve.generateKeyPair(),
-      signedIdentityKey: Curve.generateKeyPair(),
-      signedPreKey: signedKeyPair(Curve.generateKeyPair(), 1),
-      registrationId: Math.floor(Math.random() * 16380) + 1,
-      advSecretKey: Curve.generateKeyPair().private.toString('base64'),
-      processedHistoryMessages: [],
-      nextPreKeyId: 1,
-      firstUnuploadedPreKeyId: 1,
-      accountSettings: { unarchiveChats: false },
-      deviceId: Buffer.from(Curve.generateKeyPair().public).toString('base64').slice(0, 6)
-    };
-    await writeCreds(creds);
+    // In v7, Curve/signedKeyPair utilities may have moved or changed.
+    // Use useMultiFileAuthState to generate initial creds if needed,
+    // or generate minimal creds manually.
+    const { useMultiFileAuthState } = baileys;
+    const path = require('path');
+    const fs = require('fs');
+    const tempDir = path.resolve(__dirname, `../../.temp_auth_${agentId}_${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    try {
+      const { state: tempState, saveCreds: tempSave } = await useMultiFileAuthState(tempDir);
+      creds = tempState.creds;
+      await writeCreds(creds);
+    } finally {
+      // Cleanup temp dir
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) { }
+    }
   }
 
   return {
@@ -71,7 +74,8 @@ async function useSupabaseAuthState(agentId) {
           for (const id of ids) {
             let value = keys[`${type}-${id}`];
             if (type === 'app-state-sync-key' && value) {
-              value = proto.Message.AppStateSyncKeyData.fromObject(value);
+              // v7: use .create() instead of .fromObject()
+              value = proto.Message.AppStateSyncKeyData.create(value);
             }
             data[id] = value;
           }
