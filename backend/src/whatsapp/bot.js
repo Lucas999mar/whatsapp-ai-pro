@@ -583,27 +583,50 @@ async function sendDirectMessage(agentId, number, text, media = null, options = 
   let finalJid = testJid;
 
   // 🇧🇷 Para números brasileiros com DDDs 11-28 de 9 dígitos (13 caracteres),
-  // o WhatsApp geralmente armazena no banco de dados deles como JID legado de 8 dígitos (sem o 9).
-  // Se skipValidation for true (broadcast em massa), mas o número se encaixar nesta regra de ambiguidade,
-  // forçamos o uso do onWhatsApp para buscar o JID correto para que a conversa seja sincronizada no celular do emissor.
+  // o WhatsApp muitas vezes armazena o JID no formato legado de 8 dígitos (sem o 9).
+  // Se skipValidation for true (broadcast em massa), mas o número for ambíguo,
+  // forçamos o uso do onWhatsApp. IMPORTANTE: consultamos primeiro o formato de 8 dígitos (legado),
+  // pois o servidor do WhatsApp mapeia o 8 dígitos para o JID correto (seja ele de 8 ou 9 dígitos),
+  // ao passo que a consulta direta do 9 dígitos em uma conta de 8 dígitos retorna que "não existe".
   let isBrazilianAmbiguous = false;
+  let legacyJid = testJid;
   if (cleanNumber.startsWith('55') && cleanNumber.length === 13) {
     const ddd = parseInt(cleanNumber.substring(2, 4), 10);
     if (ddd >= 11 && ddd <= 28) {
       isBrazilianAmbiguous = true;
+      const legacyNumber = cleanNumber.substring(0, 4) + cleanNumber.substring(5);
+      legacyJid = `${legacyNumber}@s.whatsapp.net`;
     }
   }
 
-  // 🛡️ Validação de número via onWhatsApp. Skipar em broadcasts para evitar rate-limit (exceto se for número brasileiro ambíguo).
+  // 🛡️ Validação de número via onWhatsApp. Skipar em broadcasts para evitar rate-limit (exceto se for brasileiro ambíguo).
   if (!skipValidation || isBrazilianAmbiguous) {
     try {
-      console.log(`🔍 [DirectMessage] Verificando existência/JID correto de ${testJid}...`);
-      const results = await agent.socket.onWhatsApp(testJid);
-      if (results && results.length > 0 && results[0].exists) {
-        finalJid = results[0].jid;
-        console.log(`✅ [DirectMessage] JID validado com sucesso: ${finalJid}`);
+      if (isBrazilianAmbiguous) {
+        console.log(`🔍 [DirectMessage] Verificando JID via formato legado: ${legacyJid}`);
+        const results = await agent.socket.onWhatsApp(legacyJid);
+        if (results && results.length > 0 && results[0].exists) {
+          finalJid = results[0].jid;
+          console.log(`✅ [DirectMessage] JID validado (legado): ${finalJid}`);
+        } else {
+          console.log(`🔍 [DirectMessage] Formato legado não encontrado. Tentando formato original 9 dígitos: ${testJid}`);
+          const results9 = await agent.socket.onWhatsApp(testJid);
+          if (results9 && results9.length > 0 && results9[0].exists) {
+            finalJid = results9[0].jid;
+            console.log(`✅ [DirectMessage] JID validado (9 dígitos): ${finalJid}`);
+          } else {
+            console.warn(`⚠️ [DirectMessage] Número não encontrado nas duas tentativas. Usando JID padrão: ${testJid}`);
+          }
+        }
       } else {
-        console.warn(`⚠️ [DirectMessage] Número ${testJid} não encontrado pelo WhatsApp. Prosseguindo com JID padrão.`);
+        console.log(`🔍 [DirectMessage] Verificando existência de ${testJid}...`);
+        const results = await agent.socket.onWhatsApp(testJid);
+        if (results && results.length > 0 && results[0].exists) {
+          finalJid = results[0].jid;
+          console.log(`✅ [DirectMessage] JID validado: ${finalJid}`);
+        } else {
+          console.warn(`⚠️ [DirectMessage] Número ${testJid} não encontrado. Usando JID padrão.`);
+        }
       }
     } catch (e) {
       console.error(`❌ [DirectMessage] Erro na verificação onWhatsApp para ${testJid}:`, e.message);
