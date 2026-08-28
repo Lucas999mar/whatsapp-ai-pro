@@ -770,44 +770,6 @@ router.delete('/whatsapp/agents/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/whatsapp/test-debug', authMiddleware, async (req, res) => {
-  try {
-    const { agents, sendDirectMessage } = require('../whatsapp/bot');
-    const runningKeys = Array.from(agents.keys());
-    const agentsDetails = runningKeys.map(k => {
-      const a = agents.get(k);
-      return {
-        id: a.id,
-        name: a.name,
-        status: a.status,
-        hasSocket: !!a.socket,
-        socketStatus: a.socket ? a.socket.ws?.readyState : null,
-      };
-    });
-
-    let sendResult = null;
-    const { number, message, agentId } = req.query;
-    if (number && message && agentId) {
-      try {
-        console.log(`[TEST-DEBUG] Tentando enviar mensagem teste para ${number} usando ${agentId}`);
-        sendResult = await sendDirectMessage(agentId, number, message, null, { skipValidation: true });
-        console.log(`[TEST-DEBUG] Mensagem teste enviada com sucesso`);
-      } catch (err) {
-        console.error(`[TEST-DEBUG] Erro no envio da mensagem teste:`, err);
-        sendResult = { error: err.message, stack: err.stack };
-      }
-    }
-
-    res.json({
-      success: true,
-      agentsRunning: agentsDetails,
-      sendResult
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack });
-  }
-});
-
 router.post('/whatsapp/broadcast', authMiddleware, async (req, res) => {
   const { agentId, numbers, message, delay, media, requireOptIn, optInMessage } = req.body;
   const tenantId = req.user.tenant_id || req.user.id;
