@@ -855,5 +855,6 @@ module.exports = {
   sendDirectMessage,
   getAgentGroups,
   addParticipantsToGroup,
-  verifyGroupAdmin
+  verifyGroupAdmin,
+  agents
 };
