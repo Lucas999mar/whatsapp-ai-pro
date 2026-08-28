@@ -22,6 +22,7 @@ const BASE_AUTH_DIR = path.resolve(__dirname, '../../auth_info');
 const agents = new Map();
 const pendingMessages = new Map(); // Buffer para junção de mensagens picotadas
 const processedMessages = new Set(); // Cache para evitar processamento duplicado de mensagens
+const jidCache = new Map(); // Cache global para resolved JIDs (evita consultas onWhatsApp repetidas no Baileys v7)
 
 async function getAgentsStatus(tenantId = null) {
   const { listAgents } = require('../db/repository');
@@ -582,12 +583,10 @@ async function sendDirectMessage(agentId, number, text, media = null, options = 
   let testJid = cleanNumber.includes('@') ? cleanNumber : `${cleanNumber}@s.whatsapp.net`;
   let finalJid = testJid;
 
+  const cleanNumberOnly = cleanNumber.split('@')[0];
+
   // 🇧🇷 Para números brasileiros com DDDs 11-28 de 9 dígitos (13 caracteres),
   // o WhatsApp muitas vezes armazena o JID no formato legado de 8 dígitos (sem o 9).
-  // Se skipValidation for true (broadcast em massa), mas o número for ambíguo,
-  // forçamos o uso do onWhatsApp. IMPORTANTE: consultamos primeiro o formato de 8 dígitos (legado),
-  // pois o servidor do WhatsApp mapeia o 8 dígitos para o JID correto (seja ele de 8 ou 9 dígitos),
-  // ao passo que a consulta direta do 9 dígitos em uma conta de 8 dígitos retorna que "não existe".
   let isBrazilianAmbiguous = false;
   let legacyJid = testJid;
   if (cleanNumber.startsWith('55') && cleanNumber.length === 13) {
@@ -599,8 +598,11 @@ async function sendDirectMessage(agentId, number, text, media = null, options = 
     }
   }
 
-  // 🛡️ Validação de número via onWhatsApp. Skipar em broadcasts para evitar rate-limit (exceto se for brasileiro ambíguo).
-  if (!skipValidation || isBrazilianAmbiguous) {
+  // 🛡️ Sincronização e Resolução de JIDs via Cache ou onWhatsApp (Essencial para LIDs no Baileys v7)
+  if (jidCache.has(cleanNumberOnly)) {
+    finalJid = jidCache.get(cleanNumberOnly);
+    console.log(`✅ [DirectMessage] JID recuperado do cache para ${cleanNumberOnly}: ${finalJid}`);
+  } else {
     try {
       if (isBrazilianAmbiguous) {
         console.log(`🔍 [DirectMessage] Verificando JID via formato legado: ${legacyJid}`);
@@ -608,22 +610,25 @@ async function sendDirectMessage(agentId, number, text, media = null, options = 
         if (results && results.length > 0 && results[0].exists) {
           finalJid = results[0].jid;
           console.log(`✅ [DirectMessage] JID validado (legado): ${finalJid}`);
+          jidCache.set(cleanNumberOnly, finalJid);
         } else {
           console.log(`🔍 [DirectMessage] Formato legado não encontrado. Tentando formato original 9 dígitos: ${testJid}`);
           const results9 = await agent.socket.onWhatsApp(testJid);
           if (results9 && results9.length > 0 && results9[0].exists) {
             finalJid = results9[0].jid;
             console.log(`✅ [DirectMessage] JID validado (9 dígitos): ${finalJid}`);
+            jidCache.set(cleanNumberOnly, finalJid);
           } else {
             console.warn(`⚠️ [DirectMessage] Número não encontrado nas duas tentativas. Usando JID padrão: ${testJid}`);
           }
         }
       } else {
-        console.log(`🔍 [DirectMessage] Verificando existência de ${testJid}...`);
+        console.log(`🔍 [DirectMessage] Verificando JID via onWhatsApp para: ${testJid}`);
         const results = await agent.socket.onWhatsApp(testJid);
         if (results && results.length > 0 && results[0].exists) {
           finalJid = results[0].jid;
           console.log(`✅ [DirectMessage] JID validado: ${finalJid}`);
+          jidCache.set(cleanNumberOnly, finalJid);
         } else {
           console.warn(`⚠️ [DirectMessage] Número ${testJid} não encontrado. Usando JID padrão.`);
         }
