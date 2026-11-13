@@ -85,3 +85,4 @@ CREATE TABLE IF NOT EXISTS portfolio_proposals (
 
 CREATE INDEX IF NOT EXISTS idx_portfolio_proposals_tenant ON portfolio_proposals(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_proposals_token ON portfolio_proposals(share_token);
+

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
   Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network, Camera,
-  FileSignature, BarChart2, Plug, Briefcase
+  FileSignature, BarChart2, Plug, Briefcase, Target
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -61,6 +61,9 @@ import PortfolioPage from './pages/PortfolioPage';
 import PortfolioPublicPage from './pages/PortfolioPublicPage';
 import ProposalPublicPage from './pages/ProposalPublicPage';
 
+// Componente de Gestor de Tráfego & Performance de Anúncios (Meta Ads & Google Ads)
+import AdsPerformancePage from './pages/AdsPerformancePage';
+
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -78,6 +81,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/ai-designer', name: 'AI Designer', icon: <Wand2 size={20} /> },
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
     { path: '/social-analytics', name: 'Analytics de Redes', icon: <BarChart2 size={20} /> },
+    { path: '/ads', name: 'Gestor de Ads (Tráfego)', icon: <Target size={20} /> },
     { path: '/mindmap', name: 'Mapas Mentais', icon: <Network size={20} /> },
     { path: '/brain', name: 'Segundo Cérebro', icon: <BrainCircuit size={20} /> },
     { path: '/agent', name: 'Agente Autônomo', icon: <BrainCircuit size={20} /> },
@@ -124,6 +128,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
       '/social-analytics': 'socialAnalytics',
+      '/ads': 'ads',
       '/mindmap': 'mindmap',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -257,6 +262,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
       '/social-analytics': 'socialAnalytics',
+      '/ads': 'ads',
       '/mindmap': 'mindmap',
       '/creative-center': 'creativeCenter',
       '/ai-designer': 'aiDesigner',
@@ -380,6 +386,7 @@ function AppContent() {
             <Route path="/ai-designer" element={<AuthGuard><AIDesigner /></AuthGuard>} />
             <Route path="/content-planner" element={<AuthGuard><ContentPlannerPage /></AuthGuard>} />
             <Route path="/social-analytics" element={<AuthGuard><SocialAnalyticsPage /></AuthGuard>} />
+            <Route path="/ads" element={<AuthGuard><AdsPerformancePage /></AuthGuard>} />
             <Route path="/mindmap" element={<AuthGuard><MindMapPage /></AuthGuard>} />
             <Route path="/brain" element={<AuthGuard><BrainPage /></AuthGuard>} />
             <Route path="/agent" element={<AuthGuard><AgentDashboard /></AuthGuard>} />

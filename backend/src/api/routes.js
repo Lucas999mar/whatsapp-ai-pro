@@ -1413,6 +1413,10 @@ router.use('/', photoRoutes);
 const portfolioRouter = require('./portfolioRoutes');
 router.use('/portfolio', portfolioRouter);
 
+// ── GESTÃO DE ANÚNCIOS (META ADS & GOOGLE ADS) COM OTIMIZADOR IA ──
+const adsRouter = require('./adsRoutes');
+router.use('/ads', adsRouter);
+
 module.exports = router;
 
 
