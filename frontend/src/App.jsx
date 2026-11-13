@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
   Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network, Camera,
-  FileSignature, BarChart2, Plug
+  FileSignature, BarChart2, Plug, Briefcase
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -56,6 +56,11 @@ import ConnectionsPage from './pages/ConnectionsPage';
 import PhotoCampaignAdmin from './pages/PhotoCampaignAdmin';
 import PhotoCampaignPublic from './pages/PhotoCampaignPublic';
 
+// Componentes de Portfólio & Propostas Comerciais
+import PortfolioPage from './pages/PortfolioPage';
+import PortfolioPublicPage from './pages/PortfolioPublicPage';
+import ProposalPublicPage from './pages/ProposalPublicPage';
+
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -82,6 +87,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/follow-up', name: 'Follow-up', icon: <CalendarIcon size={20} /> },
     { path: '/os', name: 'Ordens de Serviço', icon: <ClipboardList size={20} /> },
     { path: '/contracts', name: 'Contratos & Assinaturas', icon: <FileSignature size={20} /> },
+    { path: '/portfolio', name: 'Portfólio & Propostas', icon: <Briefcase size={20} /> },
     { path: '/delivery-dashboard', name: 'Monitor Delivery (Uber)', icon: <Bike size={20} /> },
     { path: '/photo-campaign', name: 'Foto com Candidato', icon: <Camera size={20} /> },
     { path: '/connections', name: 'Conexões & Plugins', icon: <Plug size={20} /> },
@@ -127,6 +133,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/follow-up': 'followUp',
       '/os': 'os',
       '/contracts': 'contracts',
+      '/portfolio': 'portfolio',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
       '/photo-campaign': 'photoCampaign',
@@ -259,6 +266,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/follow-up': 'followUp',
       '/os': 'os',
       '/contracts': 'contracts',
+      '/portfolio': 'portfolio',
       '/motoboy': 'delivery',
       '/delivery-dashboard': 'delivery',
       '/photo-campaign': 'photoCampaign',
@@ -307,6 +315,8 @@ function AppContent() {
         <Route path="/content/share/:token" element={<ContentPlannerPublicPage />} />
         <Route path="/contracts/sign/:id" element={<ContractSignaturePage />} />
         <Route path="/foto-candidato/:shareToken" element={<PhotoCampaignPublic />} />
+        <Route path="/portfolio/share/:token" element={<PortfolioPublicPage />} />
+        <Route path="/proposta/share/:token" element={<ProposalPublicPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     );
@@ -381,12 +391,15 @@ function AppContent() {
             <Route path="/delivery-dashboard" element={<AuthGuard><DeliveryDashboard /></AuthGuard>} />
             <Route path="/photo-campaign" element={<AuthGuard><PhotoCampaignAdmin /></AuthGuard>} />
             <Route path="/contracts" element={<AuthGuard><ContractsPage /></AuthGuard>} />
+            <Route path="/portfolio" element={<AuthGuard><PortfolioPage /></AuthGuard>} />
             <Route path="/contracts/sign/:id" element={<ContractSignaturePage />} />
             <Route path="/track/:code" element={<TrackingPage />} />
             <Route path="/tracking/:code" element={<TrackingPage />} />
             <Route path="/agenda/share/:token" element={<AgendaPublicPage />} />
             <Route path="/content/share/:token" element={<ContentPlannerPublicPage />} />
             <Route path="/foto-candidato/:shareToken" element={<PhotoCampaignPublic />} />
+        <Route path="/portfolio/share/:token" element={<PortfolioPublicPage />} />
+        <Route path="/proposta/share/:token" element={<ProposalPublicPage />} />
             <Route path="/connections" element={<AuthGuard><ConnectionsPage /></AuthGuard>} />
             <Route path="/integrations" element={<AuthGuard><IntegrationsPage /></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />

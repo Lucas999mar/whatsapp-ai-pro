@@ -1409,6 +1409,10 @@ router.use('/', pluginRoutes);
 const photoRoutes = require('./photoRoutes');
 router.use('/', photoRoutes);
 
+// ── PORTFÓLIO & PROPOSTAS COMERCIAIS ROUTES ──────────────────
+const portfolioRouter = require('./portfolioRoutes');
+router.use('/portfolio', portfolioRouter);
+
 module.exports = router;
 
 
