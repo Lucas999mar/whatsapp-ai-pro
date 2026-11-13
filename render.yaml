@@ -29,5 +29,9 @@ services:
         sync: false
       - key: ANTHROPIC_MODEL
         value: claude-3-haiku-20240307
+      - key: META_APP_ID
+        value: "220441301366782"
+      - key: META_APP_SECRET
+        value: "1fbe3cd1470c76e5354ef13900afc95b"
     buildCommand: npm install
     startCommand: node index.js

@@ -1,3 +1,3 @@
 // Triggering fresh deploy 
-const DEPLOY_VERSION = 'v23';
+const DEPLOY_VERSION = 'v24';
 module.exports = DEPLOY_VERSION;

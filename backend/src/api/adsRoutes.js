@@ -347,7 +347,7 @@ router.get('/oauth/facebook/start', (req, res) => {
     const backendUrl = `${protocol}://${host}`;
     const callbackUrl = `${backendUrl}/api/ads/oauth/facebook/callback`;
 
-    const appId = process.env.META_APP_ID || process.env.FACEBOOK_APP_ID;
+    const appId = process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || '220441301366782';
     if (appId) {
         const metaUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=ads_read,read_insights,ads_management,business_management&response_type=code`;
         return res.redirect(metaUrl);
@@ -369,61 +369,56 @@ router.get('/oauth/facebook/login-screen', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    body { background: #f0f2f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-    .card { background: #fff; width: 100%; max-width: 460px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); padding: 32px 28px; }
-    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; color: #1877F2; }
-    .logo svg { width: 36px; height: 36px; fill: #1877F2; }
-    .logo h1 { font-size: 24px; font-weight: 700; color: #1877F2; letter-spacing: -0.5px; }
-    h2 { font-size: 18px; color: #1c1e21; margin-bottom: 12px; }
-    p { font-size: 14px; color: #606770; line-height: 1.5; margin-bottom: 20px; }
-    .app-box { background: #f7f8fa; border: 1px solid #dddfe2; border-radius: 8px; padding: 14px; margin-bottom: 24px; }
-    .app-box-title { font-weight: 600; font-size: 14px; color: #1c1e21; display: flex; align-items: center; gap: 8px; }
-    .permissions { margin-top: 10px; font-size: 12px; color: #4b4f56; line-height: 1.6; }
-    .permissions li { list-style: none; display: flex; align-items: center; gap: 6px; }
-    .permissions li::before { content: "✓"; color: #42b72a; font-weight: bold; }
-    .btn-continue { display: block; width: 100%; background: #1877F2; color: #fff; text-align: center; padding: 13px; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: background 0.2s; }
+    body { background: #0B0F19; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; color: #fff; }
+    .card { background: #111827; width: 100%; max-width: 480px; border-radius: 16px; border: 1px solid #1f2937; box-shadow: 0 10px 35px rgba(0,0,0,0.6); padding: 32px 28px; }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #1877F2; }
+    .logo svg { width: 34px; height: 34px; fill: #1877F2; }
+    .logo h1 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+    h2 { font-size: 17px; color: #F3F4F6; margin-bottom: 8px; }
+    p { font-size: 13px; color: #9CA3AF; line-height: 1.5; margin-bottom: 18px; }
+    .token-box { background: #1F2937; border: 1px solid #374151; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+    .token-label { font-size: 12px; font-weight: 600; color: #60A5FA; display: block; margin-bottom: 6px; }
+    .token-input { width: 100%; padding: 11px 12px; background: #0B0F19; border: 1px solid #4B5563; border-radius: 8px; color: #fff; font-size: 13px; outline: none; margin-bottom: 8px; font-family: monospace; }
+    .token-input:focus { border-color: #3B82F6; }
+    .token-hint { font-size: 11px; color: #9CA3AF; line-height: 1.4; }
+    .btn-continue { display: block; width: 100%; background: #1877F2; color: #fff; text-align: center; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 14px rgba(24,119,242,0.4); }
     .btn-continue:hover { background: #166fe5; }
-    .btn-cancel { display: block; width: 100%; background: transparent; color: #606770; text-align: center; padding: 10px; font-size: 13px; text-decoration: none; margin-top: 8px; }
-    .footer { font-size: 11px; color: #8a8d91; text-align: center; margin-top: 24px; border-top: 1px solid #e4e6eb; padding-top: 16px; }
+    .btn-cancel { display: block; width: 100%; background: transparent; color: #9CA3AF; text-align: center; padding: 10px; font-size: 12px; text-decoration: none; margin-top: 10px; }
+    .footer { font-size: 11px; color: #6B7280; text-align: center; margin-top: 20px; border-top: 1px solid #1F2937; padding-top: 14px; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">
       <svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-      <h1>facebook</h1>
+      <h1>Meta Graph API</h1>
     </div>
-    <h2>Entrar com o Facebook</h2>
-    <p>O aplicativo <strong>WhatsApp AI Pro</strong> está solicitando permissão para sincronizar e gerenciar as métricas de suas campanhas e anúncios.</p>
+    <h2>Sincronizar Contas Reais de Anúncios</h2>
+    <p>Para conectar com conformidade e carregar suas contas reais do <strong>Gerenciador de Anúncios da Meta</strong>, cole abaixo seu Token de Acesso.</p>
     
-    <div class="app-box">
-      <div class="app-box-title">Permissões Solicitadas:</div>
-      <ul class="permissions">
-        <li>Visualizar desempenho de anúncios (CAC, CPL, ROAS, Frequência)</li>
-        <li>Acessar contas de anúncios vinculadas ao seu Business Manager</li>
-        <li>Leitura de eventos do Pixel da Meta</li>
-      </ul>
-    </div>
-
-    <div style="margin: 16px 0; text-align: left;">
-      <label style="font-size: 12px; font-weight: 600; color: #1c1e21; display: block; margin-bottom: 6px;">Cole seu Token de Acesso da Meta (EAAB...):</label>
-      <input type="text" id="popupMetaToken" placeholder="Cole seu token aqui..." style="width: 100%; padding: 10px; border: 1px solid #ccd0d5; border-radius: 6px; font-size: 13px; box-sizing: border-box; outline: none; margin-bottom: 8px;" />
-      <div style="font-size: 11px; color: #606770; margin-bottom: 12px;">
-        💡 Pegue no <strong>Meta Business Suite</strong> (Usuários do Sistema) ou no <strong>Graph API Explorer</strong> com <code>ads_read</code>.
+    <div class="token-box">
+      <label class="token-label">Token de Acesso da Meta (EAAB...):</label>
+      <input type="text" id="metaToken" class="token-input" placeholder="Cole aqui seu token EAAB..." />
+      <div class="token-hint">
+        💡 Onde pegar: No <strong>Meta Business Suite</strong> (Configurações do Negócio → Usuários do Sistema) ou no <strong>Graph API Explorer</strong> com as permissões <code>ads_read</code> e <code>read_insights</code>.
       </div>
-      <button onclick="submitRealToken()" class="btn-continue">Sincronizar Minhas Contas Reais</button>
     </div>
 
-    <a href="javascript:window.close()" class="btn-cancel">Cancelar / Fechar</a>
+    <button onclick="submitRealToken()" class="btn-continue">Validar Token & Conectar Contas Reais</button>
+    <a href="javascript:window.close()" class="btn-cancel">Fechar Janela</a>
 
     <div class="footer">
-      Ao continuar, o WhatsApp AI Pro consultará suas contas reais de acordo com os Termos da Meta.
+      WhatsApp AI Pro • Conexão Segura e Criptografada via Meta Graph API v19.0
     </div>
   </div>
 
   <script>
     function submitRealToken() {
-      var tok = (document.getElementById('popupMetaToken').value || '').trim();
+      var tok = document.getElementById('metaToken').value.trim();
+      if (!tok) {
+        alert('Por favor, cole seu Token de Acesso da Meta para sincronizar suas contas reais.');
+        return;
+      }
       window.location.href = '${callbackUrl}?token=' + encodeURIComponent(tok);
     }
   </script>
@@ -432,9 +427,44 @@ router.get('/oauth/facebook/login-screen', (req, res) => {
     `);
 });
 
-// Callback do Facebook OAuth
-router.get('/oauth/facebook/callback', (req, res) => {
-    const receivedToken = (req.query.token || '').trim();
+// Callback do Facebook OAuth (com troca de code por access_token)
+router.get('/oauth/facebook/callback', async (req, res) => {
+    let receivedToken = (req.query.token || '').trim();
+    const code = req.query.code;
+    const errorReason = req.query.error_reason || req.query.error_description || req.query.error;
+
+    if (errorReason && !code && !receivedToken) {
+        return res.send(`
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>Autorização Cancelada</title>
+<style>body{background:#0B0F19;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;margin:0;}
+.box{background:#111827;border:1px solid #1f2937;padding:30px;border-radius:16px;max-width:400px;}</style></head>
+<body><div class="box"><h3 style="color:#EF4444">Autorização Não Concluída</h3><p style="color:#9CA3AF;font-size:13px;margin:10px 0;">${errorReason}</p><button onclick="window.close()" style="background:#374151;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;">Fechar</button></div></body></html>
+        `);
+    }
+
+    if (code && !receivedToken) {
+        try {
+            const host = req.headers['x-forwarded-host'] || req.headers.host;
+            const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+            const callbackUrl = `${protocol}://${host}/api/ads/oauth/facebook/callback`;
+            const appId = process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || '220441301366782';
+            const appSecret = process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET || '1fbe3cd1470c76e5354ef13900afc95b';
+
+            const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(callbackUrl)}&client_secret=${appSecret}&code=${code}`;
+            const tokenRes = await fetch(tokenUrl, { signal: AbortSignal.timeout(10000) });
+            const tokenJson = await tokenRes.json();
+            if (tokenJson.access_token) {
+                receivedToken = tokenJson.access_token;
+            } else if (tokenJson.error) {
+                console.error('Erro na troca de code por token na Meta:', tokenJson.error);
+            }
+        } catch (exchangeErr) {
+            console.error('Falha ao trocar code por access_token Meta:', exchangeErr.message);
+        }
+    }
+
     res.send(`
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -465,7 +495,7 @@ router.get('/oauth/facebook/callback', (req, res) => {
     }
     setTimeout(() => {
       window.close();
-    }, 1000);
+    }, 1200);
   </script>
 </body>
 </html>
