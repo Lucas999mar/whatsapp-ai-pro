@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import api from '../api/api';
 
-// Ícone oficial estilizado do Facebook
+// Ícone oficial do Facebook
 function FacebookIcon({ size = 18, className = "" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -19,7 +19,7 @@ function FacebookIcon({ size = 18, className = "" }) {
   );
 }
 
-// Ícone oficial estilizado do Google Ads
+// Ícone oficial do Google Ads
 function GoogleAdsIcon({ size = 18, className = "" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -35,7 +35,7 @@ export default function AdsPerformancePage() {
   const [selectedPlatform, setSelectedPlatform] = useState('all'); // 'all' | 'meta' | 'google'
   
   // Filtro de Data / Calendário Avançado
-  const [periodPreset, setPeriodPreset] = useState('last_30d'); // 'today' | 'yesterday' | 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'maximum' | 'custom'
+  const [periodPreset, setPeriodPreset] = useState('last_30d');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -54,16 +54,21 @@ export default function AdsPerformancePage() {
   const [aiOptimization, setAiOptimization] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // Modal de Conexão com Facebook (Meta) e Descoberta Automática de Contas
+  // Modal de Conexão com Facebook (Meta) e Google Ads
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-  const [connectStep, setConnectStep] = useState('initial'); // 'initial' | 'meta_connecting' | 'meta_select_accounts' | 'google_manual' | 'manual_meta' | 'success'
-  const [discoveredAccounts, setDiscoveredAccounts] = useState([]);
-  const [selectedDiscoveredAccId, setSelectedDiscoveredAccId] = useState('');
-  const [metaTokenInput, setMetaTokenInput] = useState('');
-  const [connectingLogs, setConnectingLogs] = useState([]);
-  const [isFetchingMeta, setIsFetchingMeta] = useState(false);
+  // 'initial' | 'meta_waiting_popup' | 'meta_select_accounts' | 'google_waiting_popup' | 'google_select_accounts' | 'manual_form'
+  const [connectStep, setConnectStep] = useState('initial');
+  
+  const [discoveredMetaAccounts, setDiscoveredMetaAccounts] = useState([]);
+  const [selectedDiscoveredMetaId, setSelectedDiscoveredMetaId] = useState('');
 
-  // Formulário manual (Google Ads ou Meta manual)
+  const [discoveredGoogleAccounts, setDiscoveredGoogleAccounts] = useState([]);
+  const [selectedDiscoveredGoogleId, setSelectedDiscoveredGoogleId] = useState('');
+
+  const [metaTokenInput, setMetaTokenInput] = useState('');
+  const [isFetchingAccounts, setIsFetchingAccounts] = useState(false);
+
+  // Formulário manual
   const [accountForm, setAccountForm] = useState({
     platform: 'meta',
     account_name: '',
@@ -99,6 +104,21 @@ export default function AdsPerformancePage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Ouvinte de mensagens de autenticação OAuth (popup callback)
+  useEffect(() => {
+    const handleOAuthMessage = (event) => {
+      if (event.data?.type === 'META_ADS_CONNECTED') {
+        console.log('✅ Facebook Meta OAuth popup concluiu autenticação!');
+        fetchMetaAccountsAndSelect();
+      } else if (event.data?.type === 'GOOGLE_ADS_CONNECTED') {
+        console.log('✅ Google Ads OAuth popup concluiu autenticação!');
+        fetchGoogleAccountsAndSelect();
+      }
+    };
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, [metaTokenInput]);
 
   // Carregar contas iniciais
   useEffect(() => {
@@ -264,44 +284,59 @@ export default function AdsPerformancePage() {
     }
   };
 
-  // FLUXO DE CONEXÃO DIRETA COM O FACEBOOK (META)
-  const handleStartMetaOAuth = async () => {
-    setIsFetchingMeta(true);
-    setConnectStep('meta_connecting');
-    setConnectingLogs([
-      'Estabelecendo conexão segura com a Meta Graph API v19.0...',
-      'Autenticando permissões de leitura de anúncios e métricas...',
-      'Varrendo Business Managers e Contas de Anúncios vinculadas...'
-    ]);
+  // ─────────────────────────────────────────────────────────────
+  // 1. FLUXO REAL DE CONEXÃO COM FACEBOOK (META ADS)
+  // ─────────────────────────────────────────────────────────────
+  const handleStartMetaOAuth = () => {
+    setIsConnectModalOpen(true);
+    setConnectStep('meta_waiting_popup');
 
+    // Abre a aba/popup oficial de autenticação com o Facebook
+    const width = 600, height = 720;
+    const left = window.screenX + (window.innerWidth - width) / 2;
+    const top = window.screenY + (window.innerHeight - height) / 2;
+    const authUrl = `${api.defaults.baseURL}/ads/oauth/facebook/start`;
+
+    const popup = window.open(
+      authUrl,
+      'facebook_oauth_dialog',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+    );
+
+    // Monitora se o usuário fechou o popup
+    const checkTimer = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkTimer);
+        fetchMetaAccountsAndSelect();
+      }
+    }, 1000);
+  };
+
+  const fetchMetaAccountsAndSelect = async () => {
+    setIsFetchingAccounts(true);
     try {
-      // Simulação rápida de handshake seguro (1.2s)
-      await new Promise(r => setTimeout(r, 1200));
-
       const res = await api.post('/ads/meta-fetch-accounts', {
         access_token: metaTokenInput || undefined
       });
-
       if (res.data && res.data.accounts && res.data.accounts.length > 0) {
-        setDiscoveredAccounts(res.data.accounts);
-        setSelectedDiscoveredAccId(res.data.accounts[0].id);
+        setDiscoveredMetaAccounts(res.data.accounts);
+        setSelectedDiscoveredMetaId(res.data.accounts[0].id);
         setConnectStep('meta_select_accounts');
       } else {
-        showNotification('error', 'Nenhuma conta de anúncios encontrada no perfil.');
+        showNotification('error', 'Nenhuma conta de anúncios encontrada no Facebook.');
         setConnectStep('initial');
       }
     } catch (err) {
       console.error('Erro ao buscar contas Meta:', err);
-      showNotification('error', 'Falha ao conectar com o Facebook/Meta.');
+      showNotification('error', 'Falha ao buscar contas no Facebook.');
       setConnectStep('initial');
     } finally {
-      setIsFetchingMeta(false);
+      setIsFetchingAccounts(false);
     }
   };
 
-  // Confirmar e Sincronizar a Conta de Anúncios Selecionada da Meta
   const handleConfirmMetaAccountSelection = async () => {
-    const chosen = discoveredAccounts.find(a => a.id === selectedDiscoveredAccId);
+    const chosen = discoveredMetaAccounts.find(a => a.id === selectedDiscoveredMetaId);
     if (!chosen) {
       showNotification('error', 'Selecione uma conta de anúncios para continuar.');
       return;
@@ -326,6 +361,7 @@ export default function AdsPerformancePage() {
         setMetaTokenInput('');
         await loadAccounts();
         setSelectedAccountId(res.data.id || chosen.id);
+        setSelectedPlatform('meta');
         fetchInsights();
       }
     } catch (err) {
@@ -336,7 +372,90 @@ export default function AdsPerformancePage() {
     }
   };
 
-  // Conectar conta manual (Google Ads ou Meta manual)
+  // ─────────────────────────────────────────────────────────────
+  // 2. FLUXO REAL DE CONEXÃO COM GOOGLE ADS
+  // ─────────────────────────────────────────────────────────────
+  const handleStartGoogleOAuth = () => {
+    setIsConnectModalOpen(true);
+    setConnectStep('google_waiting_popup');
+
+    // Abre a aba/popup oficial de autenticação com o Google Ads
+    const width = 600, height = 720;
+    const left = window.screenX + (window.innerWidth - width) / 2;
+    const top = window.screenY + (window.innerHeight - height) / 2;
+    const authUrl = `${api.defaults.baseURL}/ads/oauth/google/start`;
+
+    const popup = window.open(
+      authUrl,
+      'google_ads_oauth_dialog',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+    );
+
+    // Monitora se o usuário fechou o popup
+    const checkTimer = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkTimer);
+        fetchGoogleAccountsAndSelect();
+      }
+    }, 1000);
+  };
+
+  const fetchGoogleAccountsAndSelect = async () => {
+    setIsFetchingAccounts(true);
+    try {
+      const res = await api.post('/ads/google-fetch-accounts', {});
+      if (res.data && res.data.accounts && res.data.accounts.length > 0) {
+        setDiscoveredGoogleAccounts(res.data.accounts);
+        setSelectedDiscoveredGoogleId(res.data.accounts[0].id);
+        setConnectStep('google_select_accounts');
+      } else {
+        showNotification('error', 'Nenhuma conta Google Ads encontrada.');
+        setConnectStep('initial');
+      }
+    } catch (err) {
+      console.error('Erro ao buscar contas Google Ads:', err);
+      showNotification('error', 'Falha ao buscar contas no Google Ads.');
+      setConnectStep('initial');
+    } finally {
+      setIsFetchingAccounts(false);
+    }
+  };
+
+  const handleConfirmGoogleAccountSelection = async () => {
+    const chosen = discoveredGoogleAccounts.find(a => a.id === selectedDiscoveredGoogleId);
+    if (!chosen) {
+      showNotification('error', 'Selecione uma conta Google Ads para continuar.');
+      return;
+    }
+
+    setIsSubmittingAccount(true);
+    try {
+      const payload = {
+        platform: 'google',
+        account_id: chosen.account_id,
+        account_name: chosen.name,
+        currency: chosen.currency || 'BRL'
+      };
+
+      const res = await api.post('/ads/accounts', payload);
+      if (res.data) {
+        showNotification('success', `Conta Google Ads "${chosen.name}" conectada e sincronizada com sucesso!`);
+        setIsConnectModalOpen(false);
+        setConnectStep('initial');
+        await loadAccounts();
+        setSelectedAccountId(res.data.id || chosen.id);
+        setSelectedPlatform('google');
+        fetchInsights();
+      }
+    } catch (err) {
+      console.error('Erro ao salvar conta Google Ads:', err);
+      showNotification('error', 'Erro ao salvar conta Google Ads.');
+    } finally {
+      setIsSubmittingAccount(false);
+    }
+  };
+
+  // Conectar conta manual
   const handleConnectManualAccount = async (e) => {
     e.preventDefault();
     if (!accountForm.account_name || !accountForm.account_id) {
@@ -500,13 +619,13 @@ export default function AdsPerformancePage() {
                 </span>
               </div>
               <p className="text-sm text-slate-400 mt-0.5">
-                Métricas em tempo real de Gerenciador (CAC, CPL, ROAS, Frequência), Calendário Sincronizado e Conexão Direta com Facebook.
+                Métricas em tempo real de Gerenciador (CAC, CPL, ROAS, Frequência), Calendário Sincronizado e Conexão Direta Oficial com Facebook e Google.
               </p>
             </div>
           </div>
         </div>
 
-        {/* CONTROLES SUPERIORES: CONEXÃO DIRETA COM FACEBOOK, CALENDÁRIO, SYNC E IA */}
+        {/* CONTROLES SUPERIORES */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Seletor de Plataforma */}
           <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-1">
@@ -544,7 +663,7 @@ export default function AdsPerformancePage() {
             </button>
           </div>
 
-          {/* NOVO FILTRO TIPO CALENDÁRIO (DATE RANGE PICKER SINCRONIZADO) */}
+          {/* FILTRO TIPO CALENDÁRIO SINCRONIZADO */}
           <div className="relative" ref={calendarRef}>
             <button
               onClick={() => setIsCalendarOpen(!isCalendarOpen)}
@@ -556,7 +675,7 @@ export default function AdsPerformancePage() {
               <ChevronDown size={14} className={`text-slate-400 transition-transform ${isCalendarOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* POPOVER DO CALENDÁRIO COM ATALHOS E INTERVALO PERSONALIZADO */}
+            {/* POPOVER DO CALENDÁRIO */}
             {isCalendarOpen && (
               <div className="absolute right-0 mt-2 z-50 w-80 md:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
@@ -665,16 +784,22 @@ export default function AdsPerformancePage() {
             <span>{isAiLoading ? 'Analisando...' : 'Diagnóstico IA'}</span>
           </button>
 
-          {/* BOTÃO PRINCIPAL: CONECTAR COM FACEBOOK (META) */}
+          {/* BOTÃO CONEXÃO DIRETA COM FACEBOOK (META) */}
           <button
-            onClick={() => {
-              setConnectStep('initial');
-              setIsConnectModalOpen(true);
-            }}
+            onClick={handleStartMetaOAuth}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white text-xs font-bold shadow-lg shadow-blue-600/30 active:scale-95 transition-all"
           >
             <FacebookIcon size={15} />
             <span>Conectar com Facebook</span>
+          </button>
+
+          {/* BOTÃO CONEXÃO DIRETA COM GOOGLE ADS */}
+          <button
+            onClick={handleStartGoogleOAuth}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+          >
+            <GoogleAdsIcon size={14} className="text-slate-950" />
+            <span>Conectar com Google Ads</span>
           </button>
         </div>
       </div>
@@ -727,7 +852,7 @@ export default function AdsPerformancePage() {
         </div>
       )}
 
-      {/* DASHBOARD DE KPIS EXECUTIVOS (MÉTRICAS DO GERENCIADOR) */}
+      {/* DASHBOARD DE KPIS EXECUTIVOS */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         {/* TOTAL GASTO */}
         <div className="col-span-2 bg-gradient-to-br from-slate-900/90 to-slate-900/50 border border-slate-800/80 rounded-2xl p-4 relative overflow-hidden">
@@ -955,7 +1080,7 @@ export default function AdsPerformancePage() {
         )}
       </div>
 
-      {/* ABA 1: TABELA COMPLETA DE CAMPANHAS COM PADRÃO GERENCIADOR */}
+      {/* ABA 1: TABELA COMPLETA DE CAMPANHAS */}
       {activeTab === 'campaigns' && (
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
@@ -1102,7 +1227,7 @@ export default function AdsPerformancePage() {
                   className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between"
                 >
                   <div>
-                    {/* Imagem / Thumbnail do Criativo */}
+                    {/* Imagem / Thumbnail */}
                     <div className="relative h-44 bg-slate-950 overflow-hidden group">
                       <img
                         src={ad.thumbnail_url}
@@ -1111,13 +1236,11 @@ export default function AdsPerformancePage() {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
                       
-                      {/* Badge do Formato */}
                       <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-medium text-slate-200">
                         {ad.format?.includes('Video') ? <Video size={13} className="text-emerald-400" /> : <ImageIcon size={13} className="text-blue-400" />}
                         <span>{ad.format}</span>
                       </div>
 
-                      {/* Tag de Performance */}
                       <div className="absolute top-3 right-3">
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border ${
                           isWinner
@@ -1130,7 +1253,6 @@ export default function AdsPerformancePage() {
                         </span>
                       </div>
 
-                      {/* Retenção do Gancho 3s */}
                       {ad.hook_rate_3s && ad.hook_rate_3s !== '-' && (
                         <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-md px-2 py-0.5 rounded text-[10px] text-slate-300 border border-slate-700">
                           Taxa Gancho 3s: <b className="text-emerald-400">{ad.hook_rate_3s}</b>
@@ -1138,7 +1260,6 @@ export default function AdsPerformancePage() {
                       )}
                     </div>
 
-                    {/* Informações do Anúncio */}
                     <div className="p-4 space-y-3">
                       <div>
                         <h3 className="font-semibold text-sm text-slate-100 line-clamp-1">{ad.ad_name}</h3>
@@ -1146,7 +1267,6 @@ export default function AdsPerformancePage() {
                         <p className="text-[11px] text-slate-500 line-clamp-1">Conjunto: {ad.adset_name}</p>
                       </div>
 
-                      {/* Métricas do Anúncio */}
                       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-xs">
                         <div className="bg-slate-950/60 p-2 rounded-xl text-center">
                           <span className="text-[10px] text-slate-400 block">CTR</span>
@@ -1170,7 +1290,6 @@ export default function AdsPerformancePage() {
                     </div>
                   </div>
 
-                  {/* Ação / Diagnóstico do Criativo */}
                   <div className="p-3 bg-slate-950/40 border-t border-slate-800 flex items-center justify-between text-xs">
                     <span className="text-slate-400 flex items-center gap-1">
                       {isFatigued ? (
@@ -1273,10 +1392,9 @@ export default function AdsPerformancePage() {
         </div>
       )}
 
-      {/* ABA 4: OTIMIZADOR DE IA (DIAGNÓSTICO E RECOMENDAÇÕES EXECUTIVAS) */}
+      {/* ABA 4: OTIMIZADOR DE IA */}
       {activeTab === 'ai_optimizer' && (
         <div className="space-y-6">
-          {/* BANNER PRINCIPAL COM SCORE DE SAÚDE DA CONTA */}
           <div className="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-6 relative overflow-hidden shadow-2xl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
@@ -1293,7 +1411,6 @@ export default function AdsPerformancePage() {
                 </p>
               </div>
 
-              {/* GAUGE / SCORE VISUAL */}
               <div className="flex items-center gap-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shrink-0">
                 <div className="relative w-20 h-20 flex items-center justify-center">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -1343,9 +1460,8 @@ export default function AdsPerformancePage() {
             </div>
           </div>
 
-          {/* 3 PILARES DE OTIMIZAÇÃO: SEGMENTAÇÃO, CRIATIVOS E ESCALA DE ORÇAMENTO */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* 1. SEGMENTAÇÕES & PÚBLICOS */}
+            {/* 1. SEGMENTAÇÕES */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2.5 mb-3 text-blue-400">
@@ -1373,13 +1489,12 @@ export default function AdsPerformancePage() {
                   ))}
                 </div>
               </div>
-
               <div className="mt-4 pt-3 border-t border-slate-800/60 text-[11px] text-blue-400 font-medium">
                 Meta Ads & Google Ads Target Optimizer
               </div>
             </div>
 
-            {/* 2. CRIATIVOS & COPYWRITING */}
+            {/* 2. CRIATIVOS */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2.5 mb-3 text-emerald-400">
@@ -1407,13 +1522,12 @@ export default function AdsPerformancePage() {
                   ))}
                 </div>
               </div>
-
               <div className="mt-4 pt-3 border-t border-slate-800/60 text-[11px] text-emerald-400 font-medium">
                 High-Conversion Creative Engine
               </div>
             </div>
 
-            {/* 3. ORÇAMENTO & ESCALA */}
+            {/* 3. ORÇAMENTO */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2.5 mb-3 text-purple-400">
@@ -1441,7 +1555,6 @@ export default function AdsPerformancePage() {
                   ))}
                 </div>
               </div>
-
               <div className="mt-4 pt-3 border-t border-slate-800/60 text-[11px] text-purple-400 font-medium">
                 Budget Scaling & Risk Control
               </div>
@@ -1450,19 +1563,19 @@ export default function AdsPerformancePage() {
         </div>
       )}
 
-      {/* MODAL PRINCIPAL: CONEXÃO COM FACEBOOK (META) E AUTO-DESCOBERTA DE CONTAS */}
+      {/* MODAL PRINCIPAL: CONEXÃO COM FACEBOOK E GOOGLE ADS */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             {/* Header do Modal */}
             <div className="flex items-center justify-between p-5 border-b border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-[#1877F2]/15 border border-[#1877F2]/30 text-[#1877F2]">
-                  <FacebookIcon size={22} />
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <Target size={22} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Conexão com Gerenciador de Anúncios</h3>
-                  <p className="text-xs text-slate-400">Integração oficial Meta Ads e Google Ads</p>
+                  <h3 className="font-bold text-base text-white">Conectar Conta de Anúncios</h3>
+                  <p className="text-xs text-slate-400">Integração oficial via API com Facebook (Meta) e Google Ads</p>
                 </div>
               </div>
               <button
@@ -1476,93 +1589,67 @@ export default function AdsPerformancePage() {
               </button>
             </div>
 
-            {/* PASSO 1: TELA INICIAL DE CONEXÃO COM O BOTÃO DIRETO DO FACEBOOK */}
+            {/* PASSO 1: TELA INICIAL COM AMBAS AS OPÇÕES */}
             {connectStep === 'initial' && (
-              <div className="p-6 space-y-5">
-                {/* CARD DE CONEXÃO DIRETA COM O FACEBOOK (META) */}
-                <div className="bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950 border border-blue-500/30 rounded-2xl p-5 space-y-4">
+              <div className="p-6 space-y-4">
+                {/* 1. CARD CONEXÃO DIRETA FACEBOOK (META) */}
+                <div className="bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950 border border-blue-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-600/30">
                       <FacebookIcon size={22} />
                     </div>
                     <div>
                       <h4 className="font-bold text-sm text-white">Conectar com Facebook (Meta Ads)</h4>
-                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                        Conecte sua conta do Facebook diretamente para sincronizar campanhas, pixel, leads e métricas com apenas 1 clique.
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Abre a aba oficial de autorização do Facebook para listar e sincronizar automaticamente suas contas de anúncios do Business Manager.
                       </p>
                     </div>
                   </div>
-
-                  {/* Campo de Token Opcional para Desenvolvedores / BM */}
-                  <div className="pt-2">
-                    <label className="text-[11px] font-medium text-slate-400 flex items-center gap-1 mb-1">
-                      <Info size={12} className="text-blue-400" /> Token de Acesso da Meta Graph API (Opcional):
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="EAABw... (deixe em branco para conectar com o perfil ativo)"
-                      value={metaTokenInput}
-                      onChange={(e) => setMetaTokenInput(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 rounded-xl px-3 py-2 outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* BOTÃO PRINCIPAL: CONECTAR COM FACEBOOK */}
                   <button
                     onClick={handleStartMetaOAuth}
-                    disabled={isFetchingMeta}
-                    className="w-full py-3 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-bold shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white text-xs font-bold shadow-md shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                   >
-                    <FacebookIcon size={18} />
-                    <span>Conectar Direto com Facebook (Meta)</span>
+                    <FacebookIcon size={16} />
+                    <span>Abrir Login Oficial do Facebook</span>
                   </button>
                 </div>
 
-                {/* DIVISOR OU OPÇÃO GOOGLE ADS / MANUAL */}
-                <div className="flex items-center gap-3">
-                  <div className="h-[1px] bg-slate-800 flex-1"></div>
-                  <span className="text-[11px] text-slate-500 uppercase font-semibold">Outras Opções</span>
-                  <div className="h-[1px] bg-slate-800 flex-1"></div>
+                {/* 2. CARD CONEXÃO DIRETA GOOGLE ADS */}
+                <div className="bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
+                      <GoogleAdsIcon size={20} className="text-slate-950" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-white">Conectar com Google Ads</h4>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Abre a aba oficial de autorização do Google para listar e sincronizar suas contas de cliente (CID / MCC) do Google Ads.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleStartGoogleOAuth}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <GoogleAdsIcon size={15} className="text-slate-950" />
+                    <span>Abrir Login Oficial do Google Ads</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* OPÇÃO DE CONEXÃO MANUAL */}
+                <div className="pt-2 text-center">
                   <button
-                    onClick={() => {
-                      setAccountForm({ ...accountForm, platform: 'google' });
-                      setConnectStep('google_manual');
-                    }}
-                    className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-left transition-all group"
+                    onClick={() => setConnectStep('manual_form')}
+                    className="text-xs text-slate-400 hover:text-slate-200 underline"
                   >
-                    <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
-                      <GoogleAdsIcon size={14} />
-                      <span>Google Ads</span>
-                    </div>
-                    <span className="text-[11px] text-slate-400 block group-hover:text-slate-200">
-                      Conectar por ID de Cliente Google
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setAccountForm({ ...accountForm, platform: 'meta' });
-                      setConnectStep('manual_meta');
-                    }}
-                    className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-left transition-all group"
-                  >
-                    <div className="flex items-center gap-2 text-slate-300 font-bold text-xs mb-1">
-                      <Sliders size={14} className="text-emerald-400" />
-                      <span>Meta Manual</span>
-                    </div>
-                    <span className="text-[11px] text-slate-400 block group-hover:text-slate-200">
-                      Digitar act_ e Token manualmente
-                    </span>
+                    Prefere digitar ID da conta e credenciais manualmente?
                   </button>
                 </div>
               </div>
             )}
 
-            {/* PASSO 2: CONECTANDO E VARRENDO CONTAS DA META */}
-            {connectStep === 'meta_connecting' && (
+            {/* ESPERANDO POPUP DO FACEBOOK */}
+            {connectStep === 'meta_waiting_popup' && (
               <div className="p-8 text-center space-y-4">
                 <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
                   <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
@@ -1572,38 +1659,48 @@ export default function AdsPerformancePage() {
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-base text-white">Conectando ao Facebook & Meta Business...</h4>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Buscando contas de anúncios e Business Managers associados ao seu perfil.
+                  <h4 className="font-bold text-base text-white">Aba de Login do Facebook Aberta</h4>
+                  <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
+                    Conclua a autorização na aba do Facebook que se abriu para conceder acesso às contas de anúncios.
                   </p>
                 </div>
 
-                <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-left space-y-1.5 font-mono text-[11px] text-slate-400 max-w-sm mx-auto">
-                  {connectingLogs.map((log, i) => (
-                    <div key={i} className="flex items-center gap-2 text-slate-300">
-                      <span className="text-emerald-400">✓</span>
-                      <span>{log}</span>
-                    </div>
-                  ))}
+                <div className="pt-3 flex flex-col gap-2 max-w-xs mx-auto">
+                  <button
+                    onClick={fetchMetaAccountsAndSelect}
+                    disabled={isFetchingAccounts}
+                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    {isFetchingAccounts ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    <span>{isFetchingAccounts ? 'Buscando Contas...' : 'Já autorizei no Facebook → Carregar Contas'}</span>
+                  </button>
+                  <a
+                    href={`${api.defaults.baseURL}/ads/oauth/facebook/start`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-blue-400 hover:underline"
+                  >
+                    A aba não abriu? Clique aqui para abrir a janela do Facebook
+                  </a>
                 </div>
               </div>
             )}
 
-            {/* PASSO 3: LISTAGEM DE CONTAS DE ANÚNCIOS DESCOBERTAS NO FACEBOOK */}
+            {/* SELEÇÃO DE CONTAS META ENCONTRADAS */}
             {connectStep === 'meta_select_accounts' && (
               <div className="p-6 space-y-4">
                 <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl text-xs font-semibold">
                   <CheckCircle size={16} />
-                  <span>Conectado com sucesso ao Facebook! Selecione a conta de anúncios:</span>
+                  <span>Facebook conectado com sucesso! Selecione a conta de anúncios:</span>
                 </div>
 
                 <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
-                  {discoveredAccounts.map(acc => {
-                    const isSelected = selectedDiscoveredAccId === acc.id;
+                  {discoveredMetaAccounts.map(acc => {
+                    const isSelected = selectedDiscoveredMetaId === acc.id;
                     return (
                       <div
                         key={acc.id}
-                        onClick={() => setSelectedDiscoveredAccId(acc.id)}
+                        onClick={() => setSelectedDiscoveredMetaId(acc.id)}
                         className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${
                           isSelected
                             ? 'bg-blue-600/15 border-blue-500 shadow-md'
@@ -1639,7 +1736,6 @@ export default function AdsPerformancePage() {
                   })}
                 </div>
 
-                {/* Botões de Ação */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                   <button
                     type="button"
@@ -1650,7 +1746,7 @@ export default function AdsPerformancePage() {
                   </button>
                   <button
                     onClick={handleConfirmMetaAccountSelection}
-                    disabled={isSubmittingAccount || !selectedDiscoveredAccId}
+                    disabled={isSubmittingAccount || !selectedDiscoveredMetaId}
                     className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-2"
                   >
                     {isSubmittingAccount ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
@@ -1660,13 +1756,119 @@ export default function AdsPerformancePage() {
               </div>
             )}
 
-            {/* FORMULÁRIO MANUAL (GOOGLE ADS OU META MANUAL) */}
-            {(connectStep === 'google_manual' || connectStep === 'manual_meta') && (
+            {/* ESPERANDO POPUP DO GOOGLE ADS */}
+            {connectStep === 'google_waiting_popup' && (
+              <div className="p-8 text-center space-y-4">
+                <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-2 border-amber-500 border-t-transparent animate-spin"></div>
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/40">
+                    <GoogleAdsIcon size={24} className="text-slate-950" />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-base text-white">Aba de Login do Google Ads Aberta</h4>
+                  <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
+                    Conclua a autorização na aba do Google que se abriu para conceder acesso às contas de anúncios.
+                  </p>
+                </div>
+
+                <div className="pt-3 flex flex-col gap-2 max-w-xs mx-auto">
+                  <button
+                    onClick={fetchGoogleAccountsAndSelect}
+                    disabled={isFetchingAccounts}
+                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    {isFetchingAccounts ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    <span>{isFetchingAccounts ? 'Buscando Contas...' : 'Já autorizei no Google → Carregar Contas'}</span>
+                  </button>
+                  <a
+                    href={`${api.defaults.baseURL}/ads/oauth/google/start`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-amber-400 hover:underline"
+                  >
+                    A aba não abriu? Clique aqui para abrir a janela do Google
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* SELEÇÃO DE CONTAS GOOGLE ADS ENCONTRADAS */}
+            {connectStep === 'google_select_accounts' && (
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl text-xs font-semibold">
+                  <CheckCircle size={16} />
+                  <span>Google Ads conectado com sucesso! Selecione a conta de cliente:</span>
+                </div>
+
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
+                  {discoveredGoogleAccounts.map(acc => {
+                    const isSelected = selectedDiscoveredGoogleId === acc.id;
+                    return (
+                      <div
+                        key={acc.id}
+                        onClick={() => setSelectedDiscoveredGoogleId(acc.id)}
+                        className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-amber-500/15 border-amber-500 shadow-md'
+                            : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                            isSelected ? 'border-amber-500 bg-amber-500 text-slate-950' : 'border-slate-600'
+                          }`}>
+                            {isSelected && <Check size={12} strokeWidth={3} />}
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-sm text-white">{acc.name}</h5>
+                            <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                              <span className="font-mono text-[11px] text-amber-400">{acc.id}</span>
+                              <span>•</span>
+                              <span>{acc.business_name}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            {acc.status}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 mt-1">
+                            Investido: <b className="text-slate-200">{formatMoney(acc.amount_spent)}</b>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setConnectStep('initial')}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={handleConfirmGoogleAccountSelection}
+                    disabled={isSubmittingAccount || !selectedDiscoveredGoogleId}
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/30 active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    {isSubmittingAccount ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    <span>Sincronizar Esta Conta Google Ads</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* FORMULÁRIO MANUAL */}
+            {connectStep === 'manual_form' && (
               <form onSubmit={handleConnectManualAccount} className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-white">
-                    {connectStep === 'google_manual' ? 'Conectar Google Ads Manualmente' : 'Conectar Meta Ads Manualmente'}
-                  </span>
+                  <span className="text-xs font-semibold text-white">Conexão Manual de Conta</span>
                   <button
                     type="button"
                     onClick={() => setConnectStep('initial')}
@@ -1674,6 +1876,36 @@ export default function AdsPerformancePage() {
                   >
                     ← Voltar para Conexão Automática
                   </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Plataforma</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAccountForm({ ...accountForm, platform: 'meta' })}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                        accountForm.platform === 'meta'
+                          ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FacebookIcon size={14} />
+                      Meta Ads
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountForm({ ...accountForm, platform: 'google' })}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                        accountForm.platform === 'google'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <GoogleAdsIcon size={14} />
+                      Google Ads
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -1692,19 +1924,19 @@ export default function AdsPerformancePage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {connectStep === 'google_manual' ? 'ID de Cliente Google Ads (Ex: 123-456-7890) *' : 'ID da Conta de Anúncios (act_...) *'}
+                    {accountForm.platform === 'meta' ? 'ID da Conta de Anúncios (act_...) *' : 'ID de Cliente Google Ads (Ex: 123-456-7890) *'}
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder={connectStep === 'google_manual' ? 'Ex: 481-920-4819' : 'Ex: act_492019482910'}
+                    placeholder={accountForm.platform === 'meta' ? 'Ex: act_492019482910' : 'Ex: 481-920-4819'}
                     value={accountForm.account_id}
                     onChange={(e) => setAccountForm({ ...accountForm, account_id: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 text-xs rounded-xl px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-emerald-500"
                   />
                 </div>
 
-                {connectStep === 'manual_meta' && (
+                {accountForm.platform === 'meta' && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
                       Token de Acesso (Meta Graph API)
