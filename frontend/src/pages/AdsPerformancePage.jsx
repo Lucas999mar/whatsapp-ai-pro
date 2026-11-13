@@ -58,6 +58,7 @@ export default function AdsPerformancePage() {
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   // 'initial' | 'meta_waiting_popup' | 'meta_select_accounts' | 'google_waiting_popup' | 'google_select_accounts' | 'manual_form'
   const [connectStep, setConnectStep] = useState('initial');
+  const [modalPlatformTab, setModalPlatformTab] = useState('meta'); // 'meta' | 'google'
   
   const [discoveredMetaAccounts, setDiscoveredMetaAccounts] = useState([]);
   const [selectedDiscoveredMetaId, setSelectedDiscoveredMetaId] = useState('');
@@ -109,8 +110,12 @@ export default function AdsPerformancePage() {
   useEffect(() => {
     const handleOAuthMessage = (event) => {
       if (event.data?.type === 'META_ADS_CONNECTED') {
-        console.log('✅ Facebook Meta OAuth popup concluiu autenticação!');
-        fetchMetaAccountsAndSelect();
+        console.log('✅ Facebook Meta OAuth popup concluiu autenticação!', event.data);
+        const token = event.data?.token || metaTokenInput;
+        if (token) setMetaTokenInput(token);
+        if (token) {
+          fetchMetaAccountsAndSelect(token);
+        }
       } else if (event.data?.type === 'GOOGLE_ADS_CONNECTED') {
         console.log('✅ Google Ads OAuth popup concluiu autenticação!');
         fetchGoogleAccountsAndSelect();
@@ -312,23 +317,31 @@ export default function AdsPerformancePage() {
     }, 1000);
   };
 
-  const fetchMetaAccountsAndSelect = async () => {
+  const fetchMetaAccountsAndSelect = async (explicitToken) => {
+    const tokenToUse = (explicitToken || metaTokenInput || '').trim();
+    if (!tokenToUse) {
+      showNotification('error', 'Por favor, informe seu Token de Acesso da Meta para carregar suas contas reais.');
+      return;
+    }
+
     setIsFetchingAccounts(true);
     try {
       const res = await api.post('/ads/meta-fetch-accounts', {
-        access_token: metaTokenInput || undefined
+        access_token: tokenToUse
       });
       if (res.data && res.data.accounts && res.data.accounts.length > 0) {
         setDiscoveredMetaAccounts(res.data.accounts);
         setSelectedDiscoveredMetaId(res.data.accounts[0].id);
         setConnectStep('meta_select_accounts');
+        showNotification('success', `${res.data.accounts.length} conta(s) real(is) encontrada(s) no Facebook Meta Ads!`);
       } else {
-        showNotification('error', 'Nenhuma conta de anúncios encontrada no Facebook.');
+        showNotification('info', res.data?.message || 'Nenhuma conta de anúncios encontrada vinculada a este token.');
         setConnectStep('initial');
       }
     } catch (err) {
       console.error('Erro ao buscar contas Meta:', err);
-      showNotification('error', 'Falha ao buscar contas no Facebook.');
+      const errMsg = err.response?.data?.error || err.message || 'Falha ao buscar contas no Facebook.';
+      showNotification('error', errMsg);
       setConnectStep('initial');
     } finally {
       setIsFetchingAccounts(false);
@@ -1589,62 +1602,193 @@ export default function AdsPerformancePage() {
               </button>
             </div>
 
-            {/* PASSO 1: TELA INICIAL COM AMBAS AS OPÇÕES */}
+            {/* TABS DE SELEÇÃO DE PLATAFORMA (META / GOOGLE) */}
             {connectStep === 'initial' && (
-              <div className="p-6 space-y-4">
-                {/* 1. CARD CONEXÃO DIRETA FACEBOOK (META) */}
-                <div className="bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950 border border-blue-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-600/30">
-                      <FacebookIcon size={22} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-white">Conectar com Facebook (Meta Ads)</h4>
-                      <p className="text-xs text-slate-300 mt-0.5">
-                        Abre a aba oficial de autorização do Facebook para listar e sincronizar automaticamente suas contas de anúncios do Business Manager.
-                      </p>
-                    </div>
-                  </div>
+              <div className="p-6 space-y-5">
+                {/* Switcher de Plataforma */}
+                <div className="flex rounded-2xl bg-slate-950 p-1 border border-slate-800">
                   <button
-                    onClick={handleStartMetaOAuth}
-                    className="w-full py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white text-xs font-bold shadow-md shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => setModalPlatformTab('meta')}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      modalPlatformTab === 'meta'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
                   >
                     <FacebookIcon size={16} />
-                    <span>Abrir Login Oficial do Facebook</span>
+                    <span>Facebook (Meta Ads)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalPlatformTab('google')}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      modalPlatformTab === 'google'
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md shadow-amber-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <GoogleAdsIcon size={15} className={modalPlatformTab === 'google' ? 'text-slate-950' : 'text-slate-400'} />
+                    <span>Google Ads</span>
                   </button>
                 </div>
 
-                {/* 2. CARD CONEXÃO DIRETA GOOGLE ADS */}
-                <div className="bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
-                      <GoogleAdsIcon size={20} className="text-slate-950" />
+                {/* PAINEL META ADS */}
+                {modalPlatformTab === 'meta' && (
+                  <div className="space-y-4">
+                    {/* 1. MÉTODO RECOMENDADO: TOKEN OFICIAL DA META */}
+                    <div className="bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950 border border-blue-500/30 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-600/30">
+                          <FacebookIcon size={22} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-sm text-white">Conexão Oficial com Token da Meta</h4>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                              Recomendado
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300 mt-0.5">
+                            Puxa automaticamente todas as contas de anúncios reais do seu Gerenciador de Negócios via Meta Graph API v19.0.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <label className="block text-[11px] font-semibold text-slate-300">
+                          Cole seu Token de Acesso da Meta (EAAB...):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="EAABw..."
+                            value={metaTokenInput}
+                            onChange={(e) => setMetaTokenInput(e.target.value)}
+                            className="flex-1 bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-500 font-mono"
+                          />
+                          <button
+                            onClick={() => fetchMetaAccountsAndSelect(metaTokenInput)}
+                            disabled={isFetchingAccounts || !metaTokenInput.trim()}
+                            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                          >
+                            {isFetchingAccounts ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+                            <span>Buscar Contas</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-blue-950/30 border border-blue-500/20 text-[11px] text-slate-300 leading-relaxed">
+                        <span className="font-semibold text-blue-300">💡 Como gerar seu token em 1 minuto:</span>
+                        <ul className="list-disc list-inside mt-1 space-y-0.5 text-slate-400">
+                          <li>No <b>Meta Business Suite</b> → <i>Configurações do Negócio → Usuários do Sistema</i> (Gerar Novo Token com <code className="text-blue-300">ads_read</code> e <code className="text-blue-300">read_insights</code>)</li>
+                          <li>Ou no <b>Graph API Explorer</b> do Facebook Developers</li>
+                        </ul>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-white">Conectar com Google Ads</h4>
-                      <p className="text-xs text-slate-300 mt-0.5">
-                        Abre a aba oficial de autorização do Google para listar e sincronizar suas contas de cliente (CID / MCC) do Google Ads.
-                      </p>
+
+                    {/* 2. OPÇÃO OAUTH POPUP */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                      <div>
+                        <h5 className="font-bold text-xs text-white">Login Social com Popup Facebook</h5>
+                        <p className="text-[11px] text-slate-400">Abre janela popup para autorização</p>
+                      </div>
+                      <button
+                        onClick={handleStartMetaOAuth}
+                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-all flex items-center gap-1.5"
+                      >
+                        <FacebookIcon size={14} />
+                        <span>Abrir Janela</span>
+                      </button>
+                    </div>
+
+                    {/* 3. OPÇÃO MANUAL */}
+                    <div className="text-center pt-1">
+                      <button
+                        onClick={() => {
+                          setAccountForm({ ...accountForm, platform: 'meta' });
+                          setConnectStep('manual_form');
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-200 underline"
+                      >
+                        Prefere digitar apenas o ID da Conta (act_...) e Nome manualmente?
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={handleStartGoogleOAuth}
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                  >
-                    <GoogleAdsIcon size={15} className="text-slate-950" />
-                    <span>Abrir Login Oficial do Google Ads</span>
-                  </button>
-                </div>
+                )}
 
-                {/* OPÇÃO DE CONEXÃO MANUAL */}
-                <div className="pt-2 text-center">
-                  <button
-                    onClick={() => setConnectStep('manual_form')}
-                    className="text-xs text-slate-400 hover:text-slate-200 underline"
-                  >
-                    Prefere digitar ID da conta e credenciais manualmente?
-                  </button>
-                </div>
+                {/* PAINEL GOOGLE ADS */}
+                {modalPlatformTab === 'google' && (
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
+                          <GoogleAdsIcon size={20} className="text-slate-950" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-white">Conectar Conta Google Ads (CID)</h4>
+                          <p className="text-xs text-slate-300 mt-0.5">
+                            Conecte sua conta de cliente (CID de 10 dígitos) do Google Ads.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            ID de Cliente Google Ads (10 dígitos) *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: 123-456-7890"
+                            value={accountForm.account_id}
+                            onChange={(e) => setAccountForm({ ...accountForm, account_id: e.target.value, platform: 'google' })}
+                            className="w-full bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-amber-500 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            Nome da Conta Google Ads *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Google Ads — Pesquisa & Leads"
+                            value={accountForm.account_name}
+                            onChange={(e) => setAccountForm({ ...accountForm, account_name: e.target.value, platform: 'google' })}
+                            className="w-full bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <button
+                          onClick={handleConnectManualAccount}
+                          disabled={isSubmittingAccount || !accountForm.account_id || !accountForm.account_name}
+                          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/30 transition-all flex items-center justify-center gap-2 mt-2"
+                        >
+                          {isSubmittingAccount ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          <span>Salvar Conta Google Ads</span>
+                        </button>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 text-[11px] text-slate-300">
+                        💡 <b>Onde encontrar o CID:</b> O ID de Cliente do Google Ads é um número de 10 dígitos (ex: <code>123-456-7890</code>) exibido no canto superior direito do seu painel do Google Ads.
+                      </div>
+                    </div>
+
+                    {/* OPÇÃO GOOGLE OAUTH POPUP */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                      <div>
+                        <h5 className="font-bold text-xs text-white">Login Social Google Ads</h5>
+                        <p className="text-[11px] text-slate-400">Abre janela popup para autorização Google</p>
+                      </div>
+                      <button
+                        onClick={handleStartGoogleOAuth}
+                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-all flex items-center gap-1.5"
+                      >
+                        <GoogleAdsIcon size={14} />
+                        <span>Abrir Janela</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1661,27 +1805,33 @@ export default function AdsPerformancePage() {
                 <div>
                   <h4 className="font-bold text-base text-white">Aba de Login do Facebook Aberta</h4>
                   <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
-                    Conclua a autorização na aba do Facebook que se abriu para conceder acesso às contas de anúncios.
+                    Cole seu token de acesso na aba aberta ou insira-o diretamente no campo abaixo.
                   </p>
                 </div>
 
-                <div className="pt-3 flex flex-col gap-2 max-w-xs mx-auto">
+                <div className="pt-2 max-w-xs mx-auto space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Cole seu Token da Meta (EAAB...) aqui..."
+                    value={metaTokenInput}
+                    onChange={(e) => setMetaTokenInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-blue-500 font-mono"
+                  />
                   <button
-                    onClick={fetchMetaAccountsAndSelect}
+                    onClick={() => fetchMetaAccountsAndSelect(metaTokenInput)}
                     disabled={isFetchingAccounts}
                     className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
                   >
                     {isFetchingAccounts ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                    <span>{isFetchingAccounts ? 'Buscando Contas...' : 'Já autorizei no Facebook → Carregar Contas'}</span>
+                    <span>{isFetchingAccounts ? 'Buscando Contas...' : 'Carregar Minhas Contas Reais'}</span>
                   </button>
-                  <a
-                    href={`${api.defaults.baseURL}/ads/oauth/facebook/start`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-blue-400 hover:underline"
+                  <button
+                    type="button"
+                    onClick={() => setConnectStep('initial')}
+                    className="text-xs text-slate-400 hover:text-white"
                   >
-                    A aba não abriu? Clique aqui para abrir a janela do Facebook
-                  </a>
+                    ← Voltar
+                  </button>
                 </div>
               </div>
             )}

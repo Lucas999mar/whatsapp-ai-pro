@@ -23,31 +23,7 @@ function readLocalData(tenantId) {
     const file = getLocalDataPath(tenantId);
     if (!fs.existsSync(file)) {
         return {
-            accounts: [
-                {
-                    id: 'acc_meta_demo',
-                    platform: 'meta',
-                    account_id: 'act_492019482910',
-                    account_name: 'Meta Ads — WhatsApp & Leads Principal',
-                    status: 'active',
-                    currency: 'BRL',
-                    timezone: 'America/Sao_Paulo',
-                    pixel_id: 'pix_991823719',
-                    last_sync_at: new Date().toISOString(),
-                    created_at: new Date().toISOString()
-                },
-                {
-                    id: 'acc_google_demo',
-                    platform: 'google',
-                    account_id: '381-920-4819',
-                    account_name: 'Google Ads — Pesquisa & Fundo de Funil',
-                    status: 'active',
-                    currency: 'BRL',
-                    timezone: 'America/Sao_Paulo',
-                    last_sync_at: new Date().toISOString(),
-                    created_at: new Date().toISOString()
-                }
-            ],
+            accounts: [],
             campaigns: [],
             diagnostics: []
         };
@@ -166,90 +142,130 @@ router.delete('/accounts/:id', authMiddleware, async (req, res) => {
 
 // Descobrir contas de anúncios associadas ao Facebook/Meta (OAuth ou Token)
 router.post('/meta-fetch-accounts', authMiddleware, async (req, res) => {
-    const tenantId = req.user.tenant_id || req.user.id;
-    const { access_token } = req.body;
+    let { access_token } = req.body;
 
-    // Se fornecido um token real da Meta Graph API, tentar consultar diretamente
-    if (access_token && access_token.trim().length > 15) {
-        try {
-            const token = access_token.trim();
-            const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,account_id,name,account_status,currency,timezone_name,amount_spent,business_name&limit=50&access_token=${token}`;
-            const metaRes = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            const metaJson = await metaRes.json();
-            
-            if (metaJson && metaJson.data && metaJson.data.length > 0) {
-                const accounts = metaJson.data.map(acc => ({
-                    id: acc.id.startsWith('act_') ? acc.id : `act_${acc.account_id || acc.id}`,
-                    account_id: acc.account_id || acc.id.replace('act_', ''),
-                    name: acc.name || `Conta Meta (${acc.account_id})`,
-                    status: acc.account_status === 1 ? 'ACTIVE' : 'PAUSED',
-                    currency: acc.currency || 'BRL',
-                    timezone: acc.timezone_name || 'America/Sao_Paulo',
-                    amount_spent: acc.amount_spent ? Number((Number(acc.amount_spent) / 100).toFixed(2)) : 0,
-                    business_name: acc.business_name || 'Meta Business Manager',
-                    platform: 'meta',
-                    access_token: token
-                }));
-                return res.json({ success: true, source: 'meta_api', accounts });
-            }
-        } catch (apiErr) {
-            console.warn('Meta Graph API fetch falhou, gerando contas estruturadas do perfil conectado:', apiErr.message);
-        }
+    if (!access_token || !access_token.trim()) {
+        access_token = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
     }
 
-    // Contas de anúncios descobertas do perfil Meta conectado
-    const discoveredAccounts = [
-        {
-            id: 'act_492019482910',
-            account_id: '492019482910',
-            name: 'Meta Ads — WhatsApp & Vendas Principal',
-            status: 'ACTIVE',
-            currency: 'BRL',
-            timezone: 'America/Sao_Paulo',
-            amount_spent: 14850.00,
-            business_name: 'Evoluir Mais Negócios Digitais',
-            platform: 'meta',
-            pixel_id: 'pix_991823719'
-        },
-        {
-            id: 'act_819201948211',
-            account_id: '819201948211',
-            name: 'Meta Ads — Tráfego Pago & Instagram Leads',
-            status: 'ACTIVE',
-            currency: 'BRL',
-            timezone: 'America/Sao_Paulo',
-            amount_spent: 6420.00,
-            business_name: 'Evoluir Mais Negócios Digitais',
-            platform: 'meta',
-            pixel_id: 'pix_338192018'
-        },
-        {
-            id: 'act_102938475612',
-            account_id: '102938475612',
-            name: 'Meta Ads — Campanhas Institucionais & Locais',
-            status: 'ACTIVE',
-            currency: 'BRL',
-            timezone: 'America/Sao_Paulo',
-            amount_spent: 3200.00,
-            business_name: 'Evoluir Mais Negócios Digitais',
-            platform: 'meta',
-            pixel_id: 'pix_102938475'
-        }
-    ];
+    // Se NÃO foi fornecido token, orientar o usuário
+    if (!access_token || access_token.trim().length < 15) {
+        return res.status(400).json({
+            success: false,
+            need_token: true,
+            error: 'Para listar suas contas reais do Facebook/Meta, por favor informe seu Token de Acesso da Meta (Token de Usuário do Sistema ou Graph API Explorer).'
+        });
+    }
 
-    return res.json({
-        success: true,
-        source: 'meta_connected',
-        accounts: discoveredAccounts
-    });
+    try {
+        const token = access_token.trim();
+        const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,account_id,name,account_status,currency,timezone_name,amount_spent,business_name&limit=50&access_token=${token}`;
+        const metaRes = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        const metaJson = await metaRes.json();
+        
+        if (metaJson.error) {
+            return res.status(400).json({
+                success: false,
+                error: `Erro retornado pela Meta API: ${metaJson.error.message || 'Token inválido ou expirado.'} (Código ${metaJson.error.code || 'N/A'})`
+            });
+        }
+
+        if (metaJson && Array.isArray(metaJson.data)) {
+            if (metaJson.data.length === 0) {
+                return res.json({
+                    success: true,
+                    source: 'meta_api_real',
+                    accounts: [],
+                    message: 'Nenhuma conta de anúncios encontrada vinculada a este perfil ou token da Meta. Verifique se o token tem a permissão ads_read.'
+                });
+            }
+
+            const accounts = metaJson.data.map(acc => ({
+                id: acc.id.startsWith('act_') ? acc.id : `act_${acc.account_id || acc.id}`,
+                account_id: acc.account_id || acc.id.replace('act_', ''),
+                name: acc.name || `Conta Meta (${acc.account_id || acc.id})`,
+                status: acc.account_status === 1 ? 'ACTIVE' : (acc.account_status === 2 ? 'DISABLED' : 'PAUSED'),
+                currency: acc.currency || 'BRL',
+                timezone: acc.timezone_name || 'America/Sao_Paulo',
+                amount_spent: acc.amount_spent ? Number((Number(acc.amount_spent) / 100).toFixed(2)) : 0,
+                business_name: acc.business_name || 'Meta Business Manager',
+                platform: 'meta',
+                access_token: token
+            }));
+
+            return res.json({
+                success: true,
+                source: 'meta_api_real',
+                accounts
+            });
+        }
+
+        return res.status(400).json({ success: false, error: 'Resposta em formato inesperado da Meta Graph API.' });
+    } catch (apiErr) {
+        console.error('Meta Graph API fetch falhou:', apiErr.message);
+        return res.status(500).json({ success: false, error: `Falha ao consultar Meta Graph API: ${apiErr.message}` });
+    }
+});
+
+// Buscar ou validar conta específica por ID diretamente na Meta
+router.post('/meta-verify-account', authMiddleware, async (req, res) => {
+    let { account_id, access_token } = req.body;
+    if (!account_id) {
+        return res.status(400).json({ error: 'ID da conta de anúncios é obrigatório' });
+    }
+
+    const cleanId = account_id.trim().startsWith('act_') ? account_id.trim() : `act_${account_id.trim()}`;
+    const token = (access_token || process.env.META_ACCESS_TOKEN || '').trim();
+
+    if (!token) {
+        return res.json({
+            success: true,
+            source: 'manual_input',
+            account: {
+                id: cleanId,
+                account_id: cleanId.replace('act_', ''),
+                name: `Meta Ads (${cleanId})`,
+                status: 'ACTIVE',
+                currency: 'BRL',
+                platform: 'meta'
+            }
+        });
+    }
+
+    try {
+        const url = `https://graph.facebook.com/v19.0/${cleanId}?fields=id,account_id,name,account_status,currency,timezone_name,amount_spent,business_name&access_token=${token}`;
+        const metaRes = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        const acc = await metaRes.json();
+        
+        if (acc.error) {
+            return res.status(400).json({ error: `Erro da Meta API: ${acc.error.message}` });
+        }
+
+        return res.json({
+            success: true,
+            source: 'meta_api_real',
+            account: {
+                id: acc.id || cleanId,
+                account_id: acc.account_id || cleanId.replace('act_', ''),
+                name: acc.name || `Conta Meta (${cleanId})`,
+                status: acc.account_status === 1 ? 'ACTIVE' : (acc.account_status === 2 ? 'DISABLED' : 'PAUSED'),
+                currency: acc.currency || 'BRL',
+                timezone: acc.timezone_name || 'America/Sao_Paulo',
+                amount_spent: acc.amount_spent ? Number((Number(acc.amount_spent) / 100).toFixed(2)) : 0,
+                business_name: acc.business_name || 'Meta Business Manager',
+                platform: 'meta',
+                access_token: token
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ error: `Falha ao consultar a Meta: ${e.message}` });
+    }
 });
 
 // Descobrir contas de anúncios associadas ao Google Ads (OAuth ou Customer ID)
 router.post('/google-fetch-accounts', authMiddleware, async (req, res) => {
-    const tenantId = req.user.tenant_id || req.user.id;
     const { customer_id, developer_token, access_token } = req.body;
 
-    // Se fornecido token/ID real da Google Ads API, tentar consultar
     if (access_token && developer_token) {
         try {
             const url = `https://googleads.googleapis.com/v16/customers:listAccessibleCustomers`;
@@ -271,63 +287,52 @@ router.post('/google-fetch-accounts', authMiddleware, async (req, res) => {
                         status: 'ACTIVE',
                         currency: 'BRL',
                         timezone: 'America/Sao_Paulo',
-                        amount_spent: 5000.00,
+                        amount_spent: 0,
                         business_name: 'Conta Google Ads',
                         platform: 'google',
                         access_token: access_token.trim()
                     };
                 });
-                return res.json({ success: true, source: 'google_api', accounts });
+                return res.json({ success: true, source: 'google_api_real', accounts });
+            }
+            if (gJson.error) {
+                return res.status(400).json({ error: `Erro Google Ads API: ${gJson.error.message}` });
             }
         } catch (apiErr) {
-            console.warn('Google Ads API fetch falhou, gerando contas estruturadas da organização:', apiErr.message);
+            console.warn('Google Ads API fetch falhou:', apiErr.message);
         }
     }
 
-    // Contas de anúncios Google Ads descobertas da organização conectada
-    const discoveredGoogleAccounts = [
-        {
-            id: '381-920-4819',
-            account_id: '381-920-4819',
-            name: 'Google Ads — Pesquisa & Fundo de Funil [Marca]',
-            status: 'ACTIVE',
-            currency: 'BRL',
-            timezone: 'America/Sao_Paulo',
-            amount_spent: 8940.00,
-            business_name: 'Evoluir Mais Negócios Digitais (MCC)',
-            platform: 'google',
-            account_type: 'Search & Leads'
-        },
-        {
-            id: '512-839-1029',
-            account_id: '512-839-1029',
-            name: 'Google Ads — Performance Max & Vendas',
-            status: 'ACTIVE',
-            currency: 'BRL',
-            timezone: 'America/Sao_Paulo',
-            amount_spent: 5230.00,
-            business_name: 'Evoluir Mais Negócios Digitais (MCC)',
-            platform: 'google',
-            account_type: 'Performance Max'
-        },
-        {
-            id: '910-384-2810',
-            account_id: '910-384-2810',
-            name: 'Google Ads — Campanhas Locais & YouTube Ads',
-            status: 'ACTIVE',
-            currency: 'BRL',
-            timezone: 'America/Sao_Paulo',
-            amount_spent: 2410.00,
-            business_name: 'Evoluir Mais Negócios Digitais (MCC)',
-            platform: 'google',
-            account_type: 'YouTube & Display'
-        }
-    ];
+    if (customer_id && customer_id.trim().length >= 7) {
+        const cleanCid = customer_id.replace(/[^0-9]/g, '');
+        const formattedCid = cleanCid.length === 10
+            ? `${cleanCid.slice(0,3)}-${cleanCid.slice(3,6)}-${cleanCid.slice(6,10)}`
+            : customer_id.trim();
 
-    return res.json({
-        success: true,
-        source: 'google_connected',
-        accounts: discoveredGoogleAccounts
+        return res.json({
+            success: true,
+            source: 'customer_id_manual',
+            accounts: [
+                {
+                    id: formattedCid,
+                    account_id: formattedCid,
+                    name: `Google Ads (${formattedCid})`,
+                    status: 'ACTIVE',
+                    currency: 'BRL',
+                    timezone: 'America/Sao_Paulo',
+                    amount_spent: 0,
+                    business_name: 'Minha Conta Google Ads',
+                    platform: 'google',
+                    access_token: access_token || null
+                }
+            ]
+        });
+    }
+
+    return res.status(400).json({
+        success: false,
+        need_credentials: true,
+        error: 'Informe seu ID de Cliente do Google Ads (CID de 10 dígitos, ex: 123-456-7890) para conectar sua conta real.'
     });
 });
 
@@ -400,13 +405,28 @@ router.get('/oauth/facebook/login-screen', (req, res) => {
       </ul>
     </div>
 
-    <a href="${callbackUrl}" class="btn-continue">Continuar como Usuário Facebook</a>
-    <a href="javascript:window.close()" class="btn-cancel">Cancelar</a>
+    <div style="margin: 16px 0; text-align: left;">
+      <label style="font-size: 12px; font-weight: 600; color: #1c1e21; display: block; margin-bottom: 6px;">Cole seu Token de Acesso da Meta (EAAB...):</label>
+      <input type="text" id="popupMetaToken" placeholder="Cole seu token aqui..." style="width: 100%; padding: 10px; border: 1px solid #ccd0d5; border-radius: 6px; font-size: 13px; box-sizing: border-box; outline: none; margin-bottom: 8px;" />
+      <div style="font-size: 11px; color: #606770; margin-bottom: 12px;">
+        💡 Pegue no <strong>Meta Business Suite</strong> (Usuários do Sistema) ou no <strong>Graph API Explorer</strong> com <code>ads_read</code>.
+      </div>
+      <button onclick="submitRealToken()" class="btn-continue">Sincronizar Minhas Contas Reais</button>
+    </div>
+
+    <a href="javascript:window.close()" class="btn-cancel">Cancelar / Fechar</a>
 
     <div class="footer">
-      Ao continuar, o WhatsApp AI Pro receberá os dados de performance de anúncios de acordo com os Termos de Serviço da Meta.
+      Ao continuar, o WhatsApp AI Pro consultará suas contas reais de acordo com os Termos da Meta.
     </div>
   </div>
+
+  <script>
+    function submitRealToken() {
+      var tok = (document.getElementById('popupMetaToken').value || '').trim();
+      window.location.href = '${callbackUrl}?token=' + encodeURIComponent(tok);
+    }
+  </script>
 </body>
 </html>
     `);
@@ -414,6 +434,7 @@ router.get('/oauth/facebook/login-screen', (req, res) => {
 
 // Callback do Facebook OAuth
 router.get('/oauth/facebook/callback', (req, res) => {
+    const receivedToken = (req.query.token || '').trim();
     res.send(`
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -431,13 +452,16 @@ router.get('/oauth/facebook/callback', (req, res) => {
 </head>
 <body>
   <div class="box">
-    <h2>✅ Facebook Conectado!</h2>
+    <h2>✅ Autorização Validada!</h2>
     <p>Autorização validada com sucesso na Meta Graph API. Sincronizando contas de anúncios...</p>
     <div class="spinner"></div>
   </div>
   <script>
     if (window.opener) {
-      window.opener.postMessage({ type: 'META_ADS_CONNECTED' }, '*');
+      window.opener.postMessage({
+        type: 'META_ADS_CONNECTED',
+        token: ${JSON.stringify(receivedToken)}
+      }, '*');
     }
     setTimeout(() => {
       window.close();
@@ -592,6 +616,33 @@ router.get('/insights', authMiddleware, async (req, res) => {
             targetAccount = accounts.find(a => a.platform === platform);
         } else {
             targetAccount = accounts[0] || null;
+        }
+
+        // Se não houver nenhuma conta cadastrada ainda, retornar estado vazio limpo
+        if (!targetAccount) {
+            return res.json({
+                account: null,
+                connected: false,
+                dateRange: { period, startDate, endDate },
+                summary: {
+                    totalSpend: 0,
+                    totalRevenue: 0,
+                    overallRoas: '0.00',
+                    overallCac: '0.00',
+                    overallCpl: '0.00',
+                    overallCtr: '0.00',
+                    overallCpc: '0.00',
+                    overallCpm: '0.00',
+                    totalImpressions: 0,
+                    totalClicks: 0,
+                    totalLeads: 0,
+                    totalPurchases: 0,
+                    totalWhatsapp: 0
+                },
+                campaigns: [],
+                diagnostics: [],
+                message: 'Nenhuma conta de anúncios conectada ainda. Conecte sua conta da Meta ou Google para carregar dados reais.'
+            });
         }
 
         // Se houver token oficial da Meta Graph API, tentar consultar dados reais
