@@ -3,7 +3,6 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const axios = require('axios');
 const { getSupabase } = require('../db/supabase');
 const { authMiddleware } = require('./auth');
 const { callChatCompletion, resolveAIConfig } = require('../ai/pipeline');
@@ -175,10 +174,11 @@ router.post('/meta-fetch-accounts', authMiddleware, async (req, res) => {
         try {
             const token = access_token.trim();
             const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,account_id,name,account_status,currency,timezone_name,amount_spent,business_name&limit=50&access_token=${token}`;
-            const metaRes = await axios.get(url, { timeout: 8000 });
+            const metaRes = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            const metaJson = await metaRes.json();
             
-            if (metaRes.data && metaRes.data.data && metaRes.data.data.length > 0) {
-                const accounts = metaRes.data.data.map(acc => ({
+            if (metaJson && metaJson.data && metaJson.data.length > 0) {
+                const accounts = metaJson.data.map(acc => ({
                     id: acc.id.startsWith('act_') ? acc.id : `act_${acc.account_id || acc.id}`,
                     account_id: acc.account_id || acc.id.replace('act_', ''),
                     name: acc.name || `Conta Meta (${acc.account_id})`,
@@ -253,15 +253,16 @@ router.post('/google-fetch-accounts', authMiddleware, async (req, res) => {
     if (access_token && developer_token) {
         try {
             const url = `https://googleads.googleapis.com/v16/customers:listAccessibleCustomers`;
-            const gRes = await axios.get(url, {
+            const gRes = await fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${access_token.trim()}`,
                     'developer-token': developer_token.trim()
                 },
-                timeout: 8000
+                signal: AbortSignal.timeout(8000)
             });
-            if (gRes.data && gRes.data.resourceNames && gRes.data.resourceNames.length > 0) {
-                const accounts = gRes.data.resourceNames.map((resName) => {
+            const gJson = await gRes.json();
+            if (gJson && gJson.resourceNames && gJson.resourceNames.length > 0) {
+                const accounts = gJson.resourceNames.map((resName) => {
                     const cid = resName.replace('customers/', '');
                     return {
                         id: cid,
@@ -603,9 +604,10 @@ router.get('/insights', authMiddleware, async (req, res) => {
                 }
                 const metaUrl = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,campaign_id,adset_name,ad_name,spend,impressions,reach,clicks,cpc,cpm,ctr,frequency,actions,action_values,cost_per_action_type,purchase_roas&${dateParam}&access_token=${targetAccount.access_token}`;
                 
-                const metaRes = await axios.get(metaUrl, { timeout: 6000 });
-                if (metaRes.data && metaRes.data.data) {
-                    const parsedData = parseMetaGraphApiInsights(metaRes.data.data, targetAccount);
+                const metaRes = await fetch(metaUrl, { signal: AbortSignal.timeout(6000) });
+                const metaJson = await metaRes.json();
+                if (metaJson && metaJson.data) {
+                    const parsedData = parseMetaGraphApiInsights(metaJson.data, targetAccount);
                     parsedData.dateRange = { period, startDate, endDate };
                     return res.json(parsedData);
                 }
