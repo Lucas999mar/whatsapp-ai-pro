@@ -74,3 +74,4 @@ CREATE TABLE IF NOT EXISTS ads_ai_diagnostics (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ads_ai_diag_account ON ads_ai_diagnostics(account_id);
+
