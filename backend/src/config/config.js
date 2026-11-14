@@ -15,10 +15,14 @@ module.exports = {
     ttsModel: process.env.OPENAI_TTS_MODEL || 'tts-1',
     ttsVoice: process.env.OPENAI_TTS_VOICE || 'nova',
   },
-  aiProvider: process.env.AI_PROVIDER || 'anthropic',
+  aiProvider: process.env.AI_PROVIDER || 'openrouter',
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: process.env.OPENROUTER_MODEL || 'openrouter/free',
+  },
   anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+    apiKey: process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY,
+    model: process.env.ANTHROPIC_MODEL || 'openrouter/free',
   },
   supabase: {
     url: process.env.SUPABASE_URL,
