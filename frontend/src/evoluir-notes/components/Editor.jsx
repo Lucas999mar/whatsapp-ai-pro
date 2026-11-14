@@ -25,7 +25,9 @@ import {
   Quote,
   Eye,
   PenTool,
-  Columns
+  Columns,
+  Search,
+  X
 } from 'lucide-react';
 import { useNoteStore } from '../store/noteStore';
 
@@ -157,6 +159,8 @@ export function Editor() {
   const [localContent, setLocalContent] = useState('');
   const [localTitle, setLocalTitle] = useState('');
   const [saveStatus, setSaveStatus] = useState('Salvo'); // 'Salvo' | 'Salvando...'
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [linkSearchText, setLinkSearchText] = useState('');
   const debounceTimerRef = useRef(null);
   const editorViewRef = useRef(null);
 
@@ -357,11 +361,12 @@ export function Editor() {
           <div className="w-[1px] h-4 bg-ev-border mx-1" />
 
           <button
-            onClick={() => insertFormatting('[[', ']]', 'Nota Referenciada')}
-            title="Wiki-link ([[Nota]])"
-            className="p-1.5 rounded hover:bg-ev-bg-hover text-ev-accent hover:text-ev-accent-hover transition-colors"
+            onClick={() => setIsLinkModalOpen(true)}
+            title="Conectar com outra nota ([[Wiki-link]])"
+            className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 transition-all flex items-center gap-1 font-bold text-xs"
           >
-            <Link2 className="w-4 h-4" />
+            <Link2 className="w-3.5 h-3.5" />
+            <span>[[ Link de Nota ]]</span>
           </button>
           <button
             onClick={() => insertFormatting('[', '](https://)', 'texto do link')}
@@ -564,6 +569,77 @@ export function Editor() {
           <span className="text-ev-text-muted/60 font-mono">Markdown (UTF-8)</span>
         </div>
       </div>
+
+      {/* Modal Selecionar Nota para Link Wiki [[ ]] */}
+      {isLinkModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181825] border border-emerald-500/30 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-3 animate-scale-in text-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                  <Link2 size={16} />
+                </div>
+                <h3 className="text-xs font-bold text-white">Inserir Link para Nota</h3>
+              </div>
+              <button
+                onClick={() => setIsLinkModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Buscar nota para conectar..."
+                value={linkSearchText}
+                onChange={(e) => setLinkSearchText(e.target.value)}
+                className="w-full bg-[#11111b] border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
+              {notes
+                .filter((n) => !n.isTrash && !n.deletedAt && n.id !== activeNoteId)
+                .filter((n) => !linkSearchText || (n.title && n.title.toLowerCase().includes(linkSearchText.toLowerCase())))
+                .map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => {
+                      insertFormatting('[[', ']]', n.title || 'Sem título');
+                      setIsLinkModalOpen(false);
+                      setLinkSearchText('');
+                    }}
+                    className="w-full text-left p-2 rounded-lg hover:bg-white/5 text-xs text-white flex items-center justify-between group transition-colors cursor-pointer"
+                  >
+                    <span className="truncate">{n.title || 'Sem título'}</span>
+                    <span className="text-[10px] text-emerald-400 opacity-0 group-hover:opacity-100 font-bold">
+                      Conectar ➔
+                    </span>
+                  </button>
+                ))}
+            </div>
+
+            {linkSearchText.trim() && (
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    insertFormatting('[[', ']]', linkSearchText.trim());
+                    setIsLinkModalOpen(false);
+                    setLinkSearchText('');
+                  }}
+                  className="w-full py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>Inserir "[[{linkSearchText.trim()}]]"</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

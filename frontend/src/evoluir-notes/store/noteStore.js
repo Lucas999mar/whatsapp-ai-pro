@@ -698,5 +698,63 @@ export const useNoteStore = create((set, get) => ({
       }
     })
     return result
+  },
+
+  // ── AÇÕES DE CONEXÃO DE NOTAS (OBSIDIAN WIKI-LINKS) ──
+  connectNotes: async (sourceId, targetId) => {
+    const { notes, updateNote } = get();
+    const sourceNote = notes.find(n => n.id === sourceId);
+    const targetNote = notes.find(n => n.id === targetId);
+    if (!sourceNote || !targetNote || sourceId === targetId) {
+      return { success: false, error: 'Notas inválidas ou idênticas' };
+    }
+
+    const targetTitle = (targetNote.title || 'Sem título').trim();
+    // Verifica se já existe um link para esta nota
+    const titleRegex = new RegExp(`\\[\\[${targetTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\|[^\\]]+)?\\]\\]`, 'i');
+    
+    if (titleRegex.test(sourceNote.content || '')) {
+      return { success: false, alreadyConnected: true, message: 'Estas notas já estão conectadas!' };
+    }
+
+    const linkText = `\n\n- Conexão com: [[${targetTitle}]]`;
+    const newContent = sourceNote.content ? `${sourceNote.content}${linkText}` : `# ${sourceNote.title}${linkText}`;
+    
+    await updateNote(sourceId, { content: newContent });
+    return { success: true, sourceTitle: sourceNote.title, targetTitle };
+  },
+
+  connectAllDemoNotes: async () => {
+    const { notes, updateNote } = get();
+    const validNotes = notes.filter(n => !n.isTrash && !n.deletedAt);
+    if (validNotes.length < 2) return { success: false, message: 'Necessário ter pelo menos 2 notas' };
+
+    let connectedCount = 0;
+    for (let i = 0; i < validNotes.length; i++) {
+      const current = validNotes[i];
+      // Conecta circularmente com a próxima nota e com uma nota alternada
+      const target1 = validNotes[(i + 1) % validNotes.length];
+      const target2 = validNotes[(i + 2) % validNotes.length];
+      
+      let content = current.content || `# ${current.title}`;
+      let modified = false;
+
+      [target1, target2].forEach(target => {
+        if (!target || target.id === current.id) return;
+        const targetTitle = (target.title || '').trim();
+        const regex = new RegExp(`\\[\\[${targetTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\|[^\\]]+)?\\]\\]`, 'i');
+        if (!regex.test(content)) {
+          content += `\n- [[${targetTitle}]]`;
+          modified = true;
+          connectedCount++;
+        }
+      });
+
+      if (modified) {
+        await updateNote(current.id, { content: content.trim() });
+      }
+    }
+
+    return { success: true, count: connectedCount };
   }
 }))
