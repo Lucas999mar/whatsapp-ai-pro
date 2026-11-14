@@ -154,10 +154,18 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
 
     // Filtra itens do Segundo Cérebro se useSecondBrain estiver desativado para o agente
     filteredItems = filteredItems.filter(item => {
+      // Se a nota veio de uma pasta especificamente conectada à base de conhecimento da IA, é conhecimento aprovado
+      const isFolderKnowledge = item.metadata && (item.metadata.isFolderKnowledge || item.metadata.folderId);
+      if (isFolderKnowledge) {
+        return true;
+      }
+
       const isSecondBrain =
         item.type === 'obsidian' ||
         (item.file_name && item.file_name.startsWith('brain_note_')) ||
+        (item.file_name && item.file_name.startsWith('evoluir_note_')) ||
         (item.title && item.title.includes('[Segundo Cérebro]')) ||
+        (item.title && item.title.includes('[Evoluir Notes]')) ||
         (item.metadata && item.metadata.isSecondBrain);
 
       if (isSecondBrain && !useSecondBrain) {

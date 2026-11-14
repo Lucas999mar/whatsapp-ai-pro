@@ -18,9 +18,15 @@ import {
   Command,
   Share2,
   Layers,
-  ChevronLeft
+  ChevronLeft,
+  Bot,
+  Brain,
+  CheckCircle2,
+  Loader2,
+  Unlink
 } from 'lucide-react';
 import { useNoteStore } from '../store/noteStore';
+import api from '../../api/api';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -86,6 +92,8 @@ export function Sidebar() {
     emptyTrash,
     starNote,
     openTab,
+    syncFolderWithAi,
+    disconnectFolderFromAi,
   } = useNoteStore();
 
   // Local state
@@ -93,6 +101,39 @@ export function Sidebar() {
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [showTrashSection, setShowTrashSection] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+
+  // AI Knowledge Base Connection Modal State
+  const [aiModal, setAiModal] = useState({
+    open: false,
+    folderId: null,
+    folderName: '',
+    isAiKnowledgeBase: false,
+    aiAgentId: 'global',
+    lastSyncedAt: null,
+    syncedNoteCount: 0
+  });
+  const [availableAgents, setAvailableAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [syncingAi, setSyncingAi] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState({ type: '', message: '' });
+
+  // Carrega lista de agentes disponíveis no backend ao abrir modal
+  useEffect(() => {
+    if (aiModal.open) {
+      setLoadingAgents(true);
+      setAiFeedback({ type: '', message: '' });
+      api.get('/brain/agents')
+        .then(res => {
+          if (res.data?.agents && Array.isArray(res.data.agents)) {
+            setAvailableAgents(res.data.agents);
+          }
+        })
+        .catch(() => {
+          setAvailableAgents([{ id: 'global', name: '🤖 Todos os Agentes (Global)', isDefault: true }]);
+        })
+        .finally(() => setLoadingAgents(false));
+    }
+  }, [aiModal.open]);
 
   // Context Menu State
   const [contextMenu, setContextMenu] = useState(null); // { x, y, type: 'note'|'folder', targetId }
@@ -483,11 +524,47 @@ export function Sidebar() {
                             <ChevronRight className="w-3 h-3" />
                           )}
                         </button>
-                        <Folder className="w-3.5 h-3.5 text-ev-mauve flex-shrink-0" />
+                        {folder.isAiKnowledgeBase ? (
+                          <span
+                            title={`Base de IA Conectada (${folder.aiAgentId === 'global' || !folder.aiAgentId ? 'Todos os Agentes' : 'Agente Específico'})`}
+                            className="flex items-center flex-shrink-0"
+                          >
+                            <Bot className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                          </span>
+                        ) : (
+                          <Folder className="w-3.5 h-3.5 text-ev-mauve flex-shrink-0" />
+                        )}
                         <span className="truncate">{folder.name}</span>
+                        {folder.isAiKnowledgeBase && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex-shrink-0">
+                            IA
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAiModal({
+                              open: true,
+                              folderId: folder.id,
+                              folderName: folder.name || '',
+                              isAiKnowledgeBase: !!folder.isAiKnowledgeBase,
+                              aiAgentId: folder.aiAgentId || 'global',
+                              lastSyncedAt: folder.lastSyncedAt || null,
+                              syncedNoteCount: folder.syncedNoteCount || folderNotesCount
+                            });
+                          }}
+                          title={folder.isAiKnowledgeBase ? 'Gerenciar Conexão com Agente de IA' : 'Conectar Pasta à IA (Base de Conhecimento)'}
+                          className={`p-0.5 rounded transition-all ${
+                            folder.isAiKnowledgeBase
+                              ? 'text-emerald-400 hover:text-emerald-300'
+                              : 'opacity-0 group-hover:opacity-100 text-ev-text-muted hover:text-emerald-400'
+                          }`}
+                        >
+                          <Bot className="w-3.5 h-3.5" />
+                        </button>
                         <span className="text-[10px] text-ev-text-muted font-mono">
                           {folderNotesCount}
                         </span>
@@ -825,6 +902,33 @@ export function Sidebar() {
                 <span>Renomear Pasta</span>
               </button>
 
+              <button
+                onClick={() => {
+                  const folder = folders.find((f) => f.id === contextMenu.targetId);
+                  const folderNotesCount = notes.filter(
+                    (n) => n.folderId === contextMenu.targetId && !n.deletedAt && !n.isTrash
+                  ).length;
+                  setContextMenu(null);
+                  setAiModal({
+                    open: true,
+                    folderId: contextMenu.targetId,
+                    folderName: folder?.name || '',
+                    isAiKnowledgeBase: !!folder?.isAiKnowledgeBase,
+                    aiAgentId: folder?.aiAgentId || 'global',
+                    lastSyncedAt: folder?.lastSyncedAt || null,
+                    syncedNoteCount: folder?.syncedNoteCount || folderNotesCount
+                  });
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-500/20 text-emerald-400 text-left font-medium"
+              >
+                <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                <span>
+                  {folders.find(f => f.id === contextMenu.targetId)?.isAiKnowledgeBase
+                    ? '⚙️ Gerenciar Base de IA'
+                    : '🤖 Conectar com Agente de IA'}
+                </span>
+              </button>
+
               <div className="my-1 border-t border-ev-border/50" />
 
               <button
@@ -986,6 +1090,183 @@ export function Sidebar() {
               >
                 Cancelar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Conectar com Agente de IA Modal */}
+      {aiModal.open && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181825] border border-emerald-500/30 rounded-2xl p-5 w-full max-w-md shadow-2xl space-y-4 animate-scale-in text-slate-200">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 shadow-md shadow-emerald-500/10">
+                  <Bot size={22} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Base de Conhecimento da IA</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                      RAG WhatsApp
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Pasta: <strong className="text-white">{aiModal.folderName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAiModal({ ...aiModal, open: false })}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Explicação */}
+            <div className="bg-slate-900/80 border border-white/5 rounded-xl p-3 text-xs text-slate-300 leading-relaxed space-y-1.5">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-[11px]">
+                <Sparkles size={14} />
+                <span>Como funciona a conexão?</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-normal">
+                Todas as notas desta pasta serão sincronizadas e vetorizadas na base de conhecimento oficial do sistema. Quando seus clientes fizerem perguntas no WhatsApp, o agente consultará essas anotações via busca semântica para responder com precisão cirúrgica.
+              </p>
+            </div>
+
+            {/* Seleção do Agente */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span>Vincular ao Agente:</span>
+                {loadingAgents && <Loader2 size={12} className="animate-spin text-emerald-400" />}
+              </label>
+              <select
+                value={aiModal.aiAgentId || 'global'}
+                onChange={(e) => setAiModal({ ...aiModal, aiAgentId: e.target.value })}
+                className="w-full bg-[#11111b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+              >
+                <option value="global">🤖 Todos os Agentes (Global)</option>
+                {availableAgents
+                  .filter((a) => a.id !== 'global')
+                  .map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} {agent.status === 'connected' ? '🟢 (Online)' : ''}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-[10px] text-slate-500">
+                {aiModal.aiAgentId === 'global'
+                  ? 'Qualquer agente ativo responderá usando as notas desta pasta.'
+                  : 'Apenas o agente selecionado terá acesso a esta base de conhecimento.'}
+              </p>
+            </div>
+
+            {/* Informações da Pasta */}
+            <div className="p-3 bg-white/5 rounded-xl border border-white/5 text-xs space-y-1.5">
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Notas a serem sincronizadas:</span>
+                <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded-md">
+                  {notes.filter((n) => n.folderId === aiModal.folderId && !n.isTrash && !n.deletedAt).length} notas
+                </span>
+              </div>
+              {aiModal.isAiKnowledgeBase && aiModal.lastSyncedAt && (
+                <div className="flex justify-between items-center text-emerald-400 text-[11px] pt-1 border-t border-white/5">
+                  <span>Status atual:</span>
+                  <span className="flex items-center gap-1 font-medium">
+                    <CheckCircle2 size={12} />
+                    Sincronizado {formatRelativeTime(aiModal.lastSyncedAt)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Feedback message */}
+            {aiFeedback.message && (
+              <div
+                className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 animate-fade-in ${
+                  aiFeedback.type === 'success'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                }`}
+              >
+                {aiFeedback.type === 'success' ? <CheckCircle2 size={16} /> : <X size={16} />}
+                <span>{aiFeedback.message}</span>
+              </div>
+            )}
+
+            {/* Ações */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+              {aiModal.isAiKnowledgeBase ? (
+                <button
+                  type="button"
+                  disabled={syncingAi}
+                  onClick={async () => {
+                    if (window.confirm(`Deseja desconectar a pasta "${aiModal.folderName}" da IA? As notas serão removidas da memória do bot.`)) {
+                      setSyncingAi(true);
+                      setAiFeedback({ type: '', message: '' });
+                      const res = await disconnectFolderFromAi(aiModal.folderId);
+                      setSyncingAi(false);
+                      if (res.success) {
+                        setAiFeedback({ type: 'success', message: 'Pasta desconectada com sucesso!' });
+                        setTimeout(() => setAiModal({ ...aiModal, open: false }), 900);
+                      } else {
+                        setAiFeedback({ type: 'error', message: res.error || 'Erro ao desconectar.' });
+                      }
+                    }
+                  }}
+                  className="px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Unlink size={14} />
+                  <span>Desconectar da IA</span>
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAiModal({ ...aiModal, open: false })}
+                  className="px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={syncingAi}
+                  onClick={async () => {
+                    setSyncingAi(true);
+                    setAiFeedback({ type: '', message: '' });
+                    const res = await syncFolderWithAi(aiModal.folderId, aiModal.aiAgentId || 'global');
+                    setSyncingAi(false);
+                    if (res.success) {
+                      setAiFeedback({
+                        type: 'success',
+                        message: `Conectado com sucesso! ${res.count} nota(s) sincronizadas para a IA.`
+                      });
+                      setTimeout(() => setAiModal({ ...aiModal, open: false }), 1200);
+                    } else {
+                      setAiFeedback({ type: 'error', message: res.error || 'Erro ao sincronizar.' });
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-slate-950 flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {syncingAi ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Sincronizando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={14} />
+                      <span>{aiModal.isAiKnowledgeBase ? 'Sincronizar Novamente' : 'Conectar com a IA'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

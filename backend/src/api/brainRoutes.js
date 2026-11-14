@@ -488,4 +488,279 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
+// ── GET: LISTAR AGENTES DISPONÍVEIS PARA CONEXÃO COM PASTAS ──
+router.get('/agents', async (req, res) => {
+    try {
+        const { listAgents } = require('../db/repository');
+        const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const rawAgents = await listAgents(tenantId);
+
+        const agents = [
+            { id: 'global', name: '🤖 Todos os Agentes (Global)', isDefault: true },
+            ...(rawAgents || []).map(a => ({
+                id: a.id,
+                name: a.name ? `Agente: ${a.name}` : `Agente WhatsApp (${a.id})`,
+                status: a.status
+            }))
+        ];
+
+        res.json({ agents });
+    } catch (err) {
+        console.error('Erro ao listar agentes para o cérebro:', err);
+        res.json({
+            agents: [
+                { id: 'global', name: '🤖 Todos os Agentes (Global)', isDefault: true }
+            ]
+        });
+    }
+});
+
+// ── GET: STATUS DAS PASTAS CONECTADAS À BASE DE CONHECIMENTO (RAG) ──
+router.get('/folder-kb/status', async (req, res) => {
+    try {
+        const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const supabase = getSupabase();
+
+        const { data, error } = await supabase
+            .from('knowledge_items')
+            .select('id, title, agent_id, updated_at, metadata')
+            .eq('tenant_id', tenantId)
+            .contains('metadata', { isFolderKnowledge: true });
+
+        if (error) {
+            console.warn('[folder-kb/status] Supabase select error:', error.message);
+            return res.json({ connectedFolders: {} });
+        }
+
+        // Agrupa por folderId
+        const connectedFolders = {};
+        (data || []).forEach(item => {
+            const folderId = item.metadata?.folderId;
+            if (!folderId) return;
+
+            if (!connectedFolders[folderId]) {
+                connectedFolders[folderId] = {
+                    folderId,
+                    folderName: item.metadata?.folderName || 'Pasta Conectada',
+                    agentId: item.agent_id || item.metadata?.agentId || 'global',
+                    noteCount: 0,
+                    lastSyncedAt: item.metadata?.syncedAt || item.updated_at
+                };
+            }
+            connectedFolders[folderId].noteCount += 1;
+        });
+
+        res.json({ connectedFolders });
+    } catch (err) {
+        console.error('Erro ao buscar status de pastas conectadas:', err);
+        res.json({ connectedFolders: {} });
+    }
+});
+
+// ── POST: SINCRONIZAR TODAS AS NOTAS DE UMA PASTA COMO BASE DE CONHECIMENTO ──
+router.post('/folder-kb/sync', async (req, res) => {
+    try {
+        const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const { folderId, folderName, agentId = 'global', notes = [] } = req.body;
+
+        if (!folderId) {
+            return res.status(400).json({ error: 'folderId é obrigatório' });
+        }
+
+        const supabase = getSupabase();
+        const { generateEmbedding } = require('../db/repository');
+        const { cleanMarkdown } = require('../obsidian/processor');
+
+        // 1. Remove itens antigos desta pasta para este tenant para evitar duplicatas
+        try {
+            const { data: existingItems } = await supabase
+                .from('knowledge_items')
+                .select('id, metadata')
+                .eq('tenant_id', tenantId);
+
+            const toDelete = (existingItems || []).filter(item => item.metadata?.folderId === folderId);
+            if (toDelete.length > 0) {
+                await supabase
+                    .from('knowledge_items')
+                    .delete()
+                    .in('id', toDelete.map(i => i.id));
+            }
+        } catch (delErr) {
+            console.warn('[folder-kb/sync] Aviso ao limpar itens antigos:', delErr.message);
+        }
+
+        // 2. Filtra notas válidas (que não foram apagadas e possuem conteúdo ou título)
+        const validNotes = notes.filter(n => !n.isTrash && !n.deletedAt && (n.title || n.content));
+        let syncedCount = 0;
+        const now = new Date().toISOString();
+
+        for (const note of validNotes) {
+            const rawContent = note.content || '';
+            const cleaned = cleanMarkdown ? cleanMarkdown(rawContent) : rawContent;
+            const fullText = `${note.title || 'Sem Título'}\n\n${cleaned}`.trim();
+
+            let embedding = null;
+            if (fullText.length > 10) {
+                try {
+                    embedding = await generateEmbedding(fullText.slice(0, 6000));
+                } catch (embErr) {
+                    console.warn(`[folder-kb/sync] Falha ao gerar embedding para "${note.title}":`, embErr.message);
+                }
+            }
+
+            const kbPayload = {
+                tenant_id: tenantId,
+                agent_id: agentId || 'global',
+                type: 'obsidian',
+                title: `[Evoluir Notes] [${folderName || 'Pasta'}] ${note.title || 'Sem Título'}`,
+                content: rawContent,
+                file_name: `evoluir_note_${note.id}`,
+                metadata: {
+                    isSecondBrain: true,
+                    isFolderKnowledge: true,
+                    folderId,
+                    folderName: folderName || 'Pasta Conectada',
+                    noteId: note.id,
+                    agentId: agentId || 'global',
+                    tenantId,
+                    syncedAt: now
+                },
+                embedding
+            };
+
+            const { error: insErr } = await supabase.from('knowledge_items').insert(kbPayload);
+            if (!insErr) syncedCount++;
+        }
+
+        console.log(`🧠 [FolderKB] Sincronizada pasta "${folderName}" (${syncedCount} notas) para agente "${agentId}" [tenant: ${tenantId}]`);
+
+        res.json({
+            success: true,
+            folderId,
+            folderName,
+            agentId,
+            syncedCount,
+            lastSyncedAt: now
+        });
+    } catch (err) {
+        console.error('Erro ao sincronizar pasta com a IA:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── POST: DESCONECTAR PASTA DA BASE DE CONHECIMENTO ──
+router.post('/folder-kb/disconnect', async (req, res) => {
+    try {
+        const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const { folderId } = req.body;
+
+        if (!folderId) {
+            return res.status(400).json({ error: 'folderId é obrigatório' });
+        }
+
+        const supabase = getSupabase();
+        const { data: existingItems } = await supabase
+            .from('knowledge_items')
+            .select('id, metadata')
+            .eq('tenant_id', tenantId);
+
+        const toDelete = (existingItems || []).filter(item => item.metadata?.folderId === folderId);
+        if (toDelete.length > 0) {
+            await supabase
+                .from('knowledge_items')
+                .delete()
+                .in('id', toDelete.map(i => i.id));
+        }
+
+        console.log(`🔌 [FolderKB] Pasta "${folderId}" desconectada da base de conhecimento da IA`);
+        res.json({ success: true, folderId, removedCount: toDelete.length });
+    } catch (err) {
+        console.error('Erro ao desconectar pasta da IA:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── POST: AUTO-SYNC DE NOTA INDIVIDUAL (QUANDO EDITADA/CRIADA DENTRO DE PASTA CONECTADA) ──
+router.post('/folder-kb/sync-note', async (req, res) => {
+    try {
+        const tenantId = req.user?.tenant_id || req.user?.id || 'default';
+        const { note, folderId, folderName, agentId = 'global', isConnected = true, action = 'save' } = req.body;
+
+        if (!note || !note.id) {
+            return res.status(400).json({ error: 'Dados da nota incompletos' });
+        }
+
+        const supabase = getSupabase();
+        const fileName = `evoluir_note_${note.id}`;
+
+        // Se a ação for apagar ou se a pasta não está mais conectada à IA, remove da KB
+        if (action === 'delete' || !isConnected || note.isTrash || note.deletedAt) {
+            await supabase
+                .from('knowledge_items')
+                .delete()
+                .eq('tenant_id', tenantId)
+                .eq('file_name', fileName);
+
+            return res.json({ success: true, action: 'deleted' });
+        }
+
+        // Se for salvar, gera embedding e atualiza / insere
+        const { generateEmbedding } = require('../db/repository');
+        const { cleanMarkdown } = require('../obsidian/processor');
+
+        const rawContent = note.content || '';
+        const cleaned = cleanMarkdown ? cleanMarkdown(rawContent) : rawContent;
+        const fullText = `${note.title || 'Sem Título'}\n\n${cleaned}`.trim();
+
+        let embedding = null;
+        if (fullText.length > 10) {
+            try {
+                embedding = await generateEmbedding(fullText.slice(0, 6000));
+            } catch (embErr) {
+                console.warn(`[folder-kb/sync-note] Falha embedding nota ${note.id}:`, embErr.message);
+            }
+        }
+
+        const kbPayload = {
+            tenant_id: tenantId,
+            agent_id: agentId || 'global',
+            type: 'obsidian',
+            title: `[Evoluir Notes] [${folderName || 'Pasta'}] ${note.title || 'Sem Título'}`,
+            content: rawContent,
+            file_name: fileName,
+            metadata: {
+                isSecondBrain: true,
+                isFolderKnowledge: true,
+                folderId,
+                folderName: folderName || 'Pasta Conectada',
+                noteId: note.id,
+                agentId: agentId || 'global',
+                tenantId,
+                syncedAt: new Date().toISOString()
+            },
+            embedding,
+            updated_at: new Date().toISOString()
+        };
+
+        const { data: existing } = await supabase
+            .from('knowledge_items')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('file_name', fileName)
+            .maybeSingle();
+
+        if (existing) {
+            await supabase.from('knowledge_items').update(kbPayload).eq('id', existing.id);
+        } else {
+            kbPayload.created_at = new Date().toISOString();
+            await supabase.from('knowledge_items').insert(kbPayload);
+        }
+
+        res.json({ success: true, action: 'saved', noteId: note.id });
+    } catch (err) {
+        console.error('Erro no auto-sync de nota com a IA:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

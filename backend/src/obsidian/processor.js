@@ -78,4 +78,4 @@ function processObsidianFile(filePath, vaultPath) {
   }
 }
 
-module.exports = { processObsidianFile };
+module.exports = { processObsidianFile, cleanMarkdown, splitIntoChunks };

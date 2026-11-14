@@ -1,5 +1,45 @@
 import { create } from 'zustand'
 import { db, seedDatabase } from '../utils/db'
+import api from '../../api/api'
+
+// Debounce helper para sincronização de notas de pastas conectadas à IA
+const syncNoteDebounceTimers = new Map();
+
+function debouncedSyncNote(note, folder) {
+  if (!folder || !folder.isAiKnowledgeBase) return;
+  if (syncNoteDebounceTimers.has(note.id)) {
+    clearTimeout(syncNoteDebounceTimers.get(note.id));
+  }
+  const timer = setTimeout(async () => {
+    try {
+      await api.post('/brain/folder-kb/sync-note', {
+        note,
+        folderId: folder.id,
+        folderName: folder.name,
+        agentId: folder.aiAgentId || 'global',
+        isConnected: true,
+        action: 'save'
+      });
+    } catch (e) {
+      console.warn('[debouncedSyncNote] Falha ao sincronizar nota com a IA:', e.message);
+    } finally {
+      syncNoteDebounceTimers.delete(note.id);
+    }
+  }, 1000);
+  syncNoteDebounceTimers.set(note.id, timer);
+}
+
+async function deleteNoteFromAiKb(noteId) {
+  try {
+    await api.post('/brain/folder-kb/sync-note', {
+      note: { id: noteId },
+      isConnected: false,
+      action: 'delete'
+    });
+  } catch (e) {
+    console.warn('[deleteNoteFromAiKb] Falha ao remover nota da IA:', e.message);
+  }
+}
 
 export const parseWikiLinks = (content = '') => {
   if (!content) return []
@@ -53,7 +93,29 @@ export const useNoteStore = create((set, get) => ({
       await seedDatabase()
 
       const allNotes = await db.notes.toArray()
-      const allFolders = await db.folders.toArray()
+      let allFolders = await db.folders.toArray()
+
+      // Tenta recuperar status de pastas conectadas à IA no backend
+      try {
+        const res = await api.get('/brain/folder-kb/status');
+        if (res.data?.connectedFolders) {
+          const connected = res.data.connectedFolders;
+          allFolders = allFolders.map(f => {
+            if (connected[f.id]) {
+              return {
+                ...f,
+                isAiKnowledgeBase: true,
+                aiAgentId: connected[f.id].agentId || 'global',
+                lastSyncedAt: connected[f.id].lastSyncedAt,
+                syncedNoteCount: connected[f.id].noteCount
+              };
+            }
+            return f;
+          });
+        }
+      } catch (err) {
+        // Silencioso se offline
+      }
 
       const activeNotes = allNotes.filter(n => !n.isTrash)
       const trashNotes = allNotes.filter(n => !!n.isTrash)
@@ -128,6 +190,15 @@ export const useNoteStore = create((set, get) => ({
           openTabs
         }
       })
+
+      // Se a nota foi criada dentro de pasta conectada à IA, sincroniza em background
+      if (newNote.folderId) {
+        const folder = get().folders.find(f => f.id === newNote.folderId);
+        if (folder?.isAiKnowledgeBase) {
+          debouncedSyncNote(newNote, folder);
+        }
+      }
+
       return newNote
     } catch (err) {
       console.error('Error creating note:', err)
@@ -156,6 +227,19 @@ export const useNoteStore = create((set, get) => ({
       set(state => ({
         notes: state.notes.map(n => (n.id === id ? { ...n, ...payload } : n))
       }))
+
+      // Se a nota estiver em uma pasta conectada à IA, sincroniza em tempo real
+      const updatedNote = { ...target, ...payload };
+      const currentFolder = get().folders.find(f => f.id === updatedNote.folderId);
+      if (currentFolder?.isAiKnowledgeBase) {
+        debouncedSyncNote(updatedNote, currentFolder);
+      } else if (target.folderId && target.folderId !== updatedNote.folderId) {
+        // Se foi movida para fora de uma pasta conectada, remove da base de conhecimento da IA
+        const prevFolder = get().folders.find(f => f.id === target.folderId);
+        if (prevFolder?.isAiKnowledgeBase) {
+          deleteNoteFromAiKb(id);
+        }
+      }
     } catch (err) {
       console.error('Error updating note:', err)
     }
@@ -166,6 +250,15 @@ export const useNoteStore = create((set, get) => ({
     try {
       const now = new Date().toISOString()
       await db.notes.update(id, { isTrash: 1, deletedAt: now, updatedAt: now })
+
+      // Se a nota excluída pertencia a pasta da IA, remove da base de conhecimento
+      const targetNote = get().notes.find(n => n.id === id);
+      if (targetNote?.folderId) {
+        const folder = get().folders.find(f => f.id === targetNote.folderId);
+        if (folder?.isAiKnowledgeBase) {
+          deleteNoteFromAiKb(id);
+        }
+      }
 
       set(state => {
         const deletedNote = state.notes.find(n => n.id === id)
@@ -298,9 +391,18 @@ export const useNoteStore = create((set, get) => ({
 
   deleteFolder: async (id) => {
     try {
-      const { notes } = get()
-      const notesInFolder = notes.filter(n => n.folderId === id)
+      const { notes, folders } = get()
+      const targetFolder = folders.find(f => f.id === id);
 
+      if (targetFolder?.isAiKnowledgeBase) {
+        try {
+          await api.post('/brain/folder-kb/disconnect', { folderId: id });
+        } catch (e) {
+          console.warn('Erro ao desconectar pasta deletada da IA:', e.message);
+        }
+      }
+
+      const notesInFolder = notes.filter(n => n.folderId === id)
       for (const note of notesInFolder) {
         await db.notes.update(note.id, { folderId: null })
       }
@@ -314,6 +416,64 @@ export const useNoteStore = create((set, get) => ({
       }))
     } catch (err) {
       console.error('Error deleting folder:', err)
+    }
+  },
+
+  // ── AÇÕES DE BASE DE CONHECIMENTO DE IA (RAG) ──
+  syncFolderWithAi: async (folderId, agentId = 'global') => {
+    const { folders, notes } = get();
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return { success: false, error: 'Pasta não encontrada' };
+
+    const folderNotes = notes.filter(n => n.folderId === folderId && !n.isTrash && !n.deletedAt);
+
+    try {
+      const res = await api.post('/brain/folder-kb/sync', {
+        folderId,
+        folderName: folder.name,
+        agentId,
+        notes: folderNotes
+      });
+
+      const updates = {
+        isAiKnowledgeBase: true,
+        aiAgentId: agentId,
+        lastSyncedAt: res.data?.lastSyncedAt || new Date().toISOString(),
+        syncedNoteCount: res.data?.syncedCount !== undefined ? res.data.syncedCount : folderNotes.length
+      };
+
+      await db.folders.update(folderId, updates);
+      set(state => ({
+        folders: state.folders.map(f => (f.id === folderId ? { ...f, ...updates } : f))
+      }));
+
+      return { success: true, count: folderNotes.length };
+    } catch (err) {
+      console.error('Erro ao sincronizar pasta com IA:', err);
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  },
+
+  disconnectFolderFromAi: async (folderId) => {
+    try {
+      await api.post('/brain/folder-kb/disconnect', { folderId });
+
+      const updates = {
+        isAiKnowledgeBase: false,
+        aiAgentId: null,
+        lastSyncedAt: null,
+        syncedNoteCount: 0
+      };
+
+      await db.folders.update(folderId, updates);
+      set(state => ({
+        folders: state.folders.map(f => (f.id === folderId ? { ...f, ...updates } : f))
+      }));
+
+      return { success: true };
+    } catch (err) {
+      console.error('Erro ao desconectar pasta da IA:', err);
+      return { success: false, error: err.response?.data?.error || err.message };
     }
   },
 
