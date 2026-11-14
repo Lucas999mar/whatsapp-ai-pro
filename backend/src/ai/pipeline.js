@@ -112,7 +112,9 @@ async function callChatCompletion({ provider, apiKey, model, messages, tools = n
 
     // Mapeamento de modelos comuns para o formato da OpenRouter
     let mappedModel = model;
-    if (mappedModel === 'claude-3-haiku-20240307') {
+    if (apiKey && apiKey.startsWith('sk-or-') && (mappedModel === 'gpt-4o-mini' || mappedModel === 'claude-3-haiku-20240307' || mappedModel === 'free' || !mappedModel)) {
+      mappedModel = 'openrouter/free';
+    } else if (mappedModel === 'claude-3-haiku-20240307') {
       mappedModel = 'anthropic/claude-3-haiku';
     } else if (mappedModel === 'claude-3-5-sonnet-20241022') {
       mappedModel = 'anthropic/claude-3.5-sonnet';

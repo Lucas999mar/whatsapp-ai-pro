@@ -83,7 +83,9 @@ export default function SettingsPage() {
     openai_api_key: '',
     openai_model: 'gpt-4o-mini',
     anthropic_api_key: '',
-    anthropic_model: 'claude-3-haiku-20240307'
+    anthropic_model: 'claude-3-haiku-20240307',
+    openrouter_api_key: '',
+    openrouter_model: 'openrouter/free'
   });
 
   const [loading, setLoading] = useState(true);
@@ -434,15 +436,16 @@ export default function SettingsPage() {
                 <p className="text-sm text-slate-400 mb-6">Selecione qual cérebro de IA este agente usará para processar mensagens. Deixe a chave de API em branco para usar a chave padrão do servidor.</p>
 
                 {/* Provider Selector */}
-                <div className="flex gap-3 mb-6">
+                <div className="flex gap-3 mb-6 flex-wrap">
                   {[
                     { id: 'openai', label: 'OpenAI', icon: '🟢', desc: 'GPT-4o, GPT-4o-mini' },
-                    { id: 'anthropic', label: 'Anthropic Claude', icon: '🟠', desc: 'Claude Haiku, Sonnet, Opus' }
+                    { id: 'anthropic', label: 'Anthropic Claude', icon: '🟠', desc: 'Claude Haiku, Sonnet, Opus' },
+                    { id: 'openrouter', label: 'OpenRouter (Grátis)', icon: '🟣', desc: 'Modelos Gratuitos (Gemma, Nemotron)' }
                   ].map(p => (
                     <button
                       key={p.id}
                       onClick={() => handleChange('ai_provider', p.id)}
-                      className={`flex-1 flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all cursor-pointer ${settings.ai_provider === p.id
+                      className={`flex-1 min-w-[200px] flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all cursor-pointer ${settings.ai_provider === p.id
                         ? 'bg-[#25D366]/10 border-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.15)]'
                         : 'bg-white/[0.02] border-white/10 hover:border-white/20'
                         }`}
@@ -515,6 +518,44 @@ export default function SettingsPage() {
                     <div className="md:col-span-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
                       <span className="text-amber-400 text-lg">⚠️</span>
                       <p className="text-xs text-amber-300/80">A Anthropic não oferece TTS (texto em áudio) nem Whisper (transcrição). Se o modo de resposta for "Áudio" ou "Espelhar", o sistema usará automaticamente a OpenAI para TTS/transcrição, mantendo o Claude apenas para o raciocínio textual.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* OpenRouter Config */}
+                {settings.ai_provider === 'openrouter' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-[#0F172A] rounded-xl border border-white/5 animate-fade-in">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-2">Chave de API OpenRouter</label>
+                      <input
+                        type="password"
+                        placeholder="sk-or-v1-..."
+                        value={settings.openrouter_api_key || settings.openai_api_key}
+                        onChange={(e) => {
+                          handleChange('openrouter_api_key', e.target.value);
+                          handleChange('openai_api_key', e.target.value);
+                        }}
+                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#25D366]/50 transition-colors"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Cole aqui sua chave sk-or-v1-... da OpenRouter.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-2">Modelo OpenRouter</label>
+                      <select
+                        value={settings.openrouter_model || 'openrouter/free'}
+                        onChange={(e) => handleChange('openrouter_model', e.target.value)}
+                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#25D366]/50 transition-colors"
+                      >
+                        <option value="openrouter/free">openrouter/free (Melhor Gratuito Automático)</option>
+                        <option value="google/gemma-4-31b-it:free">Google Gemma 31B (100% Gratuito)</option>
+                        <option value="nvidia/nemotron-3.5-lightning:free">Nvidia Nemotron 3.5 (100% Gratuito)</option>
+                        <option value="meta-llama/llama-3.3-70b-instruct">Meta Llama 3.3 70B</option>
+                        <option value="deepseek/deepseek-r1">DeepSeek R1</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-start gap-3">
+                      <span className="text-emerald-400 text-lg">💡</span>
+                      <p className="text-xs text-emerald-300/80">Com os modelos marcados como <strong>Gratuito</strong>, você não precisa de cartão nem créditos pagos na OpenRouter. O bot responderá com agilidade e inteligência sem custo algum.</p>
                     </div>
                   </div>
                 )}
