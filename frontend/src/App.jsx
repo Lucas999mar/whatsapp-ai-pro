@@ -5,8 +5,9 @@ import {
   LayoutDashboard, Database, MessageSquare, BrainCircuit,
   Settings, LogOut, Sparkles, ShieldCheck, Building2, Menu, X, Megaphone,
   Calendar as CalendarIcon, Blocks, ClipboardList, Users, Bike, Wand2, Layout, Network, Camera,
-  FileSignature, BarChart2, Plug, Briefcase, Target
+  FileSignature, BarChart2, Plug, Briefcase, Target, BookOpen
 } from 'lucide-react';
+import EvoluirNotesPage from './pages/EvoluirNotesPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import KnowledgeBase from './pages/KnowledgeBase';
@@ -82,6 +83,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { path: '/content-planner', name: 'Planejador de Conteúdo', icon: <Layout size={20} /> },
     { path: '/social-analytics', name: 'Analytics de Redes', icon: <BarChart2 size={20} /> },
     { path: '/ads', name: 'Gestor de Ads (Tráfego)', icon: <Target size={20} /> },
+    { path: '/notes', name: 'Evoluir Notes', icon: <BookOpen size={20} /> },
     { path: '/mindmap', name: 'Mapas Mentais', icon: <Network size={20} /> },
     { path: '/brain', name: 'Segundo Cérebro', icon: <BrainCircuit size={20} /> },
     { path: '/agent', name: 'Agente Autônomo', icon: <BrainCircuit size={20} /> },
@@ -124,6 +126,7 @@ function Sidebar({ isOpen, setIsOpen }) {
       '/contacts': 'contacts',
       '/groups': 'groups',
       '/knowledge': 'knowledge',
+      '/notes': 'knowledge',
       '/brain': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
@@ -258,6 +261,7 @@ function AuthGuard({ children, adminOnly = false }) {
       '/contacts': 'contacts',
       '/groups': 'groups',
       '/knowledge': 'knowledge',
+      '/notes': 'knowledge',
       '/brain': 'knowledge',
       '/agenda': 'agenda',
       '/content-planner': 'contentPlanner',
@@ -343,39 +347,48 @@ function AppContent() {
     );
   }
 
+  const isNotes = location.pathname === '/notes';
+
   return (
     <div className="min-h-screen bg-[#0B0F19] flex text-slate-200 font-sans selection:bg-[#25D366]/30">
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      <main className="flex-1 lg:ml-64 p-4 md:p-8 relative overflow-x-hidden min-h-screen">
+      <main className={`flex-1 lg:ml-64 relative ${isNotes ? 'h-screen p-0 overflow-hidden bg-[#1e1e2e]' : 'p-4 md:p-8 relative overflow-x-hidden min-h-screen'}`}>
         {/* Mobile Header */}
-        <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full">
-              {user?.logo ? (
-                <img src={user.logo} className="w-full h-full object-cover rounded-full" alt="Logo" />
-              ) : (
-                <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Logo" />
-              )}
+        {!isNotes && (
+          <div className="lg:hidden flex items-center justify-between mb-6 bg-[#0F172A]/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full">
+                {user?.logo ? (
+                  <img src={user.logo} className="w-full h-full object-cover rounded-full" alt="Logo" />
+                ) : (
+                  <img src={logoImage} className="w-full h-full object-cover scale-110" alt="Logo" />
+                )}
+              </div>
+              <span className="font-black text-white tracking-tight uppercase text-xs">
+                {user?.is_subuser ? (user?.company_name || user?.name || 'Evoluir Mais') : (user?.name || 'Evoluir Mais')}
+              </span>
             </div>
-            <span className="font-black text-white tracking-tight uppercase text-xs">
-              {user?.is_subuser ? (user?.company_name || user?.name || 'Evoluir Mais') : (user?.name || 'Evoluir Mais')}
-            </span>
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 bg-white/5 rounded-xl text-white"
+            >
+              <Menu size={24} />
+            </button>
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 bg-white/5 rounded-xl text-white"
-          >
-            <Menu size={24} />
-          </button>
-        </div>
+        )}
 
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#25D366]/5 blur-[120px] pointer-events-none"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
+        {!isNotes && (
+          <>
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#25D366]/5 blur-[120px] pointer-events-none"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
+          </>
+        )}
 
-        <div className="relative z-10 max-w-7xl mx-auto">
+        <div className={`relative z-10 ${isNotes ? 'w-full h-full' : 'max-w-7xl mx-auto'}`}>
           <Routes>
             <Route path="/" element={<AuthGuard><Dashboard /></AuthGuard>} />
+            <Route path="/notes" element={<AuthGuard><EvoluirNotesPage /></AuthGuard>} />
             <Route path="/atendimento" element={<AuthGuard><AtendimentoPage /></AuthGuard>} />
             <Route path="/crm" element={<AuthGuard><CRMPage /></AuthGuard>} />
             <Route path="/contacts" element={<AuthGuard><ContatosPage /></AuthGuard>} />

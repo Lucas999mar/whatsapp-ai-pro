@@ -1,6 +1,29 @@
 @import 'leaflet/dist/leaflet.css';
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+@theme {
+  --color-ev-bg-primary: #1e1e2e;
+  --color-ev-bg-secondary: #181825;
+  --color-ev-bg-tertiary: #11111b;
+  --color-ev-bg-surface: #252536;
+  --color-ev-bg-hover: #313244;
+  --color-ev-bg-active: #45475a;
+  --color-ev-text-primary: #cdd6f4;
+  --color-ev-text-secondary: #a6adc8;
+  --color-ev-text-muted: #6c7086;
+  --color-ev-accent: #89b4fa;
+  --color-ev-accent-hover: #74c7ec;
+  --color-ev-green: #a6e3a1;
+  --color-ev-red: #f38ba8;
+  --color-ev-yellow: #f9e2af;
+  --color-ev-peach: #fab387;
+  --color-ev-mauve: #cba6f7;
+  --color-ev-pink: #f5c2e7;
+  --color-ev-teal: #94e2d5;
+  --color-ev-border: #313244;
+  --color-ev-border-hover: #45475a;
+}
 
 :root {
   --wa-green: #25D366;
@@ -316,4 +339,368 @@ a {
     top: 100%;
     opacity: 0;
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   EVOLUIR NOTES — OBSIDIAN-LIKE CUSTOM STYLES
+   ══════════════════════════════════════════════════════ */
+
+/* CodeMirror Catppuccin Mocha Overrides */
+.cm-theme-evoluir,
+.cm-editor {
+  height: 100% !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace !important;
+  font-size: 14.5px !important;
+  line-height: 1.65 !important;
+  background-color: transparent !important;
+}
+
+.cm-editor .cm-scroller {
+  font-family: inherit !important;
+  padding: 1rem 0;
+}
+
+.cm-editor.cm-focused {
+  outline: none !important;
+}
+
+.cm-editor .cm-gutters {
+  background-color: #181825 !important;
+  color: #6c7086 !important;
+  border-right: 1px solid #313244 !important;
+  font-size: 12px !important;
+  padding-right: 4px !important;
+}
+
+.cm-editor .cm-activeLineGutter {
+  background-color: #31324440 !important;
+  color: #cba6f7 !important;
+}
+
+.cm-editor .cm-activeLine {
+  background-color: #31324425 !important;
+}
+
+.cm-editor .cm-cursor {
+  border-left-color: #89b4fa !important;
+  border-left-width: 2px !important;
+}
+
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground {
+  background-color: #45475a80 !important;
+}
+
+/* Markdown Preview Styling */
+.ev-markdown {
+  color: #cdd6f4;
+  line-height: 1.75;
+  font-size: 15px;
+}
+
+.ev-markdown h1,
+.ev-markdown h2,
+.ev-markdown h3,
+.ev-markdown h4,
+.ev-markdown h5,
+.ev-markdown h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+}
+
+.ev-markdown h1 {
+  font-size: 2.1rem;
+  color: #89b4fa;
+  border-bottom: 1px solid #313244;
+  padding-bottom: 0.3em;
+}
+
+.ev-markdown h2 {
+  font-size: 1.65rem;
+  color: #cba6f7;
+  border-bottom: 1px solid #31324450;
+  padding-bottom: 0.2em;
+}
+
+.ev-markdown h3 {
+  font-size: 1.35rem;
+  color: #74c7ec;
+}
+
+.ev-markdown h4 {
+  font-size: 1.15rem;
+  color: #fab387;
+}
+
+.ev-markdown h5 {
+  font-size: 1rem;
+  color: #94e2d5;
+}
+
+.ev-markdown h6 {
+  font-size: 0.9rem;
+  color: #a6e3a1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ev-markdown p {
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+  color: #cdd6f4;
+}
+
+.ev-markdown a {
+  color: #89b4fa;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.ev-markdown a:hover {
+  color: #74c7ec;
+  text-decoration: underline;
+}
+
+/* Wiki Links [[Link]] */
+.wiki-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(137, 180, 250, 0.12);
+  color: #89b4fa;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 500;
+  border-bottom: 1.5px solid rgba(137, 180, 250, 0.4);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none !important;
+}
+
+.wiki-link:hover {
+  background: rgba(137, 180, 250, 0.25);
+  color: #b4befe;
+  border-bottom-color: #89b4fa;
+  box-shadow: 0 0 12px rgba(137, 180, 250, 0.25);
+  transform: translateY(-1px);
+}
+
+/* Tag Pills #tag */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: rgba(203, 166, 247, 0.15);
+  color: #cba6f7;
+  padding: 0.08rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid rgba(203, 166, 247, 0.25);
+  transition: all 0.15s ease;
+}
+
+.tag-pill:hover {
+  background: rgba(203, 166, 247, 0.3);
+  color: #f5c2e7;
+  border-color: #cba6f7;
+  transform: scale(1.04);
+}
+
+/* Blockquotes */
+.ev-markdown blockquote {
+  border-left: 3px solid #89b4fa;
+  background: linear-gradient(90deg, rgba(24, 24, 37, 0.7) 0%, rgba(30, 30, 46, 0.2) 100%);
+  padding: 0.8rem 1.2rem;
+  margin: 1.2rem 0;
+  border-radius: 0 8px 8px 0;
+  color: #a6adc8;
+  font-style: italic;
+}
+
+.ev-markdown blockquote p {
+  margin: 0;
+}
+
+/* Inline Code & Code Blocks */
+.ev-markdown :not(pre) > code {
+  background-color: #11111b;
+  color: #fab387;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+  border: 1px solid #313244;
+}
+
+.ev-markdown pre {
+  background-color: #11111b;
+  border: 1px solid #313244;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1.2rem 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.ev-markdown pre code {
+  background-color: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  color: #cdd6f4;
+}
+
+/* Lists and Task Lists */
+.ev-markdown ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.8rem 0;
+}
+
+.ev-markdown ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.8rem 0;
+}
+
+.ev-markdown li {
+  margin: 0.35rem 0;
+}
+
+.ev-markdown input[type="checkbox"] {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid #6c7086;
+  border-radius: 4px;
+  background-color: #181825;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ev-markdown input[type="checkbox"]:checked {
+  background-color: #89b4fa;
+  border-color: #89b4fa;
+}
+
+.ev-markdown input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #11111b;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Tables */
+.ev-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #313244;
+}
+
+.ev-markdown th {
+  background-color: #181825;
+  color: #cba6f7;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid #313244;
+}
+
+.ev-markdown td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #31324460;
+  color: #cdd6f4;
+}
+
+.ev-markdown tr:hover td {
+  background-color: #25253640;
+}
+
+/* Horizontal Rule */
+.ev-markdown hr {
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #313244 50%, transparent 100%);
+  margin: 2rem 0;
+}
+
+/* Math equations KaTeX overrides */
+.katex-display {
+  padding: 0.8rem 0;
+  margin: 1rem 0 !important;
+  background: #18182540;
+  border-radius: 8px;
+  border: 1px solid #31324440;
+}
+
+/* Graph View styling */
+.graph-canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, #181825 0%, #11111b 100%);
+  overflow: hidden;
+}
+
+.graph-canvas-container svg {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.graph-canvas-container svg:active {
+  cursor: grabbing;
+}
+
+.graph-link {
+  stroke: #45475a;
+  stroke-opacity: 0.65;
+  transition: stroke 0.2s, stroke-opacity 0.2s;
+}
+
+.graph-link.active-link {
+  stroke: #89b4fa;
+  stroke-opacity: 0.9;
+  stroke-width: 2.5px !important;
+}
+
+.graph-node {
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.graph-node circle {
+  transition: r 0.2s ease, fill 0.2s ease, stroke 0.2s ease;
+}
+
+.graph-node:hover circle {
+  filter: drop-shadow(0 0 8px rgba(137, 180, 250, 0.8));
+}
+
+.graph-node text {
+  fill: #cdd6f4;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  user-select: none;
 }
