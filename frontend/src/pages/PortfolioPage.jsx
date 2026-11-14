@@ -7,6 +7,13 @@ import {
   Calendar, Building2, Tag, ShieldCheck
 } from 'lucide-react';
 import api from '../api/api';
+import {
+  MediaCardCover,
+  MediaLightboxModal,
+  parseMediaUrl,
+  YouTubeIcon,
+  InstagramIcon
+} from '../components/portfolio/MediaRenderer';
 
 export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('cases'); // 'cases' | 'niches' | 'services' | 'proposals'
@@ -73,6 +80,7 @@ export default function PortfolioPage() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [mediaUrlInput, setMediaUrlInput] = useState('');
   const [mediaTypeInput, setMediaTypeInput] = useState('image');
+  const [lightboxMedia, setLightboxMedia] = useState(null); // { list: [], index: 0, title: '' }
 
   useEffect(() => {
     fetchAllData();
@@ -222,10 +230,24 @@ export default function PortfolioPage() {
   };
 
   const handleAddMediaUrl = () => {
-    if (!mediaUrlInput) return;
+    if (!mediaUrlInput.trim()) return;
+    const parsed = parseMediaUrl(mediaUrlInput);
     setCaseForm(prev => ({
       ...prev,
-      media: [...prev.media, { type: mediaTypeInput, url: mediaUrlInput, caption: 'Mídia incorporada' }]
+      media: [
+        ...prev.media,
+        {
+          type: parsed.type,
+          url: mediaUrlInput.trim(),
+          caption: parsed.type === 'youtube'
+            ? (parsed.isShorts ? 'YouTube Shorts (9:16)' : 'Vídeo YouTube')
+            : parsed.type === 'instagram'
+            ? 'Instagram Reel (9:16)'
+            : parsed.type === 'video'
+            ? 'Vídeo Direto'
+            : 'Imagem'
+        }
+      ]
     }));
     setMediaUrlInput('');
   };
@@ -539,33 +561,23 @@ export default function PortfolioPage() {
                 >
                   <div>
                     {/* Imagem / Mídia de Capa */}
-                    <div className="h-48 bg-slate-950 relative overflow-hidden flex items-center justify-center">
-                      {item.media && item.media.length > 0 ? (
-                        item.media[0].type === 'video' ? (
-                          <div className="w-full h-full relative flex items-center justify-center bg-slate-950">
-                            <video src={item.media[0].url} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <span className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-                                ▶
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <img
-                            src={item.media[0].url}
-                            alt={item.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                        )
-                      ) : (
-                        <div className="text-slate-600 flex flex-col items-center gap-2">
-                          <ImageIcon size={32} />
-                          <span className="text-xs">Sem fotos</span>
-                        </div>
-                      )}
+                    <div className="h-52 bg-slate-950 relative overflow-hidden">
+                      <MediaCardCover
+                        media={item.media}
+                        title={item.title}
+                        onClick={() => {
+                          if (item.media && item.media.length > 0) {
+                            setLightboxMedia({
+                              list: item.media,
+                              index: 0,
+                              title: item.title
+                            });
+                          }
+                        }}
+                      />
 
                       {/* Badges sobre a capa */}
-                      <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
+                      <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap z-10 pointer-events-none">
                         {item.niche_name && (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900/80 text-emerald-400 border border-emerald-500/30 backdrop-blur-sm">
                             {item.niche_name}
@@ -579,7 +591,7 @@ export default function PortfolioPage() {
                       </div>
 
                       {item.media && item.media.length > 1 && (
-                        <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-md text-[10px] font-bold bg-black/70 text-white backdrop-blur-sm">
+                        <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-md text-[10px] font-bold bg-black/70 text-white backdrop-blur-sm z-10 pointer-events-none">
                           +{item.media.length - 1} mídias
                         </span>
                       )}
@@ -1071,25 +1083,50 @@ export default function PortfolioPage() {
 
                 {/* Lista de Mídias Já Adicionadas */}
                 {caseForm.media.length > 0 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {caseForm.media.map((m, idx) => (
-                      <div key={idx} className="relative rounded-xl overflow-hidden border border-white/10 h-20 bg-slate-900 group">
-                        {m.type === 'video' ? (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-slate-400 font-bold bg-slate-950">
-                            🎬 Vídeo
-                          </div>
-                        ) : (
-                          <img src={m.url} alt="" className="w-full h-full object-cover" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setCaseForm(prev => ({ ...prev, media: prev.media.filter((_, i) => i !== idx) }))}
-                          className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {caseForm.media.map((m, idx) => {
+                      const p = parseMediaUrl(m.url, m.type);
+                      return (
+                        <div key={idx} className="relative rounded-xl overflow-hidden border border-white/10 h-24 bg-slate-900 group shadow-md">
+                          {p.type === 'youtube' ? (
+                            <div className="w-full h-full relative">
+                              <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <YouTubeIcon className="w-6 h-6 text-red-500" />
+                              </div>
+                              <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/80 text-[9px] text-white rounded font-mono font-bold">
+                                {p.isShorts ? 'Shorts 9:16' : '16:9'}
+                              </span>
+                            </div>
+                          ) : p.type === 'instagram' ? (
+                            <div className="w-full h-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] flex flex-col items-center justify-center text-white p-1 text-center">
+                              <InstagramIcon className="w-6 h-6" />
+                              <span className="text-[10px] font-bold mt-1">Reels 9:16</span>
+                            </div>
+                          ) : p.type === 'video' ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-xs text-slate-400 font-bold bg-slate-950 gap-1">
+                              <Video size={18} className="text-emerald-400" />
+                              <span className="text-[10px]">Vídeo</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={p.url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setCaseForm(prev => ({ ...prev, media: prev.media.filter((_, i) => i !== idx) }))}
+                            className="absolute top-1 right-1 p-1 bg-red-600 hover:bg-red-500 text-white rounded-md text-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow"
+                            title="Remover mídia"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1105,23 +1142,70 @@ export default function PortfolioPage() {
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">Ou cole uma URL (YouTube, Vimeo, Imagem):</label>
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      Ou cole URL (YouTube, Instagram Reels, Imagem):
+                    </label>
                     <div className="flex gap-1.5">
                       <input
                         type="url"
                         value={mediaUrlInput}
                         onChange={(e) => setMediaUrlInput(e.target.value)}
-                        placeholder="https://..."
-                        className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddMediaUrl();
+                          }
+                        }}
+                        placeholder="https://instagram.com/reel/... ou https://youtube.com/..."
+                        className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 outline-none"
                       />
                       <button
                         type="button"
                         onClick={handleAddMediaUrl}
-                        className="px-3 py-1.5 bg-white/10 text-white rounded-xl text-xs font-bold hover:bg-white/20"
+                        className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-bold transition-all shadow"
                       >
                         + Add
                       </button>
                     </div>
+
+                    {/* Dica de detecção em tempo real */}
+                    {mediaUrlInput && (
+                      <div className="mt-1.5 text-[10px] flex items-center gap-1.5">
+                        {(() => {
+                          const p = parseMediaUrl(mediaUrlInput);
+                          if (p.type === 'youtube') {
+                            return (
+                              <span className="text-red-400 font-bold flex items-center gap-1">
+                                <YouTubeIcon className="w-3 h-3 text-red-500" />
+                                <span>YouTube detectado ({p.isShorts ? 'Shorts 9:16' : 'Formato 16:9'})</span>
+                              </span>
+                            );
+                          }
+                          if (p.type === 'instagram') {
+                            return (
+                              <span className="text-pink-400 font-bold flex items-center gap-1">
+                                <InstagramIcon className="w-3 h-3 text-pink-400" />
+                                <span>Instagram {p.isReel ? 'Reel detectado (Formato 9:16)' : 'detectado'}</span>
+                              </span>
+                            );
+                          }
+                          if (p.type === 'video') {
+                            return (
+                              <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                <Video size={12} />
+                                <span>Vídeo direto detectado</span>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-blue-400 font-bold flex items-center gap-1">
+                              <ImageIcon size={12} />
+                              <span>Link de Imagem</span>
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1530,6 +1614,17 @@ export default function PortfolioPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL DE VISUALIZAÇÃO DE MÍDIA / LIGHTBOX ── */}
+      {lightboxMedia && (
+        <MediaLightboxModal
+          isOpen={!!lightboxMedia}
+          mediaList={lightboxMedia.list}
+          initialIndex={lightboxMedia.index}
+          title={lightboxMedia.title}
+          onClose={() => setLightboxMedia(null)}
+        />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import {
   Building2, User, ChevronRight, X, AlertCircle
 } from 'lucide-react';
 import api from '../api/api';
+import { MediaCardCover, MediaLightboxModal } from '../components/portfolio/MediaRenderer';
 
 export default function ProposalPublicPage() {
   const { token } = useParams();
@@ -222,39 +223,23 @@ export default function ProposalPublicPage() {
                   key={item.id}
                   className="bg-slate-900 border border-white/10 rounded-3xl overflow-hidden hover:border-emerald-500/40 transition-all shadow-xl group"
                 >
-                  <div
-                    onClick={() => {
-                      if (item.media && item.media.length > 0) {
-                        setSelectedMedia(item.media[0]);
-                      }
-                    }}
-                    className="h-44 bg-slate-950 relative overflow-hidden cursor-pointer"
-                  >
-                    {item.media && item.media.length > 0 ? (
-                      item.media[0].type === 'video' ? (
-                        <div className="w-full h-full relative flex items-center justify-center bg-slate-950">
-                          <video src={item.media[0].url} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <span className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-                              ▶
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <img
-                          src={item.media[0].url}
-                          alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      )
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-600">
-                        <ImageIcon size={28} />
-                      </div>
-                    )}
+                  <div className="h-44 bg-slate-950 relative overflow-hidden">
+                    <MediaCardCover
+                      media={item.media}
+                      title={item.title}
+                      onClick={() => {
+                        if (item.media && item.media.length > 0) {
+                          setSelectedMedia({
+                            list: item.media,
+                            index: 0,
+                            title: item.title
+                          });
+                        }
+                      }}
+                    />
 
                     {item.results_metric && (
-                      <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-black text-[10px] shadow-md">
+                      <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-black text-[10px] shadow-md z-10 pointer-events-none">
                         {item.results_metric}
                       </div>
                     )}
@@ -348,25 +333,13 @@ export default function ProposalPublicPage() {
 
       {/* ── MODAL LIGHTBOX DE MÍDIA ── */}
       {selectedMedia && (
-        <div
-          onClick={() => setSelectedMedia(null)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div className="relative max-w-4xl max-h-[85vh] w-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setSelectedMedia(null)}
-              className="absolute -top-10 right-0 text-white font-bold text-sm flex items-center gap-1"
-            >
-              <X size={20} />
-              <span>Fechar</span>
-            </button>
-            {selectedMedia.type === 'video' ? (
-              <video src={selectedMedia.url} controls autoPlay className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl" />
-            ) : (
-              <img src={selectedMedia.url} alt="" className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl" />
-            )}
-          </div>
-        </div>
+        <MediaLightboxModal
+          isOpen={!!selectedMedia}
+          mediaList={selectedMedia.list || (selectedMedia.url ? [selectedMedia] : [])}
+          initialIndex={selectedMedia.index || 0}
+          title={selectedMedia.title || ''}
+          onClose={() => setSelectedMedia(null)}
+        />
       )}
     </div>
   );
