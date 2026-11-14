@@ -79,6 +79,7 @@ export function Sidebar() {
     setSidebarWidth,
     setSearchQuery,
     toggleCommandPalette,
+    showGraphView = false,
     toggleGraphView,
     moveToTrash,
     restoreFromTrash,
@@ -281,7 +282,11 @@ export function Sidebar() {
             <button
               onClick={() => toggleGraphView()}
               title="Grafo de Conexões"
-              className="p-1.5 text-ev-text-muted hover:text-ev-accent hover:bg-ev-bg-hover rounded-md transition-colors"
+              className={`p-1.5 rounded-md transition-colors ${
+                showGraphView
+                  ? 'bg-ev-accent text-ev-bg-tertiary font-bold shadow-sm'
+                  : 'text-ev-text-muted hover:text-ev-accent hover:bg-ev-bg-hover'
+              }`}
             >
               <Share2 className="w-4 h-4" />
             </button>

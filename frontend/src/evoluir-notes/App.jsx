@@ -90,7 +90,9 @@ export default function App() {
 
         {/* Note Content Viewport */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
-          {activeNoteId ? (
+          {showGraphView ? (
+            <GraphView onClose={() => setShowGraphView(false)} />
+          ) : activeNoteId ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Editor / Preview Area */}
               <div className="flex-1 flex overflow-hidden">
@@ -129,11 +131,6 @@ export default function App() {
           )}
         </div>
       </main>
-
-      {/* Fullscreen / Modal Graph View Overlay */}
-      {showGraphView && (
-        <GraphView onClose={() => setShowGraphView(false)} />
-      )}
 
       {/* Command Palette Modal Overlay */}
       {showCommandPalette && (

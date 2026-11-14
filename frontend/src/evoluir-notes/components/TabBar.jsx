@@ -33,6 +33,7 @@ export function TabBar() {
     closeAllTabs,
     editorMode = 'edit',
     setEditorMode,
+    showGraphView = false,
     toggleGraphView,
     toggleCommandPalette,
   } = useNoteStore();
@@ -284,7 +285,11 @@ export function TabBar() {
           <button
             onClick={() => toggleGraphView()}
             title="Grafo de Conexões (Ctrl+Shift+G)"
-            className="p-1.5 text-ev-text-muted hover:text-ev-accent hover:bg-ev-bg-hover rounded-md transition-colors"
+            className={`p-1.5 rounded-md transition-colors ${
+              showGraphView
+                ? 'bg-ev-accent text-ev-bg-tertiary font-bold shadow-sm'
+                : 'text-ev-text-muted hover:text-ev-accent hover:bg-ev-bg-hover'
+            }`}
           >
             <Share2 className="w-3.5 h-3.5" />
           </button>
