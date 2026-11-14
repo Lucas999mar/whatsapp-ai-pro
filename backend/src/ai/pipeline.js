@@ -26,7 +26,7 @@ function resolveAIConfig(settings = {}) {
     return {
       provider: 'openrouter',
       apiKey,
-      model: settings.openrouter_model || settings.anthropic_model || 'anthropic/claude-3-haiku',
+      model: settings.openrouter_model || settings.anthropic_model || 'openrouter/free',
     };
   }
 
@@ -112,10 +112,10 @@ async function callChatCompletion({ provider, apiKey, model, messages, tools = n
 
     // Mapeamento de modelos comuns para o formato da OpenRouter
     let mappedModel = model;
-    if (apiKey && apiKey.startsWith('sk-or-') && (mappedModel === 'gpt-4o-mini' || mappedModel === 'claude-3-haiku-20240307' || mappedModel === 'free' || !mappedModel)) {
+    if (apiKey && apiKey.startsWith('sk-or-') && (mappedModel === 'gpt-4o-mini' || mappedModel === 'claude-3-haiku-20240307' || mappedModel === 'anthropic/claude-3-haiku' || mappedModel === 'free' || !mappedModel)) {
       mappedModel = 'openrouter/free';
-    } else if (mappedModel === 'claude-3-haiku-20240307') {
-      mappedModel = 'anthropic/claude-3-haiku';
+    } else if (mappedModel === 'claude-3-haiku-20240307' || mappedModel === 'anthropic/claude-3-haiku') {
+      mappedModel = 'openrouter/free';
     } else if (mappedModel === 'claude-3-5-sonnet-20241022') {
       mappedModel = 'anthropic/claude-3.5-sonnet';
     } else if (!mappedModel.includes('/')) {
@@ -299,6 +299,10 @@ function buildSystemPrompt(context, botName = 'Assistente', customPrompt = null,
 
   const basePrompt = `Você é ${botName}, representante oficial da empresa. Você atende clientes pelo WhatsApp em nome da empresa.
 ${continuationInstruction}
+
+IDIOMA OBRIGATÓRIO (REGRA ABSOLUTA):
+- Responda SEMPRE E EXCLUSIVAMENTE em português do Brasil (pt-BR).
+- Sob hipótese alguma responda em inglês ou qualquer outro idioma.
 
 SUA IDENTIDADE E PAPEL (REGRA FUNDAMENTAL - NUNCA VIOLE):
 - Você É a empresa falando diretamente com o cliente. Você representa a marca.

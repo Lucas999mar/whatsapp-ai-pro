@@ -96,38 +96,70 @@ async function addKnowledgeItem({ title, type, content, fileUrl, fileName, fileS
 }
 
 /**
- * Busca itens relevantes (com tenantId e agentId) via similaridade vetorial em memória
+ * Helper para extrair palavras-chave relevantes da busca ignorando stopwords
+ */
+function extractSearchKeywords(query = '') {
+  const stopWords = new Set([
+    'a', 'o', 'as', 'os', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das',
+    'em', 'no', 'na', 'nos', 'nas', 'por', 'pelo', 'pela', 'pelos', 'pelas',
+    'para', 'com', 'sem', 'sob', 'sobre', 'que', 'qual', 'quais', 'quem', 'como',
+    'onde', 'quando', 'quanto', 'quantos', 'quantas', 'por que', 'porque',
+    'quero', 'saber', 'mais', 'favor', 'pode', 'me', 'te', 'lhe', 'informar',
+    'informacoes', 'informacao', 'detalhes', 'detalhe', 'sobre', 'esse', 'essa',
+    'isso', 'este', 'esta', 'isto', 'aquele', 'aquela', 'aquilo', 'tem', 'ter'
+  ]);
+
+  return query
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= 2 && !stopWords.has(word));
+}
+
+/**
+ * Busca itens relevantes (com tenantId e agentId) via similaridade vetorial e fallback léxico/palavras-chave
  */
 async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = 'default') {
   const supabase = getSupabase();
   try {
-    const embedding = await generateEmbedding(query);
+    let embedding = null;
+    try {
+      embedding = await generateEmbedding(query);
+    } catch (e) {
+      console.warn('[searchKnowledge] Falha ao gerar embedding (usando busca textual inteligente):', e.message);
+    }
 
-    // Busca todos os itens com embedding pertencentes ao tenant
+    // Busca todos os itens
     let dbQuery = supabase
       .from('knowledge_items')
-      .select('id, title, type, content, file_url, metadata, embedding')
-      .not('embedding', 'is', null);
-
-    if (tenantId !== 'admin') {
-      dbQuery = dbQuery.eq('metadata->>tenantId', tenantId);
-    }
+      .select('id, title, type, content, file_url, metadata, embedding');
 
     const { data: items, error } = await dbQuery;
     if (error) throw error;
-
     if (!items || items.length === 0) return [];
 
     // Isolamento estrito de memória entre Agente Autônomo (Hermes) e Agentes Normais
     let filteredItems = items;
     const isHermesSearch = agentId === 'hermes' || (agentId && agentId.startsWith('agent_hermes'));
 
-    // Verifica se este agente específico tem permissão para usar as notas do Segundo Cérebro (Obsidian)
-    let useSecondBrain = false;
+    // Filtra pelo tenantId respeitando escopo (aceita o tenant atual, default ou global)
+    filteredItems = filteredItems.filter(item => {
+      const itemTenant = item.metadata?.tenantId;
+      if (!itemTenant || itemTenant === 'global' || itemTenant === 'default') return true;
+      if (tenantId === 'admin' || !tenantId) return true;
+      return itemTenant === tenantId;
+    });
+
+    // Permissão Segundo Cérebro
+    let useSecondBrain = true;
     if (agentId && agentId !== 'global' && agentId !== 'all') {
       try {
         const settings = await getBotSettings(agentId, tenantId);
-        useSecondBrain = settings && settings.use_second_brain === true;
+        if (settings && settings.use_second_brain !== undefined) {
+          useSecondBrain = settings.use_second_brain === true;
+        }
       } catch (e) {
         console.warn(`[searchKnowledge] Erro ao carregar configs do bot ${agentId}:`, e.message);
       }
@@ -135,30 +167,27 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
 
     if (isHermesSearch) {
       const hermesAgentId = tenantId !== 'default' ? `agent_hermes_${tenantId}` : 'hermes';
-      filteredItems = items.filter(item => {
+      filteredItems = filteredItems.filter(item => {
         const itemAgentId = item.metadata?.agentId;
-        return itemAgentId === 'hermes' || itemAgentId === hermesAgentId || (itemAgentId && itemAgentId.startsWith('agent_hermes'));
+        return !itemAgentId || itemAgentId === 'global' || itemAgentId === 'hermes' || itemAgentId === hermesAgentId || (itemAgentId && itemAgentId.startsWith('agent_hermes'));
       });
     } else {
-      filteredItems = items.filter(item => {
+      filteredItems = filteredItems.filter(item => {
         const itemAgentId = item.metadata?.agentId || 'global';
         const itemIsHermes = itemAgentId === 'hermes' || (itemAgentId && itemAgentId.startsWith('agent_hermes'));
         if (itemIsHermes) return false;
 
         if (agentId && agentId !== 'all' && agentId !== 'global') {
-          return itemAgentId === 'global' || itemAgentId === agentId;
+          return itemAgentId === 'global' || itemAgentId === agentId || !itemAgentId;
         }
         return true;
       });
     }
 
-    // Filtra itens do Segundo Cérebro se useSecondBrain estiver desativado para o agente
+    // Filtra itens do Segundo Cérebro se useSecondBrain estiver desativado
     filteredItems = filteredItems.filter(item => {
-      // Se a nota veio de uma pasta especificamente conectada à base de conhecimento da IA, é conhecimento aprovado
       const isFolderKnowledge = item.metadata && (item.metadata.isFolderKnowledge || item.metadata.folderId);
-      if (isFolderKnowledge) {
-        return true;
-      }
+      if (isFolderKnowledge) return true;
 
       const isSecondBrain =
         item.type === 'obsidian' ||
@@ -168,27 +197,42 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
         (item.title && item.title.includes('[Evoluir Notes]')) ||
         (item.metadata && item.metadata.isSecondBrain);
 
-      if (isSecondBrain && !useSecondBrain) {
-        return false;
-      }
+      if (isSecondBrain && !useSecondBrain) return false;
       return true;
     });
 
-    // Calcula a similaridade de cosseno (produto escalar de vetores normalizados) em JavaScript
+    const keywords = extractSearchKeywords(query);
+
+    // Calcula relevância híbrida (Vetorial + Palavras-Chave)
     const scored = filteredItems.map(item => {
-      let emb = item.embedding;
-      if (typeof emb === 'string') {
-        emb = JSON.parse(emb);
+      let vectorScore = 0;
+      if (embedding && item.embedding) {
+        let emb = item.embedding;
+        if (typeof emb === 'string') {
+          try { emb = JSON.parse(emb); } catch (e) { emb = null; }
+        }
+        if (Array.isArray(emb) && emb.length === embedding.length) {
+          for (let i = 0; i < emb.length; i++) {
+            vectorScore += emb[i] * embedding[i];
+          }
+        }
       }
 
-      if (!Array.isArray(emb) || emb.length !== embedding.length) {
-        return { ...item, similarity: 0 };
+      // Pontuação por palavras-chave
+      let textScore = 0;
+      const titleNorm = (item.title || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const contentNorm = (item.content || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      for (const kw of keywords) {
+        if (titleNorm.includes(kw)) {
+          textScore += 3.0; // Título tem peso 3x
+        }
+        if (contentNorm.includes(kw)) {
+          textScore += 1.0;
+        }
       }
 
-      let dotProduct = 0;
-      for (let i = 0; i < emb.length; i++) {
-        dotProduct += emb[i] * embedding[i];
-      }
+      const totalScore = (vectorScore * 10) + textScore;
 
       return {
         id: item.id,
@@ -197,20 +241,20 @@ async function searchKnowledge(query, topK = 5, agentId = 'global', tenantId = '
         content: item.content,
         file_url: item.file_url,
         metadata: item.metadata,
-        similarity: dotProduct
+        similarity: vectorScore,
+        score: totalScore
       };
     });
 
-    // Ordena, aplica o limiar de 0.3 e retorna os topK
     const results = scored
-      .filter(item => item.similarity > 0.3)
-      .sort((a, b) => b.similarity - a.similarity)
+      .filter(item => item.score > 0 || item.similarity > 0.25)
+      .sort((a, b) => b.score - a.score)
       .slice(0, topK);
 
     return results;
   } catch (err) {
-    console.error('Vector Search Error (JS Fallback):', err.message);
-    return []; // Fallback to avoid breaking the chat
+    console.error('Knowledge Search Error (Fallback):', err.message);
+    return [];
   }
 }
 

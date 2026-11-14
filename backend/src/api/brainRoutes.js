@@ -523,8 +523,7 @@ router.get('/folder-kb/status', async (req, res) => {
 
         const { data, error } = await supabase
             .from('knowledge_items')
-            .select('id, title, agent_id, updated_at, metadata')
-            .eq('tenant_id', tenantId)
+            .select('id, title, updated_at, metadata')
             .contains('metadata', { isFolderKnowledge: true });
 
         if (error) {
@@ -535,6 +534,9 @@ router.get('/folder-kb/status', async (req, res) => {
         // Agrupa por folderId
         const connectedFolders = {};
         (data || []).forEach(item => {
+            if (tenantId !== 'admin' && item.metadata?.tenantId && item.metadata?.tenantId !== tenantId) {
+                return;
+            }
             const folderId = item.metadata?.folderId;
             if (!folderId) return;
 
@@ -542,7 +544,7 @@ router.get('/folder-kb/status', async (req, res) => {
                 connectedFolders[folderId] = {
                     folderId,
                     folderName: item.metadata?.folderName || 'Pasta Conectada',
-                    agentId: item.agent_id || item.metadata?.agentId || 'global',
+                    agentId: item.metadata?.agentId || 'global',
                     noteCount: 0,
                     lastSyncedAt: item.metadata?.syncedAt || item.updated_at
                 };
@@ -575,10 +577,12 @@ router.post('/folder-kb/sync', async (req, res) => {
         try {
             const { data: existingItems } = await supabase
                 .from('knowledge_items')
-                .select('id, metadata')
-                .eq('tenant_id', tenantId);
+                .select('id, metadata');
 
-            const toDelete = (existingItems || []).filter(item => item.metadata?.folderId === folderId);
+            const toDelete = (existingItems || []).filter(item => 
+                item.metadata?.folderId === folderId && 
+                (!item.metadata?.tenantId || item.metadata?.tenantId === tenantId || tenantId === 'admin')
+            );
             if (toDelete.length > 0) {
                 await supabase
                     .from('knowledge_items')
@@ -609,8 +613,6 @@ router.post('/folder-kb/sync', async (req, res) => {
             }
 
             const kbPayload = {
-                tenant_id: tenantId,
-                agent_id: agentId || 'global',
                 type: 'obsidian',
                 title: `[Evoluir Notes] [${folderName || 'Pasta'}] ${note.title || 'Sem Título'}`,
                 content: rawContent,
@@ -661,10 +663,12 @@ router.post('/folder-kb/disconnect', async (req, res) => {
         const supabase = getSupabase();
         const { data: existingItems } = await supabase
             .from('knowledge_items')
-            .select('id, metadata')
-            .eq('tenant_id', tenantId);
+            .select('id, metadata');
 
-        const toDelete = (existingItems || []).filter(item => item.metadata?.folderId === folderId);
+        const toDelete = (existingItems || []).filter(item => 
+            item.metadata?.folderId === folderId && 
+            (!item.metadata?.tenantId || item.metadata?.tenantId === tenantId || tenantId === 'admin')
+        );
         if (toDelete.length > 0) {
             await supabase
                 .from('knowledge_items')
@@ -695,11 +699,15 @@ router.post('/folder-kb/sync-note', async (req, res) => {
 
         // Se a ação for apagar ou se a pasta não está mais conectada à IA, remove da KB
         if (action === 'delete' || !isConnected || note.isTrash || note.deletedAt) {
-            await supabase
+            const { data: existing } = await supabase
                 .from('knowledge_items')
-                .delete()
-                .eq('tenant_id', tenantId)
+                .select('id, metadata')
                 .eq('file_name', fileName);
+
+            const toDelete = (existing || []).filter(i => !i.metadata?.tenantId || i.metadata?.tenantId === tenantId || tenantId === 'admin');
+            if (toDelete.length > 0) {
+                await supabase.from('knowledge_items').delete().in('id', toDelete.map(i => i.id));
+            }
 
             return res.json({ success: true, action: 'deleted' });
         }
@@ -722,8 +730,6 @@ router.post('/folder-kb/sync-note', async (req, res) => {
         }
 
         const kbPayload = {
-            tenant_id: tenantId,
-            agent_id: agentId || 'global',
             type: 'obsidian',
             title: `[Evoluir Notes] [${folderName || 'Pasta'}] ${note.title || 'Sem Título'}`,
             content: rawContent,
@@ -742,12 +748,12 @@ router.post('/folder-kb/sync-note', async (req, res) => {
             updated_at: new Date().toISOString()
         };
 
-        const { data: existing } = await supabase
+        const { data: existingList } = await supabase
             .from('knowledge_items')
-            .select('id')
-            .eq('tenant_id', tenantId)
-            .eq('file_name', fileName)
-            .maybeSingle();
+            .select('id, metadata')
+            .eq('file_name', fileName);
+
+        const existing = (existingList || []).find(i => !i.metadata?.tenantId || i.metadata?.tenantId === tenantId || tenantId === 'admin');
 
         if (existing) {
             await supabase.from('knowledge_items').update(kbPayload).eq('id', existing.id);
